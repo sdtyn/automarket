@@ -20,5 +20,38 @@
     "format:check": "prettier --check .",
     "test": "jest --passWithNoTests"
   },
-  "private": true
+  "private": true,
+  "cds": {
+    "requires": {
+      "auth": {
+        "kind": "mocked",
+        "users": {
+          "admin": {
+            "password": "admin",
+            "roles": [
+              "Admin"
+            ]
+          },
+          "manager": {
+            "password": "manager",
+            "roles": [
+              "Manager"
+            ]
+          },
+          "operator": {
+            "password": "operator",
+            "roles": [
+              "Operator"
+            ]
+          },
+          "customer": {
+            "password": "customer",
+            "roles": [
+              "Customer"
+            ]
+          }
+        }
+      }
+    }
+  }
 }
