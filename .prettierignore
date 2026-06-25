@@ -1,0 +1,6 @@
+node_modules/
+gen/
+coverage/
+package-lock.json
+.cds_gen/
+docs/
