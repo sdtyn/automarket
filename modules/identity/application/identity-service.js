@@ -4,7 +4,7 @@
 // application/ are separate), CAP cannot auto-detect the link — the binding is
 // declared explicitly via "impl" in package.json under cds.services.
 const cds = require('@sap/cds');
-const authProvider = require('../infrastructure/auth');
+const authProvider = require('../../../infrastructure/auth');
 const { shouldLock, lockoutUntil } = require('../domain/lockout');
 const { isMfaRequired } = require('../domain/mfa');
 

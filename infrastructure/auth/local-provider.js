@@ -1,5 +1,5 @@
-const { verifyPassword } = require('../password');
-const { issueToken, verifyToken } = require('../jwt');
+const { verifyPassword } = require('../../modules/identity/infrastructure/password');
+const { issueToken, verifyToken } = require('../../modules/identity/infrastructure/jwt');
 
 // Local provider implements the auth provider interface for development and
 // non-BTP environments. It uses email/password + Bcrypt + JWT — the full
