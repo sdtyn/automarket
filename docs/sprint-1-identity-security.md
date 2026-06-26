@@ -6,8 +6,8 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 |---|---|---|
 | EPIC02-T1 | Identity Domain Model — `Users`, `Roles`, `UserRoles` entities + `UserStatus` enum; `common.cds` shared types | Done |
 | EPIC02-T2 | Local Auth — Bcrypt password hashing, email/password login handler, JWT issuance (US-2.3, US-2.4, US-2.5) | Done |
-| EPIC02-T3 | Authentication Provider Abstraction — `local-provider` / `xsuaa-provider` / `guest-token-provider` behind one interface; business logic reads only `req.user` (US-2.16) | In Progress |
-| EPIC02-T4 | Account & Profile Self-Service — view/update own profile (name, phone), change own password (US-2.12, US-2.13) | Open |
+| EPIC02-T3 | Authentication Provider Abstraction — `local-provider` / `xsuaa-provider` / `guest-token-provider` behind one interface; business logic reads only `req.user` (US-2.16) | Done |
+| EPIC02-T4 | Account & Profile Self-Service — view/update own profile (name, phone), change own password (US-2.12, US-2.13) | In Progress |
 | EPIC02-T5 | Account Lockout — 5 failed attempts / 15 min → 30-min time-based unlock; `LOCKED` status + `lockedUntil` field (US-2.9) | Open |
 | EPIC02-T6 | MFA Enforcement — mandatory for Operator/Manager/Admin; risk-based/optional for Customer; never blocks Guest Checkout (US-2.8) | Open |
 | EPIC02-T7 | Session Timeout & Rate Limiting — Approuter config: 15 min Admin, 30 min Manager/Operator; 100/300 req/min auth, 20/100 req/min guest (US-2.10, US-2.11) | Open |

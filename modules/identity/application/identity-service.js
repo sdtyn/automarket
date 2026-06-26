@@ -4,8 +4,7 @@
 // application/ are separate), CAP cannot auto-detect the link — the binding is
 // declared explicitly via "impl" in package.json under cds.services.
 const cds = require('@sap/cds');
-const { verifyPassword } = require('../infrastructure/password');
-const { issueToken } = require('../infrastructure/jwt');
+const authProvider = require('../infrastructure/auth');
 
 module.exports = cds.service.impl(async function (srv) {
   const { Users, UserRoles } = cds.entities('automarket');
@@ -34,7 +33,7 @@ module.exports = cds.service.impl(async function (srv) {
     // INACTIVE is a permanent admin-set state, unlike LOCKED which is temporary.
     if (user.status === 'INACTIVE') return req.error(403, 'Account is disabled');
 
-    const valid = await verifyPassword(password, user.passwordHash);
+    const valid = await authProvider.authenticate({ password, user });
     if (!valid) {
       const newCount = (user.failedLoginCount || 0) + 1;
       // On the 5th failure, flip status to LOCKED and record the unlock
@@ -61,7 +60,7 @@ module.exports = cds.service.impl(async function (srv) {
     const userRole = await SELECT.one.from(UserRoles).where({ user_ID: user.ID });
     const role = userRole?.role_ID ?? 'Customer';
 
-    const token = issueToken({ userId: user.ID, email: user.email, role });
+    const token = authProvider.issueToken({ userId: user.ID, email: user.email, role });
     return { token, userId: user.ID, role };
   });
 });
