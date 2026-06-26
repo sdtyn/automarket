@@ -2,11 +2,15 @@
   "name": "automarket",
   "version": "1.0.0",
   "dependencies": {
-    "@sap/cds": "^9"
+    "@sap/cds": "^9",
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^2",
     "@eslint/js": "^9.39.4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.7.0",
@@ -51,6 +55,17 @@
             ]
           }
         }
+      },
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": ":memory:"
+        }
+      }
+    },
+    "services": {
+      "IdentityService": {
+        "impl": "modules/identity/application/identity-service.js"
       }
     }
   }
