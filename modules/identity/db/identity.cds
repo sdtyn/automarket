@@ -28,6 +28,10 @@ entity Users : BaseEntity {
   // The lock is time-based — no background job needed to unlock; the login
   // handler simply checks whether lockedUntil has passed.
   failedLoginCount : Integer default 0;
+  // Marks the start of the current failure window. Used together with
+  // failedLoginCount to enforce the 15-minute rolling window lockout policy —
+  // failures older than 15 minutes do not count toward the threshold.
+  firstFailedAt    : Timestamp;
   lockedUntil      : Timestamp;
 }
 
