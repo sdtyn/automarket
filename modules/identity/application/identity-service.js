@@ -9,6 +9,8 @@ const authProvider = require('../infrastructure/auth');
 module.exports = cds.service.impl(async function (srv) {
   const { Users, UserRoles } = cds.entities('automarket');
 
+  // login: authenticates with email/password, returns a signed JWT on success.
+  // All lockout and status checks happen here before delegating to authProvider.
   srv.on('login', async (req) => {
     const { email, password } = req.data;
 
@@ -64,6 +66,9 @@ module.exports = cds.service.impl(async function (srv) {
     return { token, userId: user.ID, role };
   });
 
+  // getProfile: returns the authenticated user's own profile fields.
+  // Email is read-only — it doubles as the login credential and username,
+  // so changing it requires a separate admin flow, not a self-service update.
   srv.on('getProfile', async (req) => {
     // req.user.id is populated by CAP from the JWT — no need to pass userId
     // in the request body, which would open a door for users to read others' profiles.
@@ -78,6 +83,9 @@ module.exports = cds.service.impl(async function (srv) {
     };
   });
 
+  // updateProfile: allows the authenticated user to update display fields only.
+  // Sensitive fields (email, passwordHash, status, mfaRequired) are excluded —
+  // those require admin action or a dedicated flow (changePassword).
   srv.on('updateProfile', async (req) => {
     // req.user.id comes from the verified JWT — the user cannot spoof another
     // user's ID by passing it in the request body, because the body is ignored here.
@@ -86,6 +94,9 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
+  // changePassword: replaces the user's password after verifying the current one.
+  // Old password verification is mandatory — a stolen session token alone must
+  // not be enough to lock out the legitimate account owner.
   srv.on('changePassword', async (req) => {
     const { oldPassword, newPassword } = req.data;
     const user = await SELECT.one.from(Users).where({ ID: req.user.id });
