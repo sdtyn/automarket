@@ -4,7 +4,7 @@
 // application/ are separate), CAP cannot auto-detect the link — the binding is
 // declared explicitly via "impl" in package.json under cds.services.
 const cds = require('@sap/cds');
-const { hashPassword, verifyPassword } = require('../infrastructure/password');
+const { verifyPassword } = require('../infrastructure/password');
 const { issueToken } = require('../infrastructure/jwt');
 
 module.exports = cds.service.impl(async function (srv) {

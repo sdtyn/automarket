@@ -75,3 +75,32 @@ The binding must be declared explicitly in `package.json`:
 ```
 
 Each new module service needs its own entry here.
+
+---
+
+## 4. CAP Runtime Globals and ESLint
+
+**Context:** CAP injects query keywords (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `UPSERT`)
+into JavaScript's global scope at runtime. This means you can use them in any handler
+file without `require`-ing anything — CAP puts them there automatically when the server starts.
+
+**Problem:** ESLint performs static analysis and never sees the runtime. It flags these
+as `'SELECT' is not defined`, causing CI to fail even though the code works correctly.
+
+**Solution:** Declare them as known globals in `eslint.config.js`:
+
+```js
+globals: {
+  ...globals.node,
+  ...globals.jest,
+  // CAP injects these as globals at runtime; ESLint must be told they exist.
+  SELECT: 'readonly',
+  INSERT: 'readonly',
+  UPDATE: 'readonly',
+  DELETE: 'readonly',
+  UPSERT: 'readonly',
+},
+```
+
+**Symptom if forgotten:** ESLint passes locally if you never run it, but CI fails with
+`'SELECT' is not defined` errors on any file that uses CAP query syntax.
