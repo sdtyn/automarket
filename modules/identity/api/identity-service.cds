@@ -34,4 +34,32 @@ service IdentityService @(path: '/identity') {
     @requires: 'authenticated-user'
     action   updateProfile(firstName: String, lastName: String, phoneNumber: String) returns Boolean;
 
+    // Admin-only user management operations.
+    // @requires: 'Admin' ensures CAP rejects any request from a non-Admin role
+    // before it reaches the handler — no role check needed inside the handler.
+    @requires: 'Admin'
+    function listUsers()                                                             returns array of {
+        id          : String;
+        email       : String;
+        firstName   : String;
+        lastName    : String;
+        status      : String;
+        mfaRequired : Boolean;
+        isLocked    : Boolean;
+    };
+
+    @requires: 'Admin'
+    action   createUser(email: String,
+                        firstName: String,
+                        lastName: String,
+                        phoneNumber: String,
+                        password: String,
+                        roleCode: String)                                            returns String;
+
+    @requires: 'Admin'
+    action   assignRole(userId: String, roleCode: String)                            returns Boolean;
+
+
+    @requires: 'Admin'
+    action   disableUser(userId: String)                                             returns Boolean;
 }

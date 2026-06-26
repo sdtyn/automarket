@@ -7,9 +7,10 @@ const cds = require('@sap/cds');
 const authProvider = require('../../../infrastructure/auth');
 const { shouldLock, lockoutUntil } = require('../domain/lockout');
 const { isMfaRequired } = require('../domain/mfa');
+const { hashPassword } = require('../infrastructure/password');
 
 module.exports = cds.service.impl(async function (srv) {
-  const { Users, UserRoles } = cds.entities('automarket');
+  const { Users, UserRoles, Roles } = cds.entities('automarket');
 
   // login: authenticates with email/password, returns a signed JWT on success.
   // All lockout and status checks happen here before delegating to authProvider.
@@ -113,9 +114,81 @@ module.exports = cds.service.impl(async function (srv) {
     const valid = await authProvider.authenticate({ password: oldPassword, user });
     if (!valid) return req.error(401, 'Current password is incorrect');
 
-    const { hashPassword } = require('../infrastructure/password');
     const newHash = await hashPassword(newPassword);
     await UPDATE(Users).set({ passwordHash: newHash }).where({ ID: req.user.id });
+    return true;
+  });
+
+  // listUsers: returns all users with their current MFA and lockout state.
+  // isLocked is derived at read time from status — it is not a stored field,
+  // so it always reflects the current state without a background sync job.
+  srv.on('listUsers', async (req) => {
+    const users = await SELECT.from(Users);
+    return users.map((u) => ({
+      id: u.ID,
+      email: u.email,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      status: u.status,
+      mfaRequired: u.mfaRequired,
+      isLocked: u.status === 'LOCKED',
+    }));
+  });
+
+  // createUser: creates a new user account with a hashed password and assigns
+  // the given role. Email uniqueness is enforced here — CAP does not enforce
+  // it automatically without a DB-level unique constraint.
+  srv.on('createUser', async (req) => {
+    const { email, firstName, lastName, phoneNumber, password, roleCode } = req.data;
+
+    const existing = await SELECT.one.from(Users).where({ email });
+    if (existing) return req.error(409, `A user with email ${email} already exists`);
+
+    const role = await SELECT.one.from(Roles).where({ code: roleCode });
+    if (!role) return req.error(400, `Unknown role: ${roleCode}`);
+
+    const passwordHash = await hashPassword(password);
+    const newUser = await INSERT.into(Users).entries({
+      email,
+      firstName,
+      lastName,
+      phoneNumber,
+      passwordHash,
+      status: 'ACTIVE',
+      mfaRequired: isMfaRequired(roleCode),
+      failedLoginCount: 0,
+    });
+
+    await INSERT.into(UserRoles).entries({ user_ID: newUser.ID, role_ID: role.ID });
+    return newUser.ID;
+  });
+
+  // assignRole: replaces the user's current role assignment with the given role.
+  // Single-role model for now — existing UserRoles rows are deleted before inserting
+  // the new one. Multi-role support is additive without a schema change.
+  srv.on('assignRole', async (req) => {
+    const { userId, roleCode } = req.data;
+    const role = await SELECT.one.from(Roles).where({ code: roleCode });
+    if (!role) return req.error(400, `Unknown role: ${roleCode}`);
+
+    await DELETE.from(UserRoles).where({ user_ID: userId });
+    await INSERT.into(UserRoles).entries({ user_ID: userId, role_ID: role.ID });
+
+    // Update mfaRequired to match the new role — role change must propagate
+    // immediately, not on next login.
+    await UPDATE(Users)
+      .set({ mfaRequired: isMfaRequired(roleCode) })
+      .where({ ID: userId });
+    return true;
+  });
+
+  // disableUser: sets status to INACTIVE, which blocks login permanently until
+  // an Admin re-enables the account. Unlike LOCKED, INACTIVE does not expire.
+  srv.on('disableUser', async (req) => {
+    const { userId } = req.data;
+    const user = await SELECT.one.from(Users).where({ ID: userId });
+    if (!user) return req.error(404, 'User not found');
+    await UPDATE(Users).set({ status: 'INACTIVE' }).where({ ID: userId });
     return true;
   });
 });
