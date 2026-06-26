@@ -7,14 +7,14 @@ const bcrypt = require('bcryptjs');
 const SALT_ROUNDS = 12;
 
 async function hashPassword(plain) {
-    return bcrypt.hash(plain, SALT_ROUNDS);
+  return bcrypt.hash(plain, SALT_ROUNDS);
 }
 
 // bcrypt.compare is timing-safe by design: it always takes the same amount of
 // time regardless of where in the hash the comparison fails. This prevents
 // timing attacks that could otherwise reveal whether a user account exists.
 async function verifyPassword(plain, hash) {
-    return bcrypt.compare(plain, hash);
+  return bcrypt.compare(plain, hash);
 }
 
 module.exports = { hashPassword, verifyPassword };

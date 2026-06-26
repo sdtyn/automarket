@@ -13,15 +13,15 @@ const EXPIRES_IN = '8h';
 // The payload includes role so downstream CAP handlers can read req.user.role
 // without an extra DB round-trip on every authenticated request.
 function issueToken(payload) {
-    if (!SECRET) throw new Error('JWT_SECRET env var is not set');
-    return jwt.sign(payload, SECRET, { expiresIn: EXPIRES_IN });
+  if (!SECRET) throw new Error('JWT_SECRET env var is not set');
+  return jwt.sign(payload, SECRET, { expiresIn: EXPIRES_IN });
 }
 
 function verifyToken(token) {
-    if (!SECRET) throw new Error('JWT_SECRET env var is not set');
-    // jwt.verify throws if the token is expired or the signature is invalid —
-    // callers must catch and return 401, not let the error bubble as a 500.
-    return jwt.verify(token, SECRET);
+  if (!SECRET) throw new Error('JWT_SECRET env var is not set');
+  // jwt.verify throws if the token is expired or the signature is invalid —
+  // callers must catch and return 401, not let the error bubble as a 500.
+  return jwt.verify(token, SECRET);
 }
 
 module.exports = { issueToken, verifyToken };
