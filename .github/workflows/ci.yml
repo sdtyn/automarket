@@ -1,5 +1,7 @@
 name: CI
 
+# Run on every push to main and on every pull request targeting any branch.
+# PRs are blocked from merging if any step fails (enforced via branch protection).
 on:
   push:
     branches: [main]
@@ -14,9 +16,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          # Cache the npm dependency tree between runs. On a warm cache this
+          # saves ~30s — meaningful when the pipeline runs on every PR push.
           cache: 'npm'
 
+      # npm ci uses the lockfile exactly, unlike npm install which may silently
+      # upgrade packages. This guarantees reproducible builds across all environments.
       - run: npm ci
+
+      # Steps are ordered cheapest-first so the pipeline fails fast:
+      # lint catches syntax/logic issues before running the heavier test suite.
       - run: npm run lint
       - run: npm run format:check
       - run: npm test
