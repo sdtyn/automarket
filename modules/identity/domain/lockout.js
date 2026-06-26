@@ -10,14 +10,14 @@ const LOCKOUT_MS = 30 * 60 * 1000; // 30 minutes
 // Without the window check, isolated failures across days would accumulate
 // and eventually lock out a legitimate user who occasionally miskeys.
 function shouldLock(failedLoginCount, firstFailedAt) {
-    if (failedLoginCount + 1 < MAX_FAILURES) return false;
-    if (!firstFailedAt) return true;
-    return Date.now() - new Date(firstFailedAt).getTime() <= WINDOW_MS;
+  if (failedLoginCount + 1 < MAX_FAILURES) return false;
+  if (!firstFailedAt) return true;
+  return Date.now() - new Date(firstFailedAt).getTime() <= WINDOW_MS;
 }
 
 // lockoutUntil: returns the timestamp when the lockout expires.
 function lockoutUntil() {
-    return new Date(Date.now() + LOCKOUT_MS);
+  return new Date(Date.now() + LOCKOUT_MS);
 }
 
 module.exports = { shouldLock, lockoutUntil, MAX_FAILURES, WINDOW_MS, LOCKOUT_MS };
