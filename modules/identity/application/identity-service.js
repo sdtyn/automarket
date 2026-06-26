@@ -6,6 +6,7 @@
 const cds = require('@sap/cds');
 const authProvider = require('../infrastructure/auth');
 const { shouldLock, lockoutUntil } = require('../domain/lockout');
+const { isMfaRequired } = require('../domain/mfa');
 
 module.exports = cds.service.impl(async function (srv) {
   const { Users, UserRoles } = cds.entities('automarket');
@@ -63,7 +64,12 @@ module.exports = cds.service.impl(async function (srv) {
     const role = userRole?.role_ID ?? 'Customer';
 
     const token = authProvider.issueToken({ userId: user.ID, email: user.email, role });
-    return { token, userId: user.ID, role };
+    // mfaPending tells the client a second factor is required. The token is
+    // issued regardless — in local dev MFA is not enforced at the server side.
+    // When XSUAA is active, it handles MFA enforcement before the request
+    // reaches this handler, so mfaPending becomes informational only.
+    const mfaPending = isMfaRequired(role);
+    return { token, userId: user.ID, role, mfaPending };
   });
 
   // getProfile: returns the authenticated user's own profile fields.

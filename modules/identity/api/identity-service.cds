@@ -10,9 +10,13 @@ service IdentityService @(path: '/identity') {
     // updates lockedUntil, and issues a token) — a GET would be semantically wrong
     // and could be cached by intermediaries.
     action   login(email: String, password: String)                                  returns {
-        token  : String;
-        userId : String;
-        role   : String;
+        token      : String;
+        userId     : String;
+        role       : String;
+        // mfaPending signals the client that a second factor is required before
+        // the token should be considered fully authenticated. In local dev this
+        // flag is returned but not enforced — enforcement is deferred to XSUAA.
+        mfaPending : Boolean;
     };
 
     @requires: 'authenticated-user'
