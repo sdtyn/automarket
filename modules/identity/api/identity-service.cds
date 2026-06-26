@@ -9,10 +9,25 @@ service IdentityService @(path: '/identity') {
     // POST is correct here: login is side-effectful (it resets failedLoginCount,
     // updates lockedUntil, and issues a token) — a GET would be semantically wrong
     // and could be cached by intermediaries.
-    action login(email : String, password : String) returns {
+    action   login(email: String, password: String)                                  returns {
         token  : String;
         userId : String;
         role   : String;
     };
+
+    @requires: 'authenticated-user'
+    action   changePassword(oldPassword: String, newPassword: String)                returns Boolean;
+
+    @requires: 'authenticated-user'
+    function getProfile()                                                            returns {
+        id          : String;
+        email       : String;
+        firstName   : String;
+        lastName    : String;
+        phoneNumber : String;
+    };
+
+    @requires: 'authenticated-user'
+    action   updateProfile(firstName: String, lastName: String, phoneNumber: String) returns Boolean;
 
 }

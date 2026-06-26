@@ -63,4 +63,42 @@ module.exports = cds.service.impl(async function (srv) {
     const token = authProvider.issueToken({ userId: user.ID, email: user.email, role });
     return { token, userId: user.ID, role };
   });
+
+  srv.on('getProfile', async (req) => {
+    // req.user.id is populated by CAP from the JWT — no need to pass userId
+    // in the request body, which would open a door for users to read others' profiles.
+    const user = await SELECT.one.from(Users).where({ ID: req.user.id });
+    if (!user) return req.error(404, 'User not found');
+    return {
+      id: user.ID,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+    };
+  });
+
+  srv.on('updateProfile', async (req) => {
+    // req.user.id comes from the verified JWT — the user cannot spoof another
+    // user's ID by passing it in the request body, because the body is ignored here.
+    const { firstName, lastName, phoneNumber } = req.data;
+    await UPDATE(Users).set({ firstName, lastName, phoneNumber }).where({ ID: req.user.id });
+    return true;
+  });
+
+  srv.on('changePassword', async (req) => {
+    const { oldPassword, newPassword } = req.data;
+    const user = await SELECT.one.from(Users).where({ ID: req.user.id });
+    if (!user) return req.error(404, 'User not found');
+
+    // Verify the old password before allowing the change — prevents an
+    // attacker with a stolen session token from locking out the real user.
+    const valid = await authProvider.authenticate({ password: oldPassword, user });
+    if (!valid) return req.error(401, 'Current password is incorrect');
+
+    const { hashPassword } = require('../infrastructure/password');
+    const newHash = await hashPassword(newPassword);
+    await UPDATE(Users).set({ passwordHash: newHash }).where({ ID: req.user.id });
+    return true;
+  });
 });
