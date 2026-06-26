@@ -1,0 +1,62 @@
+{
+  "xsappname": "automarket",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Admin",
+      "description": "Full administrative access"
+    },
+    {
+      "name": "$XSAPPNAME.Manager",
+      "description": "Branch manager access"
+    },
+    {
+      "name": "$XSAPPNAME.Operator",
+      "description": "Branch operator access"
+    },
+    {
+      "name": "$XSAPPNAME.Customer",
+      "description": "Customer access"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Admin",
+      "description": "Administrator",
+      "scope-references": ["$XSAPPNAME.Admin"]
+    },
+    {
+      "name": "Manager",
+      "description": "Branch Manager",
+      "scope-references": ["$XSAPPNAME.Manager"]
+    },
+    {
+      "name": "Operator",
+      "description": "Branch Operator",
+      "scope-references": ["$XSAPPNAME.Operator"]
+    },
+    {
+      "name": "Customer",
+      "description": "Customer",
+      "scope-references": ["$XSAPPNAME.Customer"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "AutoMarket_Admin",
+      "role-template-references": ["$XSAPPNAME.Admin"]
+    },
+    {
+      "name": "AutoMarket_Manager",
+      "role-template-references": ["$XSAPPNAME.Manager"]
+    },
+    {
+      "name": "AutoMarket_Operator",
+      "role-template-references": ["$XSAPPNAME.Operator"]
+    },
+    {
+      "name": "AutoMarket_Customer",
+      "role-template-references": ["$XSAPPNAME.Customer"]
+    }
+  ]
+}

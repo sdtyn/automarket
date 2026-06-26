@@ -104,3 +104,32 @@ globals: {
 
 **Symptom if forgotten:** ESLint passes locally if you never run it, but CI fails with
 `'SELECT' is not defined` errors on any file that uses CAP query syntax.
+
+---
+
+## 5. XSUAA Role Structure and CAP Mapping
+
+**Three-layer model:**
+```
+Scope           → atomic permission unit  ($XSAPPNAME.Admin)
+Role Template   → groups scopes; this is what CAP @requires maps to  (Admin)
+Role Collection → assigned to BTP users; references role templates  (AutoMarket_Admin)
+```
+
+CAP `@requires: 'Admin'` matches the **role-template name**, not the scope or collection.
+Users are assigned **role-collections** in BTP cockpit — never directly to role-templates.
+
+**Production vs. local switch:** Use the `[production]` profile in `package.json` so
+the same codebase uses mocked auth in dev and real XSUAA in production without any
+code change — only the deployment environment differs:
+
+```json
+"requires": {
+  "auth": { "kind": "mocked", "users": { ... } },
+  "[production]": {
+    "auth": { "kind": "xsuaa" }
+  }
+}
+```
+
+CAP activates the `[production]` block automatically when `NODE_ENV=production`.

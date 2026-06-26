@@ -56,6 +56,11 @@
           }
         }
       },
+      "[production]": {
+        "auth": {
+          "kind": "xsuaa"
+        }
+      },
       "db": {
         "kind": "sqlite",
         "credentials": {

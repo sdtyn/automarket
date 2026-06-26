@@ -11,8 +11,8 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 | EPIC02-T5 | Account Lockout — 5 failed attempts / 15 min → 30-min time-based unlock; `LOCKED` status + `lockedUntil` field (US-2.9) | Done |
 | EPIC02-T6 | MFA Enforcement — mandatory for Operator/Manager/Admin; risk-based/optional for Customer; never blocks Guest Checkout (US-2.8) | Done |
 | EPIC02-T7 | Session Timeout & Rate Limiting — Approuter config: 15 min Admin, 30 min Manager/Operator; 100/300 req/min auth, 20/100 req/min guest (US-2.10, US-2.11) | Done |
-| EPIC02-T8 | XSUAA Role Collections — `AutoMarket_Admin/Manager/Operator/Customer` mapped to CAP roles; verified in TEST (US-2.7) | In Progress |
-| EPIC02-T9 | Admin Portal — User list, create user, assign roles, disable user, MFA/lockout status display (US-2.1, US-2.2, US-2.6, US-2.14, US-2.15) | Open |
+| EPIC02-T8 | XSUAA Role Collections — `AutoMarket_Admin/Manager/Operator/Customer` mapped to CAP roles; verified in TEST (US-2.7) | Done |
+| EPIC02-T9 | Admin Portal — User list, create user, assign roles, disable user, MFA/lockout status display (US-2.1, US-2.2, US-2.6, US-2.14, US-2.15) | In Progress |
 
 ## Sprint Backlog DoD mapping
 
