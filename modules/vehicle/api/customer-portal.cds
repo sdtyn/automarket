@@ -18,4 +18,19 @@ service CustomerPortalService @(path: '/catalog') {
     // VehicleImages is needed for the detail page image gallery.
     @requires: 'any'
     entity VehicleImages as projection on automarket.VehicleImages;
+
+    // getFavoriteVehicles: returns the FOR_SALE vehicles the calling customer
+    // has favorited. Authentication required — guests have no favorites.
+    @requires: 'Customer'
+    function getFavoriteVehicles()              returns array of Vehicles;
+
+    // getPriceHistory: exposes price-history data for the sparkline on the
+    // Vehicle Detail page. Read-only and guest-accessible; only FOR_SALE
+    // vehicles are reachable via this portal so no status filter is needed here.
+    @requires: 'any'
+    function getPriceHistory(vehicleId: String) returns array of {
+        newPrice  : Decimal;
+        currency  : String;
+        changedAt : Timestamp;
+    };
 }

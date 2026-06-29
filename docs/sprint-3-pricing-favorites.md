@@ -8,8 +8,8 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 | EPIC04-T2 | Pricing Service — `updatePrice` action (updates vehicle price + records history + emits `VehiclePriceDropped`), `getPriceHistory` function; lock direct price PATCH in VehicleService | Done |
 | EPIC04-T3 | Offer Price Comparison — `compareToListPrice(vehicleId, offerAmount)` function in PricingService; returns diff vs. current list price and vs. lowest historical price | Done |
 | EPIC04-T4 | Favorites Domain Model — `Favorites` entity, unique constraint on `(customer_ID, vehicle_ID)`, CDS schema + db module | Done |
-| EPIC04-T5 | Favorites Service — `FavoritesService`, `addFavorite` / `removeFavorite` / `listFavorites` actions; `Customer` role only; authentication required (no guest path) | In Progress |
-| EPIC04-T6 | Customer Portal Extension — Favorites projection + `getFavoriteVehicles` function; `getPriceHistory` read-only function on CustomerPortalService (sparkline data for Vehicle Detail) | Open |
+| EPIC04-T5 | Favorites Service — `FavoritesService`, `addFavorite` / `removeFavorite` / `listFavorites` actions; `Customer` role only; authentication required (no guest path) | Done |
+| EPIC04-T6 | Customer Portal Extension — Favorites projection + `getFavoriteVehicles` function; `getPriceHistory` read-only function on CustomerPortalService (sparkline data for Vehicle Detail) | In Progress |
 
 ## Sprint Backlog DoD mapping
 
