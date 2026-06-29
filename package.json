@@ -86,6 +86,9 @@
       },
       "CustomerPortalService": {
         "impl": "modules/vehicle/application/customer-portal.js"
+      },
+      "PricingService": {
+        "impl": "modules/pricing/application/pricing-service.js"
       }
     }
   }

@@ -19,6 +19,11 @@ module.exports = cds.service.impl(async function (srv) {
     if (req.data.status) {
       return req.error(400, 'Status cannot be changed directly. Use publish or archive actions.');
     }
+    // Price changes must go through PricingService.updatePrice so that every
+    // change is audited and VehiclePriceDropped is emitted when applicable.
+    if (req.data.price !== undefined || req.data.currency !== undefined) {
+      return req.error(400, 'Price cannot be changed directly. Use PricingService.updatePrice.');
+    }
   });
 
   // Prevent hard-delete of active vehicles to preserve transaction history.
