@@ -7,3 +7,5 @@
 using from '../modules/identity/api/identity-service';
 
 using from '../modules/branch/api/branch-service';
+
+using from '../modules/vehicle/api/vehicle-service';
