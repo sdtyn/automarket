@@ -22,7 +22,7 @@ service PricingService @(path: '/pricing') {
     ]
     action   updatePrice(vehicleId: String,
                          newPrice: Decimal,
-                         currency: String)      returns Boolean;
+                         currency: String)            returns Boolean;
 
     // getPriceHistory: returns the full price-change log for a vehicle,
     // ordered by changedAt descending (most recent first).
@@ -31,7 +31,7 @@ service PricingService @(path: '/pricing') {
         'Manager',
         'Operator'
     ]
-    function getPriceHistory(vehicleId: String) returns array of PriceHistory;
+    function getPriceHistory(vehicleId: String)       returns array of PriceHistory;
 
     // Emitted when updatePrice detects a decrease. Consumed by the Favorites
     // module in a later sprint to trigger price-drop notifications.
@@ -39,5 +39,22 @@ service PricingService @(path: '/pricing') {
         vehicleId : String;
         oldPrice  : Decimal;
         newPrice  : Decimal;
+    }
+
+    // compareToListPrice: compares an offer amount against the vehicle's current
+    // list price and its all-time lowest recorded price. Used by the Offer module
+    // to give Managers context when approving or rejecting an offer.
+    @requires: [
+        'Admin',
+        'Manager'
+    ]
+    function compareToListPrice(vehicleId: String,
+                                offerAmount: Decimal) returns {
+        currentPrice    : Decimal;
+        lowestPrice     : Decimal;
+        diffFromCurrent : Decimal;
+        diffFromLowest  : Decimal;
+        belowCurrentPct : Decimal;
+        belowLowestPct  : Decimal;
     }
 }
