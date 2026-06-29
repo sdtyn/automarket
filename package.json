@@ -71,6 +71,9 @@
     "services": {
       "IdentityService": {
         "impl": "modules/identity/application/identity-service.js"
+      },
+      "BranchService": {
+        "impl": "modules/branch/application/branch-service.js"
       }
     }
   }
