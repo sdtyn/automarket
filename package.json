@@ -83,6 +83,9 @@
       },
       "OperatorPortalService": {
         "impl": "modules/vehicle/application/operator-portal.js"
+      },
+      "CustomerPortalService": {
+        "impl": "modules/vehicle/application/customer-portal.js"
       }
     }
   }

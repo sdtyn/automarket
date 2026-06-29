@@ -11,3 +11,5 @@ using from '../modules/branch/api/branch-service';
 using from '../modules/vehicle/api/vehicle-service';
 
 using from '../modules/vehicle/api/operator-portal';
+
+using from '../modules/vehicle/api/customer-portal';
