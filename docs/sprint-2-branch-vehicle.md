@@ -9,8 +9,8 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 | EPIC03-T3 | Vehicle Domain Model — `Vehicles` entity (all attributes), `VehicleStatus` enum (DRAFT→DELIVERED+ARCHIVED), `VehicleImages` entity, CDS schema + db file | Done |
 | EPIC03-T4 | Vehicle State Machine — `VehicleStateMachine` domain class, full authoritative transition table, guards, domain events | Done |
 | EPIC03-T5 | Vehicle Service — Vehicle CRUD, `publish`/`archive` actions, `@odata.etag` on `modifiedAt` optimistic locking | Done |
-| EPIC03-T6 | Vehicle Search — Filter endpoint (brand/model/price/status/branch), guest-accessible for `FOR_SALE` vehicles | In Progress |
-| EPIC03-T7 | Vehicle Images — `VehicleImage` CRUD handlers, URL + sortOrder management, linked to Vehicle aggregate | Open |
+| EPIC03-T6 | Vehicle Search — Filter endpoint (brand/model/price/status/branch), guest-accessible for `FOR_SALE` vehicles | Done |
+| EPIC03-T7 | Vehicle Images — `VehicleImage` CRUD handlers, URL + sortOrder management, linked to Vehicle aggregate | In Progress |
 | EPIC03-T8 | Cache-Bust Event Wiring — Wire `VehiclePublished`, `VehicleSold`, `VehicleReserved`, `VehicleReleased`, `VehicleCheckoutStarted` to catalog cache invalidation | Open |
 | EPIC03-T9 | Operator Portal — Vehicle List, Vehicle Detail, Create Vehicle service projections (branch-scoped ABAC) | Open |
 | EPIC03-T10 | Customer Portal — Vehicle Catalog + Vehicle Detail service projections, guest-accessible for `FOR_SALE` | Open |

@@ -28,7 +28,7 @@ service VehicleService @(path: '/vehicle') {
             to   : 'Admin'
         }
     ]
-    entity Vehicles as
+    entity Vehicles      as
         projection on automarket.Vehicles {
             *,
             @odata.etag modifiedAt
@@ -37,7 +37,7 @@ service VehicleService @(path: '/vehicle') {
     // publish: transitions a DRAFT vehicle to FOR_SALE.
     // The state machine guard requires price, branch, and at least one image.
     @requires: 'Manager'
-    action   publish(vehicleId: String)       returns String;
+    action   publish(vehicleId: String)           returns String;
 
     // archive: transitions a DRAFT or FOR_SALE vehicle to ARCHIVED.
     // Used when a vehicle is pulled from the catalog permanently.
@@ -45,7 +45,7 @@ service VehicleService @(path: '/vehicle') {
         'Manager',
         'Admin'
     ]
-    action   archive(vehicleId: String)       returns String;
+    action   archive(vehicleId: String)           returns String;
 
     // searchVehicles: open to guests but the handler silently locks the
     // status filter to FOR_SALE for unauthenticated callers so they cannot
@@ -56,5 +56,40 @@ service VehicleService @(path: '/vehicle') {
                             priceMin: Decimal,
                             priceMax: Decimal,
                             status: automarket.VehicleStatus,
-                            branchId: String) returns array of Vehicles;
+                            branchId: String)     returns array of Vehicles;
+
+    // VehicleImages is read-only via the entity projection; all writes go
+    // through explicit actions so the sortOrder uniqueness check is enforced.
+    @restrict: [{
+        grant: 'READ',
+        to   : 'authenticated-user'
+    }]
+    entity VehicleImages as projection on automarket.VehicleImages;
+
+    // addImage: attaches a new image to a vehicle.
+    // Rejects if another image on the same vehicle already holds that sortOrder.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action   addImage(vehicleId: String,
+                      url: String,
+                      sortOrder: Integer)         returns String;
+
+    // updateImageOrder: repositions an existing image in the display sequence.
+    // Rejects if the target sortOrder is already taken within the same vehicle.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action   updateImageOrder(imageId: String,
+                              sortOrder: Integer) returns Boolean;
+
+    // removeImage: hard-deletes an image. No child entities — no cascade needed.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action   removeImage(imageId: String)         returns Boolean;
+
 }

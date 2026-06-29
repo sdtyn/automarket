@@ -107,4 +107,69 @@ module.exports = cds.service.impl(async function (srv) {
     if (tokens.length) query.where(tokens);
     return query;
   });
+
+  // addImage: inserts a VehicleImages row after verifying the vehicle exists
+  // and that no other image on the same vehicle shares the requested sortOrder.
+  srv.on('addImage', async (req) => {
+    const { vehicleId, url, sortOrder } = req.data;
+    const vehicle = await SELECT.one.from(Vehicles).where({ ID: vehicleId });
+    if (!vehicle) return req.error(404, 'Vehicle not found');
+
+    const duplicate = await SELECT.one
+      .from(VehicleImages)
+      .where({ vehicle_ID: vehicleId, sortOrder });
+    if (duplicate)
+      return req.error(
+        409,
+        `An image with sortOrder ${sortOrder} already exists for this vehicle.`
+      );
+
+    const result = await INSERT.into(VehicleImages).entries({
+      vehicle_ID: vehicleId,
+      url,
+      sortOrder,
+    });
+    return result.ID;
+  });
+
+  // updateImageOrder: fetches the image to resolve its vehicle, then checks
+  // that the new sortOrder is not already taken by a sibling image.
+  srv.on('updateImageOrder', async (req) => {
+    const { imageId, sortOrder } = req.data;
+    const image = await SELECT.one.from(VehicleImages).where({ ID: imageId });
+    if (!image) return req.error(404, 'Image not found');
+
+    const duplicate = await SELECT.one
+      .from(VehicleImages)
+      .where([
+        'vehicle_ID',
+        '=',
+        image.vehicle_ID,
+        'and',
+        'sortOrder',
+        '=',
+        sortOrder,
+        'and',
+        'ID',
+        '!=',
+        imageId,
+      ]);
+    if (duplicate)
+      return req.error(
+        409,
+        `An image with sortOrder ${sortOrder} already exists for this vehicle.`
+      );
+
+    await UPDATE(VehicleImages).set({ sortOrder }).where({ ID: imageId });
+    return true;
+  });
+
+  // removeImage: hard-deletes the image row from the vehicle aggregate.
+  srv.on('removeImage', async (req) => {
+    const { imageId } = req.data;
+    const image = await SELECT.one.from(VehicleImages).where({ ID: imageId });
+    if (!image) return req.error(404, 'Image not found');
+    await DELETE.from(VehicleImages).where({ ID: imageId });
+    return true;
+  });
 });
