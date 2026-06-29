@@ -2,3 +2,5 @@
 // combined schema; adding a new module's db file here is enough for it to be
 // included in migrations and the generated service model — no other config needed.
 using from '../modules/identity/db/identity';
+
+using from '../modules/branch/db/branch';
