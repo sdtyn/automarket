@@ -13,7 +13,7 @@ Sprint 2. Goal: branch and vehicle domain models, state machine, CRUD services, 
 |---|---|---|
 | `modules/branch/db/branch.cds` | Created | `Branches` entity (code, name, address, city, country, region, status); `BranchStatus` enum |
 | `db/index.cds` | Modified | `branch.cds` import added |
-| `docs/sprint-2-branch-vehicle.md` | Created | Sprint-2 ticket tracking table |
+| `docs/epic-03-branch-vehicle.md` | Created | EPIC-03 ticket tracking table |
 
 ---
 

@@ -84,6 +84,6 @@ Sprint 0. Goal: establish the project infrastructure before writing any domain c
 **Files created / modified:**
 | File | Action | Description |
 |---|---|---|
-| `docs/sprint-0-definition-of-done.md` | Created | 6-item DoD table, sign-off |
+| `docs/epic-01-foundation-platform.md` | Created | 6-item DoD table, sign-off |
 | `eslint.config.js` | Modified | Comments explaining why CAP globals are declared |
 | `.github/workflows/ci.yml` | Modified | Comments explaining the purpose of each CI step |

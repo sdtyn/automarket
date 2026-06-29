@@ -1,4 +1,4 @@
-# Sprint 3 — Pricing & Favorites (EPIC-04)
+# Sprint 4 — Pricing & Favorites (EPIC-04)
 
 Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work").
 

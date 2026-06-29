@@ -1,4 +1,4 @@
-# Sprint 2 — Branch & Vehicle Management (EPIC-03)
+# Sprint 3 — Branch & Vehicle Management (EPIC-03)
 
 Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work").
 

@@ -1,4 +1,4 @@
-# Sprint 1 — Identity & Security (EPIC-02)
+# Sprint 2 — Identity & Security (EPIC-02)
 
 Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work").
 

@@ -1,4 +1,4 @@
-# Sprint 0 — Definition of Done (EPIC-01)
+# Sprint 1 — Definition of Done (EPIC-01)
 
 Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work").
 
@@ -21,6 +21,6 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 ## Sign-off
 
 Per the Solution Architecture Document's Governance & Sign-Off model: this checklist,
-confirmed by the project owner, closes Sprint 0 and opens EPIC-02.
+confirmed by the project owner, closes Sprint 1 and opens EPIC-02.
 
 Signed off by: Sedat Yeni  Date: 2026-06-25

@@ -14,7 +14,7 @@ Sprint 1. Goal: user authentication, authorisation, account security, and admin 
 | `modules/identity/db/identity.cds` | Created | `Users`, `Roles`, `UserRoles` entities; `UserStatus` enum |
 | `shared/types/common.cds` | Created | `BaseEntity` (cuid + managed), `Email`, `PhoneNumber` shared types |
 | `db/index.cds` | Created | Central CDS entity discovery entry point |
-| `docs/sprint-1-identity-security.md` | Created | Sprint-1 ticket tracking table |
+| `docs/epic-02-identity-security.md` | Created | EPIC-02 ticket tracking table |
 
 ---
 

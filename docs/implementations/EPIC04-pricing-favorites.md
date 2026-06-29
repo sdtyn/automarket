@@ -13,7 +13,7 @@ Sprint 3. Goal: price history tracking, price-drop event emission, offer price c
 |---|---|---|
 | `modules/pricing/db/pricing.cds` | Created | `PriceHistory` entity: vehicle association, oldPrice, newPrice, currency, changedBy |
 | `db/index.cds` | Modified | `pricing.cds` import added |
-| `docs/sprint-3-pricing-favorites.md` | Created | Sprint-3 ticket tracking table |
+| `docs/epic-04-pricing-favorites.md` | Created | EPIC-04 ticket tracking table |
 
 ---
 
