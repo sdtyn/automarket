@@ -46,7 +46,10 @@
             "password": "operator",
             "roles": [
               "Operator"
-            ]
+            ],
+            "attr": {
+              "branchId": "00000000-0000-0000-0000-000000000001"
+            }
           },
           "customer": {
             "password": "customer",
@@ -74,6 +77,12 @@
       },
       "BranchService": {
         "impl": "modules/branch/application/branch-service.js"
+      },
+      "VehicleService": {
+        "impl": "modules/vehicle/application/vehicle-service.js"
+      },
+      "OperatorPortalService": {
+        "impl": "modules/vehicle/application/operator-portal.js"
       }
     }
   }
