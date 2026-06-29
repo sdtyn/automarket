@@ -2,6 +2,7 @@
 
 const cds = require('@sap/cds');
 const { transition } = require('../domain/vehicle-state-machine');
+const { invalidate } = require('../infrastructure/cache-bust');
 
 module.exports = cds.service.impl(async function (srv) {
   const { Vehicles, VehicleImages } = cds.entities('automarket');
@@ -56,6 +57,7 @@ module.exports = cds.service.impl(async function (srv) {
     }
 
     await UPDATE(Vehicles).set({ status: newStatus }).where({ ID: vehicleId });
+    await srv.emit('VehiclePublished', { vehicleId });
     return newStatus;
   });
 
@@ -172,4 +174,12 @@ module.exports = cds.service.impl(async function (srv) {
     await DELETE.from(VehicleImages).where({ ID: imageId });
     return true;
   });
+  // Wire cache invalidation to every vehicle domain event. Events emitted by
+  // future modules (Reservation, Payment) are already subscribed here — those
+  // modules only need to emit the event; no additional wiring will be required.
+  srv.on('VehiclePublished', (msg) => invalidate(msg.data.vehicleId));
+  srv.on('VehicleSold', (msg) => invalidate(msg.data.vehicleId));
+  srv.on('VehicleReserved', (msg) => invalidate(msg.data.vehicleId));
+  srv.on('VehicleReleased', (msg) => invalidate(msg.data.vehicleId));
+  srv.on('VehicleCheckoutStarted', (msg) => invalidate(msg.data.vehicleId));
 });

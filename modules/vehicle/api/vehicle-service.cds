@@ -92,4 +92,26 @@ service VehicleService @(path: '/vehicle') {
     ]
     action   removeImage(imageId: String)         returns Boolean;
 
+    // Domain events emitted after each vehicle status transition. Declared here
+    // so that any subscriber can bind to them by service name without depending
+    // on the handler implementation details.
+    event VehiclePublished {
+        vehicleId : String;
+    }
+
+    event VehicleSold {
+        vehicleId : String;
+    }
+
+    event VehicleReserved {
+        vehicleId : String;
+    }
+
+    event VehicleReleased {
+        vehicleId : String;
+    }
+
+    event VehicleCheckoutStarted {
+        vehicleId : String;
+    }
 }
