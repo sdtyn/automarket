@@ -13,7 +13,7 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 | EPIC03-T7 | Vehicle Images — `VehicleImage` CRUD handlers, URL + sortOrder management, linked to Vehicle aggregate | Done |
 | EPIC03-T8 | Cache-Bust Event Wiring — Wire `VehiclePublished`, `VehicleSold`, `VehicleReserved`, `VehicleReleased`, `VehicleCheckoutStarted` to catalog cache invalidation | Done |
 | EPIC03-T9 | Operator Portal — Vehicle List, Vehicle Detail, Create Vehicle service projections (branch-scoped ABAC) | Done |
-| EPIC03-T10 | Customer Portal — Vehicle Catalog + Vehicle Detail service projections, guest-accessible for `FOR_SALE` | In Progress |
+| EPIC03-T10 | Customer Portal — Vehicle Catalog + Vehicle Detail service projections, guest-accessible for `FOR_SALE` | Done |
 
 ## Sprint Backlog DoD mapping
 
@@ -23,4 +23,4 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 
 ## Sign-off
 
-_To be completed at sprint end._
+Signed off by: Sedat Yeni  Date: 2026-06-29
