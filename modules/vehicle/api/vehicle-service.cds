@@ -37,7 +37,7 @@ service VehicleService @(path: '/vehicle') {
     // publish: transitions a DRAFT vehicle to FOR_SALE.
     // The state machine guard requires price, branch, and at least one image.
     @requires: 'Manager'
-    action publish(vehicleId: String) returns String;
+    action   publish(vehicleId: String)       returns String;
 
     // archive: transitions a DRAFT or FOR_SALE vehicle to ARCHIVED.
     // Used when a vehicle is pulled from the catalog permanently.
@@ -45,5 +45,16 @@ service VehicleService @(path: '/vehicle') {
         'Manager',
         'Admin'
     ]
-    action archive(vehicleId: String) returns String;
+    action   archive(vehicleId: String)       returns String;
+
+    // searchVehicles: open to guests but the handler silently locks the
+    // status filter to FOR_SALE for unauthenticated callers so they cannot
+    // enumerate vehicles in internal statuses (DRAFT, RESERVED, etc.).
+    @requires: 'any'
+    function searchVehicles(brand: String,
+                            model: String,
+                            priceMin: Decimal,
+                            priceMax: Decimal,
+                            status: automarket.VehicleStatus,
+                            branchId: String) returns array of Vehicles;
 }

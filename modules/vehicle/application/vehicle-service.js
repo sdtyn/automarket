@@ -79,4 +79,32 @@ module.exports = cds.service.impl(async function (srv) {
     await UPDATE(Vehicles).set({ status: newStatus }).where({ ID: vehicleId });
     return newStatus;
   });
+
+  // searchVehicles: builds a dynamic WHERE clause from optional filter params.
+  // Guest callers (unauthenticated) are silently restricted to FOR_SALE —
+  // they cannot request other statuses even if they pass one as a parameter.
+  srv.on('searchVehicles', async (req) => {
+    const { brand, model, priceMin, priceMax, status, branchId } = req.data;
+    const isGuest = !req.user.is('authenticated-user');
+    const effectiveStatus = isGuest ? 'FOR_SALE' : status;
+
+    // Token-stream WHERE clause: each condition is pushed with 'and' separator
+    // so missing filters are simply skipped rather than producing a broken query.
+    const tokens = [];
+    const add = (condition) => {
+      if (tokens.length) tokens.push('and');
+      tokens.push(...condition);
+    };
+
+    if (brand) add(['brand', '=', brand]);
+    if (model) add(['model', '=', model]);
+    if (branchId) add(['branch_ID', '=', branchId]);
+    if (effectiveStatus) add(['status', '=', effectiveStatus]);
+    if (priceMin != null) add(['price', '>=', priceMin]);
+    if (priceMax != null) add(['price', '<=', priceMax]);
+
+    const query = SELECT.from(Vehicles);
+    if (tokens.length) query.where(tokens);
+    return query;
+  });
 });
