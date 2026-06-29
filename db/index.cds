@@ -6,3 +6,5 @@ using from '../modules/identity/db/identity';
 using from '../modules/branch/db/branch';
 
 using from '../modules/vehicle/db/vehicle';
+
+using from '../modules/pricing/db/pricing';
