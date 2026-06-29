@@ -89,6 +89,9 @@
       },
       "PricingService": {
         "impl": "modules/pricing/application/pricing-service.js"
+      },
+      "FavoritesService": {
+        "impl": "modules/favorites/application/favorites-service.js"
       }
     }
   }
