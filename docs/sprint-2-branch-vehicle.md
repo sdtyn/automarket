@@ -5,8 +5,8 @@ Local-only development scope (see CONTRIBUTING.md, "Deferred: BTP-Specific Work"
 | # | Item | Status |
 |---|---|---|
 | EPIC03-T1 | Branch Domain Model — `Branches` entity, `BranchStatus` enum, CDS schema + db module file | Done |
-| EPIC03-T2 | Branch Service — Branch CRUD API, Admin/Manager role guards, handlers | In Progress |
-| EPIC03-T3 | Vehicle Domain Model — `Vehicles` entity (all attributes), `VehicleStatus` enum (DRAFT→DELIVERED+ARCHIVED), `VehicleImages` entity, CDS schema + db file | Open |
+| EPIC03-T2 | Branch Service — Branch CRUD API, Admin/Manager role guards, handlers | Done |
+| EPIC03-T3 | Vehicle Domain Model — `Vehicles` entity (all attributes), `VehicleStatus` enum (DRAFT→DELIVERED+ARCHIVED), `VehicleImages` entity, CDS schema + db file | In Progress |
 | EPIC03-T4 | Vehicle State Machine — `VehicleStateMachine` domain class, full authoritative transition table, guards, domain events | Open |
 | EPIC03-T5 | Vehicle Service — Vehicle CRUD, `publish`/`archive` actions, `@odata.etag` on `modifiedAt` optimistic locking | Open |
 | EPIC03-T6 | Vehicle Search — Filter endpoint (brand/model/price/status/branch), guest-accessible for `FOR_SALE` vehicles | Open |

@@ -4,3 +4,5 @@
 using from '../modules/identity/db/identity';
 
 using from '../modules/branch/db/branch';
+
+using from '../modules/vehicle/db/vehicle';
