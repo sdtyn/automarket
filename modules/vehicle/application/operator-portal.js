@@ -3,7 +3,7 @@
 const cds = require('@sap/cds');
 
 module.exports = cds.service.impl(async function (srv) {
-  const { Vehicles, Reservations } = cds.entities('automarket');
+  const { Vehicles, Reservations, TestDrives } = cds.entities('automarket');
   const { transition } = require('../domain/vehicle-state-machine');
 
   // createVehicle: inserts a DRAFT vehicle and enforces branch scoping.
@@ -94,6 +94,65 @@ module.exports = cds.service.impl(async function (srv) {
     await UPDATE(Reservations).set({ status: 'REJECTED', notes }).where({ ID: reservationId });
     const resSrv = await cds.connect.to('ReservationService');
     await resSrv.emit('ReservationRejected', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+  // approveTestDrive: branch guard for Operators; delegates event emission to
+  // TestDriveService to keep subscribers decoupled from the portal.
+  srv.on('approveTestDrive', async (req) => {
+    const { testDriveId, durationMinutes } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only approve test drives for your branch');
+    }
+    if (testDrive.status !== 'REQUESTED') {
+      return req.error(409, `Cannot approve a test drive in status ${testDrive.status}`);
+    }
+
+    const patch = { status: 'APPROVED' };
+    if (durationMinutes) patch.durationMinutes = durationMinutes;
+    await UPDATE(TestDrives).set(patch).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveApproved', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+
+  // cancelTestDrive: branch guard for Operators; emits via TestDriveService.
+  srv.on('cancelTestDrive', async (req) => {
+    const { testDriveId } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only cancel test drives for your branch');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(testDrive.status)) {
+      return req.error(409, `Cannot cancel a test drive in status ${testDrive.status}`);
+    }
+
+    await UPDATE(TestDrives).set({ status: 'CANCELLED' }).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveCancelled', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+
+  // completeTestDrive: branch guard for Operators; only valid from APPROVED.
+  srv.on('completeTestDrive', async (req) => {
+    const { testDriveId } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only complete test drives for your branch');
+    }
+    if (testDrive.status !== 'APPROVED') {
+      return req.error(409, `Cannot complete a test drive in status ${testDrive.status}`);
+    }
+
+    await UPDATE(TestDrives).set({ status: 'COMPLETED' }).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveCompleted', { testDriveId, vehicleId: testDrive.vehicle_ID });
     return true;
   });
 });

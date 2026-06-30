@@ -1,5 +1,6 @@
 using {automarket} from '../db/vehicle';
 using {automarket as automarketReservation} from '../../reservation/db/reservation';
+using from '../../test-drive/db/test-drive';
 
 // OperatorPortalService is the branch-scoped read/create surface for internal
 // staff. Operators are restricted to their own branch via the @restrict where
@@ -79,4 +80,42 @@ service OperatorPortalService @(path: '/operator') {
         'Manager'
     ]
     action rejectReservation(reservationId: String, notes: String) returns Boolean;
+
+    // TestDrives: branch-scoped read for Operators; Managers see all branches.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Operator',
+            where: 'branch_ID = $user.branchId'
+        },
+        {
+            grant: 'READ',
+            to   : 'Manager'
+        }
+    ]
+    entity TestDrives   as projection on automarket.TestDrives;
+
+    // approveTestDrive: branch-scoped wrapper — Operators may only approve test
+    // drives belonging to their branch.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action approveTestDrive(testDriveId: String,
+                            durationMinutes: Integer)              returns Boolean;
+
+    // cancelTestDrive: branch-scoped cancel; Operators cannot cancel drives from
+    // other branches.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action cancelTestDrive(testDriveId: String)                    returns Boolean;
+
+    // completeTestDrive: marks the test drive as done. Only valid from APPROVED.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action completeTestDrive(testDriveId: String)                  returns Boolean;
 }

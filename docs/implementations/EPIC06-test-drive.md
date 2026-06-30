@@ -11,7 +11,7 @@ Sprint 6. Goal: test drive request and scheduling, guest access without claim fl
 | EPIC06-T3 | Guest Test Drive — guest request with `contactEmail`/`contactPhone`, no claim step; rate-limiting note | Done |
 | EPIC06-T4 | Availability Check — `getAvailableSlots` function; reject duplicate vehicle/slot requests | Done |
 | EPIC06-T5 | Auto-Cancel on Vehicle Sold — subscribe to `VehicleSold` event, cancel open test drives, emit `TestDriveCancelled` | Done |
-| EPIC06-T6 | Operator Portal Extension — branch-scoped `TestDrives` projection, approve/cancel/complete actions | Open |
+| EPIC06-T6 | Operator Portal Extension — branch-scoped `TestDrives` projection, approve/cancel/complete actions | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -417,3 +417,135 @@ Add after `module.exports = cds.service.impl(async function (srv) {`, before `co
     }
   });
 ```
+
+---
+
+## T6 — Operator Portal Extension
+
+**What & Why:** Operators need a branch-scoped view of test drives and the ability to approve, cancel, and complete them without leaving the portal. The pattern mirrors the existing Reservations extension: a `@restrict` projection filters rows by `branch_ID = $user.branchId` at the query level, and each action verifies branch ownership before writing. Events are emitted through `TestDriveService` so downstream subscribers remain decoupled from the portal implementation.
+
+### Modify `modules/vehicle/api/operator-portal.cds`
+
+Add after the existing `using` lines at the top:
+
+```cds
+using from '../../test-drive/db/test-drive';
+```
+
+Add before the closing `}` of the service block:
+
+```cds
+    // TestDrives: branch-scoped read for Operators; Managers see all branches.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Operator',
+            where: 'branch_ID = $user.branchId'
+        },
+        {
+            grant: 'READ',
+            to   : 'Manager'
+        }
+    ]
+    entity TestDrives   as projection on automarket.TestDrives;
+
+    // approveTestDrive: branch-scoped wrapper — Operators may only approve test
+    // drives belonging to their branch.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action approveTestDrive(testDriveId: String,
+                            durationMinutes: Integer)              returns Boolean;
+
+    // cancelTestDrive: branch-scoped cancel; Operators cannot cancel drives from
+    // other branches.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action cancelTestDrive(testDriveId: String)                    returns Boolean;
+
+    // completeTestDrive: marks the test drive as done. Only valid from APPROVED.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action completeTestDrive(testDriveId: String)                  returns Boolean;
+```
+
+### Modify `modules/vehicle/application/operator-portal.js`
+
+Update the entities destructure:
+
+```js
+  const { Vehicles, Reservations, TestDrives } = cds.entities('automarket');
+```
+
+Add after the `rejectReservation` handler, before the closing `});` of `module.exports`:
+
+```js
+  // approveTestDrive: branch guard for Operators; delegates event emission to
+  // TestDriveService to keep subscribers decoupled from the portal.
+  srv.on('approveTestDrive', async (req) => {
+    const { testDriveId, durationMinutes } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only approve test drives for your branch');
+    }
+    if (testDrive.status !== 'REQUESTED') {
+      return req.error(409, `Cannot approve a test drive in status ${testDrive.status}`);
+    }
+
+    const patch = { status: 'APPROVED' };
+    if (durationMinutes) patch.durationMinutes = durationMinutes;
+    await UPDATE(TestDrives).set(patch).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveApproved', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+
+  // cancelTestDrive: branch guard for Operators; emits via TestDriveService.
+  srv.on('cancelTestDrive', async (req) => {
+    const { testDriveId } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only cancel test drives for your branch');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(testDrive.status)) {
+      return req.error(409, `Cannot cancel a test drive in status ${testDrive.status}`);
+    }
+
+    await UPDATE(TestDrives).set({ status: 'CANCELLED' }).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveCancelled', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+
+  // completeTestDrive: branch guard for Operators; only valid from APPROVED.
+  srv.on('completeTestDrive', async (req) => {
+    const { testDriveId } = req.data;
+    const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+    if (!testDrive) return req.error(404, 'Test drive not found');
+
+    if (req.user.is('Operator') && testDrive.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only complete test drives for your branch');
+    }
+    if (testDrive.status !== 'APPROVED') {
+      return req.error(409, `Cannot complete a test drive in status ${testDrive.status}`);
+    }
+
+    await UPDATE(TestDrives).set({ status: 'COMPLETED' }).where({ ID: testDriveId });
+    const tdSrv = await cds.connect.to('TestDriveService');
+    await tdSrv.emit('TestDriveCompleted', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+```
+
+### Sign-off
+
+All six tickets delivered. Sprint complete.
