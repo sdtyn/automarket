@@ -81,4 +81,34 @@ module.exports = cds.service.impl(async function (srv) {
     await srv.emit('TestDriveCompleted', { testDriveId, vehicleId: testDrive.vehicle_ID });
     return true;
   });
+
+  // requestTestDriveAsGuest: same slot-conflict guard as the authenticated path.
+  // customer_ID is intentionally left null — contactEmail is the identifier.
+  // No claim step: there is no token issued; guests cannot read their own row.
+  srv.on('requestTestDriveAsGuest', async (req) => {
+    const { vehicleId, branchId, scheduledAt, contactEmail, contactPhone, notes } = req.data;
+
+    if (!contactEmail) return req.error(400, 'contactEmail is required for guest requests');
+
+    const conflict = await SELECT.one.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      scheduledAt: scheduledAt,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+    if (conflict) return req.error(409, 'This time slot is already taken for the selected vehicle');
+
+    const result = await INSERT.into(TestDrives).entries({
+      vehicle_ID: vehicleId,
+      branch_ID: branchId,
+      customer_ID: null,
+      contactEmail,
+      contactPhone,
+      scheduledAt,
+      notes,
+      status: 'REQUESTED',
+    });
+
+    await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
+    return result.ID;
+  });
 });

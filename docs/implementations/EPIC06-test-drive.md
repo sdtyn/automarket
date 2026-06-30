@@ -8,7 +8,7 @@ Sprint 6. Goal: test drive request and scheduling, guest access without claim fl
 |---|---|---|
 | EPIC06-T1 | Test Drive Domain Model — `TestDrives` entity, `TestDriveStatus` enum, slot and guest contact fields, DB schema | Done |
 | EPIC06-T2 | Test Drive Service — `requestTestDrive`, `approveTestDrive`, `cancelTestDrive`, `completeTestDrive` actions; slot conflict guard | Done |
-| EPIC06-T3 | Guest Test Drive — guest request with `contactEmail`/`contactPhone`, no claim step; rate-limiting note | Open |
+| EPIC06-T3 | Guest Test Drive — guest request with `contactEmail`/`contactPhone`, no claim step; rate-limiting note | Done |
 | EPIC06-T4 | Availability Check — `getAvailableSlots` function; reject duplicate vehicle/slot requests | Open |
 | EPIC06-T5 | Auto-Cancel on Vehicle Sold — subscribe to `VehicleSold` event, cancel open test drives, emit `TestDriveCancelled` | Open |
 | EPIC06-T6 | Operator Portal Extension — branch-scoped `TestDrives` projection, approve/cancel/complete actions | Open |
@@ -228,4 +228,66 @@ module.exports = cds.service.impl(async function (srv) {
 ```diff
    "ReservationService": { "impl": "modules/reservation/application/reservation-service.js" },
 +  "TestDriveService":   { "impl": "modules/test-drive/application/test-drive-service.js" }
+```
+
+---
+
+## T3 — Guest Test Drive
+
+**What & Why:** Guests submit a test drive request without an account. A dedicated `requestTestDriveAsGuest` action (no `@requires`) is added instead of relaxing the existing `requestTestDrive` action — this keeps Customer and guest paths cleanly separated and makes it straightforward to add a rate-limit middleware in front of the guest endpoint later. `customer_ID` is left null; `contactEmail` is the mandatory identifier for operator follow-up. No claim token is issued — guests have no way to read their own row.
+
+**Rate-limiting note:** CAP has no built-in rate limiter. A reverse proxy rule (e.g. `nginx limit_req` or Azure APIM policy) must cap submissions per IP per hour before this action reaches the CAP process.
+
+### Modify `modules/test-drive/api/test-drive-service.cds` — add guest action
+
+Add after the `completeTestDrive` action, before the `event` blocks:
+
+```cds
+    // requestTestDriveAsGuest: open to anonymous callers — no account required.
+    // contactEmail is mandatory so the Operator can follow up.
+    // Rate-limiting must be enforced at the API gateway layer; CAP itself has no
+    // built-in rate limiter, so a reverse proxy rule (e.g. nginx limit_req or
+    // an Azure APIM policy) should cap submissions per IP per hour.
+    action requestTestDriveAsGuest(vehicleId: String,
+                                   branchId: String,
+                                   scheduledAt: Timestamp,
+                                   contactEmail: String,
+                                   contactPhone: String,
+                                   notes: String)     returns String;
+```
+
+### Modify `modules/test-drive/application/test-drive-service.js` — add guest handler
+
+Add after the `completeTestDrive` handler, before the closing `});` of `module.exports`:
+
+```js
+  // requestTestDriveAsGuest: same slot-conflict guard as the authenticated path.
+  // customer_ID is intentionally left null — contactEmail is the identifier.
+  // No claim step: there is no token issued; guests cannot read their own row.
+  srv.on('requestTestDriveAsGuest', async (req) => {
+    const { vehicleId, branchId, scheduledAt, contactEmail, contactPhone, notes } = req.data;
+
+    if (!contactEmail) return req.error(400, 'contactEmail is required for guest requests');
+
+    const conflict = await SELECT.one.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      scheduledAt: scheduledAt,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+    if (conflict) return req.error(409, 'This time slot is already taken for the selected vehicle');
+
+    const result = await INSERT.into(TestDrives).entries({
+      vehicle_ID: vehicleId,
+      branch_ID: branchId,
+      customer_ID: null,
+      contactEmail,
+      contactPhone,
+      scheduledAt,
+      notes,
+      status: 'REQUESTED',
+    });
+
+    await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
+    return result.ID;
+  });
 ```

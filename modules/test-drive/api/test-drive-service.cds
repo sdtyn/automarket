@@ -56,6 +56,18 @@ service TestDriveService @(path: '/test-drive') {
     ]
     action completeTestDrive(testDriveId: String)     returns Boolean;
 
+    // requestTestDriveAsGuest: open to anonymous callers — no account required.
+    // contactEmail is mandatory so the Operator can follow up.
+    // Rate-limiting must be enforced at the API gateway layer; CAP itself has no
+    // built-in rate limiter, so a reverse proxy rule (e.g. nginx limit_req or
+    // an Azure APIM policy) should cap submissions per IP per hour.
+    action requestTestDriveAsGuest(vehicleId: String,
+                                   branchId: String,
+                                   scheduledAt: Timestamp,
+                                   contactEmail: String,
+                                   contactPhone: String,
+                                   notes: String)     returns String;
+
     event TestDriveRequested {
         testDriveId : String;
         vehicleId   : String;
