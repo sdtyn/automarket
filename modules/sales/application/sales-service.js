@@ -5,6 +5,63 @@ const cds = require('@sap/cds');
 const { transition } = require('../../vehicle/domain/vehicle-state-machine');
 
 module.exports = cds.service.impl(async function (srv) {
+  // Subscribe to PaymentService to react to payment outcomes.
+  // PaymentService does not exist yet (EPIC09); these handlers are registered
+  // now so they fire automatically once the Payment module emits events.
+  const PaymentSrv = await cds.connect.to('PaymentService');
+
+  // PaymentSucceeded: advance order to PAID, vehicle to SOLD, emit VehicleSold.
+  PaymentSrv.on('PaymentSucceeded', async (msg) => {
+    const { orderId, vehicleId } = msg.data;
+
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status')
+      .where({ ID: vehicleId });
+    if (vehicle && vehicle.status === 'PENDING_PAYMENT') {
+      let newVehicleStatus;
+      try {
+        newVehicleStatus = transition(vehicle, 'PaymentSucceeded');
+      } catch (_) {
+        return;
+      }
+      await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
+      const vehicleSrv = await cds.connect.to('VehicleService');
+      await vehicleSrv.emit('VehicleSold', { vehicleId });
+    }
+
+    await UPDATE(Orders).set({ status: 'PAID' }).where({ ID: orderId });
+  });
+
+  // PaymentFailed: cancel order, return vehicle to FOR_SALE or RESERVED.
+  PaymentSrv.on('PaymentFailed', async (msg) => {
+    const { orderId, vehicleId } = msg.data;
+
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status')
+      .where({ ID: vehicleId });
+    if (vehicle && vehicle.status === 'PENDING_PAYMENT') {
+      const activeReservation = await SELECT.one
+        .from(Reservations)
+        .where({ vehicle_ID: vehicleId, status: { in: ['REQUESTED', 'APPROVED'] } });
+
+      let newVehicleStatus;
+      try {
+        newVehicleStatus = transition(vehicle, 'PaymentFailed', {
+          hasActiveReservation: !!activeReservation,
+        });
+      } catch (_) {
+        return;
+      }
+      await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
+      const vehicleSrv = await cds.connect.to('VehicleService');
+      await vehicleSrv.emit('VehicleReleased', { vehicleId });
+    }
+
+    await UPDATE(Orders).set({ status: 'CANCELLED' }).where({ ID: orderId });
+  });
+
   const { Orders, Vehicles, Reservations } = cds.entities('automarket');
 
   // createOrder: locks the vehicle for payment via the CheckoutStarted transition.
