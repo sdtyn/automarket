@@ -92,6 +92,9 @@
       },
       "FavoritesService": {
         "impl": "modules/favorites/application/favorites-service.js"
+      },
+      "ReservationService": {
+        "impl": "modules/reservation/application/reservation-service.js"
       }
     }
   }

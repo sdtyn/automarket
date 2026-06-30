@@ -7,7 +7,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 | # | Item | Status |
 |---|---|---|
 | EPIC05-T1 | Reservation Domain Model — `Reservations` entity, `ReservationStatus` enum, `guestToken` field, DB schema | Done |
-| EPIC05-T2 | Reservation Service — `createReservation`, `approveReservation`, `rejectReservation`, `cancelReservation`, `completeReservation` actions; VehicleStateMachine integration | Open |
+| EPIC05-T2 | Reservation Service — `createReservation`, `approveReservation`, `rejectReservation`, `cancelReservation`, `completeReservation` actions; VehicleStateMachine integration | Done |
 | EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Open |
 | EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Open |
 | EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Open |
@@ -80,4 +80,202 @@ type ReservationStatus : String enum {
  using from '../modules/favorites/db/favorites';
 +
 +using from '../modules/reservation/db/reservation';
+```
+
+---
+
+## T2 — Reservation Service
+
+**What & Why:** `ReservationService` drives the full reservation lifecycle. `createReservation` moves the vehicle immediately to `RESERVED` via the state machine — Operator approval changes only the reservation row, not the vehicle status. Vehicle status is updated directly via `cds.entities` (same pattern as PricingService) to bypass `VehicleService`'s `before UPDATE` guard. The SELECT FOR UPDATE lock is intentionally deferred to T3 so concurrency concerns are isolated in one ticket.
+
+### Create `modules/reservation/api/reservation-service.cds`
+
+```cds
+using {automarket} from '../db/reservation';
+
+// ReservationService owns the full reservation lifecycle.
+// Vehicle status transitions (FOR_SALE ↔ RESERVED) are driven here — the handler
+// updates Vehicles directly via cds.entities to bypass VehicleService's UPDATE guard.
+// Guest createReservation is handled in T4 (guestToken issuance); this service
+// currently requires identified-customer auth.
+service ReservationService @(path: '/reservation') {
+
+    // Customers see only their own rows; Operators/Managers see their branch.
+    // Branch-scoped filter for staff is enforced in T7 (Operator Portal).
+    @restrict: [
+        { grant: 'READ', to: 'Customer',            where: 'customer_ID = $user' },
+        { grant: 'READ', to: ['Operator','Manager'] }
+    ]
+    entity Reservations as projection on automarket.Reservations;
+
+    // createReservation: creates a REQUESTED reservation and immediately moves
+    // the vehicle to RESERVED. Branch is derived from the vehicle — not taken
+    // from the caller — so the association is always consistent.
+    @requires: 'Customer'
+    action createReservation(vehicleId: String, notes: String) returns String;
+
+    // approveReservation: advances a REQUESTED reservation to APPROVED.
+    // Vehicle stays RESERVED — no vehicle state change at this step.
+    @requires: ['Operator', 'Manager']
+    action approveReservation(reservationId: String) returns Boolean;
+
+    // rejectReservation: rejects a REQUESTED or APPROVED reservation.
+    // Returns the vehicle to FOR_SALE via the VehicleStateMachine.
+    @requires: ['Operator', 'Manager']
+    action rejectReservation(reservationId: String, notes: String) returns Boolean;
+
+    // cancelReservation: customer cancels their own reservation.
+    // Returns the vehicle to FOR_SALE if the reservation was REQUESTED or APPROVED.
+    @requires: 'Customer'
+    action cancelReservation(reservationId: String) returns Boolean;
+
+    // completeReservation: marks the reservation as COMPLETED once the
+    // Operator confirms the checkout handoff to Sales. Vehicle status is
+    // driven by CheckoutStarted in the Sales flow, not here.
+    @requires: ['Operator', 'Manager']
+    action completeReservation(reservationId: String) returns Boolean;
+
+    event ReservationCreated   { reservationId : String; vehicleId : String; }
+    event ReservationApproved  { reservationId : String; vehicleId : String; }
+    event ReservationRejected  { reservationId : String; vehicleId : String; }
+    event ReservationCancelled { reservationId : String; vehicleId : String; }
+    event ReservationCompleted { reservationId : String; vehicleId : String; }
+}
+```
+
+### Create `modules/reservation/application/reservation-service.js`
+
+```js
+'use strict';
+
+const cds = require('@sap/cds');
+const { transition } = require('../../vehicle/domain/vehicle-state-machine');
+
+module.exports = cds.service.impl(async function (srv) {
+  const { Reservations } = cds.entities('automarket');
+
+  // createReservation: validates the vehicle is FOR_SALE, moves it to RESERVED
+  // via the state machine, then inserts the Reservations row.
+  // The SELECT FOR UPDATE lock is added in T3 — for now the guard is optimistic.
+  srv.on('createReservation', async (req) => {
+    const { vehicleId, notes } = req.data;
+    const { Vehicles } = cds.entities('automarket');
+
+    const vehicle = await SELECT.one.from(Vehicles)
+      .columns('ID', 'status', 'branch_ID', 'price', 'images')
+      .where({ ID: vehicleId });
+    if (!vehicle) return req.error(404, 'Vehicle not found');
+
+    let newVehicleStatus;
+    try { newVehicleStatus = transition(vehicle, 'ReservationCreated'); }
+    catch (e) { return req.error(409, e.message); }
+
+    // Compute expiresAt once at creation — never reset later.
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+    await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
+
+    const result = await INSERT.into(Reservations).entries({
+      vehicle_ID:  vehicleId,
+      branch_ID:   vehicle.branch_ID,
+      customer_ID: req.user.id,
+      status:      'REQUESTED',
+      expiresAt,
+      notes,
+    });
+
+    await srv.emit('ReservationCreated', { reservationId: result.ID, vehicleId });
+    return result.ID;
+  });
+
+  // approveReservation: only valid from REQUESTED status.
+  // Vehicle stays RESERVED — no state machine call needed here.
+  srv.on('approveReservation', async (req) => {
+    const { reservationId } = req.data;
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (reservation.status !== 'REQUESTED') {
+      return req.error(409, `Cannot approve a reservation in status ${reservation.status}`);
+    }
+    await UPDATE(Reservations).set({ status: 'APPROVED' }).where({ ID: reservationId });
+    await srv.emit('ReservationApproved', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+
+  // rejectReservation: valid from REQUESTED or APPROVED.
+  // Returns the vehicle to FOR_SALE via ReservationCancelled event on the state machine.
+  srv.on('rejectReservation', async (req) => {
+    const { reservationId, notes } = req.data;
+    const { Vehicles } = cds.entities('automarket');
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+      return req.error(409, `Cannot reject a reservation in status ${reservation.status}`);
+    }
+
+    const vehicle = await SELECT.one.from(Vehicles).columns('ID', 'status').where({ ID: reservation.vehicle_ID });
+    let newVehicleStatus;
+    try { newVehicleStatus = transition(vehicle, 'ReservationCancelled'); }
+    catch (e) { return req.error(409, e.message); }
+
+    await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: reservation.vehicle_ID });
+    await UPDATE(Reservations).set({ status: 'REJECTED', notes }).where({ ID: reservationId });
+    await srv.emit('ReservationRejected', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+
+  // cancelReservation: customer may only cancel their own reservation.
+  // Returns the vehicle to FOR_SALE if the reservation was REQUESTED or APPROVED.
+  srv.on('cancelReservation', async (req) => {
+    const { reservationId } = req.data;
+    const { Vehicles } = cds.entities('automarket');
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (reservation.customer_ID !== req.user.id) {
+      return req.error(403, 'You can only cancel your own reservation');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+      return req.error(409, `Cannot cancel a reservation in status ${reservation.status}`);
+    }
+
+    const vehicle = await SELECT.one.from(Vehicles).columns('ID', 'status').where({ ID: reservation.vehicle_ID });
+    let newVehicleStatus;
+    try { newVehicleStatus = transition(vehicle, 'ReservationCancelled'); }
+    catch (e) { return req.error(409, e.message); }
+
+    await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: reservation.vehicle_ID });
+    await UPDATE(Reservations).set({ status: 'CANCELLED' }).where({ ID: reservationId });
+    await srv.emit('ReservationCancelled', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+
+  // completeReservation: valid only from APPROVED. Marks the reservation done;
+  // vehicle status is advanced to PENDING_PAYMENT by the Sales flow, not here.
+  srv.on('completeReservation', async (req) => {
+    const { reservationId } = req.data;
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (reservation.status !== 'APPROVED') {
+      return req.error(409, `Cannot complete a reservation in status ${reservation.status}`);
+    }
+    await UPDATE(Reservations).set({ status: 'COMPLETED' }).where({ ID: reservationId });
+    await srv.emit('ReservationCompleted', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+});
+```
+
+### Modify `srv/index.cds` — add reservation-service import
+
+```diff
+ using from '../modules/favorites/api/favorites-service';
++
++using from '../modules/reservation/api/reservation-service';
+```
+
+### Modify `package.json` — register ReservationService
+
+```diff
+   "FavoritesService":   { "impl": "modules/favorites/application/favorites-service.js" },
++  "ReservationService": { "impl": "modules/reservation/application/reservation-service.js" }
 ```
