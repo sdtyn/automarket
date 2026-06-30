@@ -1,0 +1,76 @@
+'use strict';
+
+const cds = require('@sap/cds');
+
+module.exports = cds.service.impl(async function (srv) {
+  const { Offers, Reservations, Vehicles } = cds.entities('automarket');
+
+  // submitOffer: verifies the vehicle is FOR_SALE, then inserts a SUBMITTED offer.
+  // Branch is read from the vehicle row so the customer cannot spoof it.
+  srv.on('submitOffer', async (req) => {
+    const { vehicleId, offeredPrice, currency, desiredPickupDate, notes } = req.data;
+
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status', 'branch_ID')
+      .where({ ID: vehicleId });
+    if (!vehicle) return req.error(404, 'Vehicle not found');
+    if (vehicle.status !== 'FOR_SALE')
+      return req.error(409, 'Offers can only be submitted for FOR_SALE vehicles');
+
+    const result = await INSERT.into(Offers).entries({
+      vehicle_ID: vehicleId,
+      branch_ID: vehicle.branch_ID,
+      customer_ID: req.user.id,
+      offeredPrice,
+      currency: currency ?? 'TRY',
+      desiredPickupDate,
+      status: 'SUBMITTED',
+    });
+
+    await srv.emit('OfferSubmitted', { offerId: result.ID, vehicleId });
+    return result.ID;
+  });
+
+  // approveOffer: transitions offer to APPROVED, then creates an APPROVED
+  // Reservation so the vehicle is immediately held for the customer.
+  // expiresAt is set to 48h from now — same window as a normal reservation.
+  srv.on('approveOffer', async (req) => {
+    const { offerId } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot approve an offer in status ${offer.status}`);
+    }
+
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+    await UPDATE(Offers).set({ status: 'APPROVED' }).where({ ID: offerId });
+    await INSERT.into(Reservations).entries({
+      vehicle_ID: offer.vehicle_ID,
+      branch_ID: offer.branch_ID,
+      customer_ID: offer.customer_ID,
+      guestToken: null,
+      status: 'APPROVED',
+      expiresAt,
+    });
+
+    await srv.emit('OfferApproved', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+
+  // rejectOffer: transitions offer to REJECTED and stores the Manager's reason.
+  // The customer may resubmit with a revised price (handled in T3).
+  srv.on('rejectOffer', async (req) => {
+    const { offerId, rejectionNotes } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot reject an offer in status ${offer.status}`);
+    }
+
+    await UPDATE(Offers).set({ status: 'REJECTED', rejectionNotes }).where({ ID: offerId });
+    await srv.emit('OfferRejected', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+});

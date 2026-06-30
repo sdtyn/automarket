@@ -98,6 +98,9 @@
       },
       "TestDriveService": {
         "impl": "modules/test-drive/application/test-drive-service.js"
+      },
+      "OfferService": {
+        "impl": "modules/offer/application/offer-service.js"
       }
     }
   }

@@ -21,3 +21,5 @@ using from '../modules/favorites/api/favorites-service';
 using from '../modules/reservation/api/reservation-service';
 
 using from '../modules/test-drive/api/test-drive-service';
+
+using from '../modules/offer/api/offer-service';
