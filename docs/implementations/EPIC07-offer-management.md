@@ -8,7 +8,7 @@ Sprint 7. Goal: authenticated customers submit price offers on FOR_SALE vehicles
 |---|---|---|
 | EPIC07-T1 | Offer Domain Model — `Offers` entity, `OfferStatus` enum, DB schema | Done |
 | EPIC07-T2 | Offer Service — `submitOffer`, `approveOffer` (→ Reservation), `rejectOffer` actions | Done |
-| EPIC07-T3 | Offer Resubmission — `resubmitOffer` action; valid only from REJECTED status | Open |
+| EPIC07-T3 | Offer Resubmission — `resubmitOffer` action; valid only from REJECTED status | Done |
 | EPIC07-T4 | Manager Portal Extension — branch-scoped `Offers` projection, approve/reject actions | Open |
 
 ### Sprint Backlog DoD mapping
@@ -226,4 +226,53 @@ using from '../modules/offer/api/offer-service';
 
 ```json
 "OfferService": { "impl": "modules/offer/application/offer-service.js" }
+```
+
+---
+
+## T3 — Offer Resubmission
+
+**What & Why:** A REJECTED offer is updated in-place rather than replaced with a new row. This keeps the Manager's `rejectionNotes` visible in the same record until the resubmit clears them, and avoids duplicate offer rows for the same vehicle. Ownership is re-verified at resubmit time (`customer_ID === req.user.id`) even though the action is `@requires: 'Customer'`, because CAP's role check confirms the role but not the row's owner.
+
+### Modify `modules/offer/api/offer-service.cds` — add resubmitOffer action
+
+Add after `rejectOffer`, before the `event` blocks:
+
+```cds
+    // resubmitOffer: allows a Customer to revise and resubmit a REJECTED offer.
+    // Updates the existing row rather than opening a new one so the Manager
+    // sees the full revision history in a single record.
+    @requires: 'Customer'
+    action resubmitOffer(offerId:           String,
+                         offeredPrice:      Decimal,
+                         desiredPickupDate: Date)   returns Boolean;
+```
+
+### Modify `modules/offer/application/offer-service.js` — add resubmitOffer handler
+
+Add after the `rejectOffer` handler, before the closing `});` of `module.exports`:
+
+```js
+  // resubmitOffer: resets a REJECTED offer to SUBMITTED with a revised price.
+  // Only the offer's original customer may resubmit — enforced by checking
+  // customer_ID against req.user.id before any write.
+  srv.on('resubmitOffer', async (req) => {
+    const { offerId, offeredPrice, desiredPickupDate } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (offer.customer_ID !== req.user.id) {
+      return req.error(403, 'You can only resubmit your own offers');
+    }
+    if (offer.status !== 'REJECTED') {
+      return req.error(409, `Only REJECTED offers can be resubmitted; current status: ${offer.status}`);
+    }
+
+    await UPDATE(Offers)
+      .set({ status: 'SUBMITTED', offeredPrice, desiredPickupDate, rejectionNotes: null })
+      .where({ ID: offerId });
+
+    await srv.emit('OfferSubmitted', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
 ```

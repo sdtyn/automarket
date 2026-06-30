@@ -28,7 +28,7 @@ service OfferService @(path: '/offer') {
                        offeredPrice: Decimal,
                        currency: String,
                        desiredPickupDate: Date,
-                       notes: String)          returns String;
+                       notes: String)             returns String;
 
     // approveOffer: transitions offer to APPROVED and creates an APPROVED
     // Reservation for the same vehicle/customer. Only Manager and Admin.
@@ -36,7 +36,7 @@ service OfferService @(path: '/offer') {
         'Manager',
         'Admin'
     ]
-    action approveOffer(offerId: String)       returns Boolean;
+    action approveOffer(offerId: String)          returns Boolean;
 
     // rejectOffer: transitions offer to REJECTED. Customer may resubmit (T3).
     @requires: [
@@ -44,7 +44,15 @@ service OfferService @(path: '/offer') {
         'Admin'
     ]
     action rejectOffer(offerId: String,
-                       rejectionNotes: String) returns Boolean;
+                       rejectionNotes: String)    returns Boolean;
+
+    // resubmitOffer: allows a Customer to revise and resubmit a REJECTED offer.
+    // Updates the existing row rather than opening a new one so the Manager
+    // sees the full revision history in a single record.
+    @requires: 'Customer'
+    action resubmitOffer(offerId: String,
+                         offeredPrice: Decimal,
+                         desiredPickupDate: Date) returns Boolean;
 
     event OfferSubmitted {
         offerId   : String;

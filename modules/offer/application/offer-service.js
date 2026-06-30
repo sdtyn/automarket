@@ -73,4 +73,30 @@ module.exports = cds.service.impl(async function (srv) {
     await srv.emit('OfferRejected', { offerId, vehicleId: offer.vehicle_ID });
     return true;
   });
+
+  // resubmitOffer: resets a REJECTED offer to SUBMITTED with a revised price.
+  // Only the offer's original customer may resubmit — enforced by checking
+  // customer_ID against req.user.id before any write.
+  srv.on('resubmitOffer', async (req) => {
+    const { offerId, offeredPrice, desiredPickupDate } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (offer.customer_ID !== req.user.id) {
+      return req.error(403, 'You can only resubmit your own offers');
+    }
+    if (offer.status !== 'REJECTED') {
+      return req.error(
+        409,
+        `Only REJECTED offers can be resubmitted; current status: ${offer.status}`
+      );
+    }
+
+    await UPDATE(Offers)
+      .set({ status: 'SUBMITTED', offeredPrice, desiredPickupDate, rejectionNotes: null })
+      .where({ ID: offerId });
+
+    await srv.emit('OfferSubmitted', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
 });
