@@ -95,6 +95,9 @@
       },
       "ReservationService": {
         "impl": "modules/reservation/application/reservation-service.js"
+      },
+      "TestDriveService": {
+        "impl": "modules/test-drive/application/test-drive-service.js"
       }
     }
   }
