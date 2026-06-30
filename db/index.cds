@@ -16,3 +16,5 @@ using from '../modules/reservation/db/reservation';
 using from '../modules/test-drive/db/test-drive';
 
 using from '../modules/offer/db/offer';
+
+using from '../modules/sales/db/sales';
