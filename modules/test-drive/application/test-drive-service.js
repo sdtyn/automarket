@@ -1,5 +1,14 @@
 'use strict';
 
+// Returns true when two test drive windows overlap.
+// Strict overlap: [aStart, aEnd) ∩ [bStart, bEnd) ≠ ∅
+// bDurationMin defaults to 30 — the standard slot length used for new requests.
+function windowsOverlap(aStart, aDurationMin, bStart, bDurationMin = 30) {
+  const aEnd = new Date(aStart).getTime() + aDurationMin * 60_000;
+  const bEnd = new Date(bStart).getTime() + bDurationMin * 60_000;
+  return new Date(aStart).getTime() < bEnd && aEnd > new Date(bStart).getTime();
+}
+
 const cds = require('@sap/cds');
 
 module.exports = cds.service.impl(async function (srv) {
@@ -12,12 +21,18 @@ module.exports = cds.service.impl(async function (srv) {
 
     // Reject if the same vehicle already has an active request at this exact slot.
     // Duration-window overlap checking is deferred to getAvailableSlots (T4).
-    const conflict = await SELECT.one.from(TestDrives).where({
+    const activeBookings = await SELECT.from(TestDrives).where({
       vehicle_ID: vehicleId,
-      scheduledAt: scheduledAt,
       status: { in: ['REQUESTED', 'APPROVED'] },
     });
-    if (conflict) return req.error(409, 'This time slot is already taken for the selected vehicle');
+    const conflict = activeBookings.some((b) =>
+      windowsOverlap(b.scheduledAt, b.durationMinutes, scheduledAt)
+    );
+    if (conflict)
+      return req.error(
+        409,
+        'This time slot overlaps with an existing booking for the selected vehicle'
+      );
 
     const result = await INSERT.into(TestDrives).entries({
       vehicle_ID: vehicleId,
@@ -90,12 +105,18 @@ module.exports = cds.service.impl(async function (srv) {
 
     if (!contactEmail) return req.error(400, 'contactEmail is required for guest requests');
 
-    const conflict = await SELECT.one.from(TestDrives).where({
+    const activeBookings = await SELECT.from(TestDrives).where({
       vehicle_ID: vehicleId,
-      scheduledAt: scheduledAt,
       status: { in: ['REQUESTED', 'APPROVED'] },
     });
-    if (conflict) return req.error(409, 'This time slot is already taken for the selected vehicle');
+    const conflict = activeBookings.some((b) =>
+      windowsOverlap(b.scheduledAt, b.durationMinutes, scheduledAt)
+    );
+    if (conflict)
+      return req.error(
+        409,
+        'This time slot overlaps with an existing booking for the selected vehicle'
+      );
 
     const result = await INSERT.into(TestDrives).entries({
       vehicle_ID: vehicleId,
@@ -110,5 +131,41 @@ module.exports = cds.service.impl(async function (srv) {
 
     await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
     return result.ID;
+  });
+
+  // getAvailableSlots: generates 09:00–16:30 UTC slots in 30-min increments,
+  // then marks each as available or taken based on window-overlap against
+  // active bookings. Filtering is done in JS since per-vehicle booking counts
+  // are small; move to a DB date-range predicate if that assumption changes.
+  srv.on('getAvailableSlots', async (req) => {
+    const { vehicleId, date } = req.data;
+
+    const slots = [];
+    for (let hour = 9; hour < 17; hour++) {
+      for (let min = 0; min < 60; min += 30) {
+        const slot = new Date(date);
+        slot.setUTCHours(hour, min, 0, 0);
+        slots.push(slot);
+      }
+    }
+
+    const activeBookings = await SELECT.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+
+    const [year, month, day] = date.split('-').map(Number);
+    const dayBookings = activeBookings.filter((b) => {
+      if (!b.scheduledAt) return false;
+      const d = new Date(b.scheduledAt);
+      return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month && d.getUTCDate() === day;
+    });
+
+    return slots.map((slotTime) => ({
+      scheduledAt: slotTime.toISOString(),
+      available: !dayBookings.some((b) =>
+        windowsOverlap(b.scheduledAt, b.durationMinutes, slotTime)
+      ),
+    }));
   });
 });

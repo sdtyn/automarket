@@ -9,7 +9,7 @@ Sprint 6. Goal: test drive request and scheduling, guest access without claim fl
 | EPIC06-T1 | Test Drive Domain Model — `TestDrives` entity, `TestDriveStatus` enum, slot and guest contact fields, DB schema | Done |
 | EPIC06-T2 | Test Drive Service — `requestTestDrive`, `approveTestDrive`, `cancelTestDrive`, `completeTestDrive` actions; slot conflict guard | Done |
 | EPIC06-T3 | Guest Test Drive — guest request with `contactEmail`/`contactPhone`, no claim step; rate-limiting note | Done |
-| EPIC06-T4 | Availability Check — `getAvailableSlots` function; reject duplicate vehicle/slot requests | Open |
+| EPIC06-T4 | Availability Check — `getAvailableSlots` function; reject duplicate vehicle/slot requests | Done |
 | EPIC06-T5 | Auto-Cancel on Vehicle Sold — subscribe to `VehicleSold` event, cancel open test drives, emit `TestDriveCancelled` | Open |
 | EPIC06-T6 | Operator Portal Extension — branch-scoped `TestDrives` projection, approve/cancel/complete actions | Open |
 
@@ -289,5 +289,101 @@ Add after the `completeTestDrive` handler, before the closing `});` of `module.e
 
     await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
     return result.ID;
+  });
+```
+
+---
+
+## T4 — Availability Check
+
+**What & Why:** Two changes in one ticket. (1) The existing exact-timestamp conflict guard in `requestTestDrive` and `requestTestDriveAsGuest` is replaced with a duration-window overlap check so that a new request at 10:15 is correctly rejected when a 30-minute drive is already booked at 10:00. (2) `getAvailableSlots` is added as a public CDS function that generates standard 30-minute slots (09:00–16:30 UTC) for a vehicle on a given date and flags each as available or taken. Filtering is done in JS rather than with a DB date-range predicate — per-vehicle booking counts are small enough that a full fetch + in-memory filter is acceptable; a DB predicate can be added later if volume warrants it.
+
+### Modify `modules/test-drive/api/test-drive-service.cds`
+
+Add `AvailableSlot` type before the `service` block (after the `using` line):
+
+```cds
+// AvailableSlot is the return element for getAvailableSlots.
+type AvailableSlot {
+    scheduledAt : Timestamp;
+    available   : Boolean;
+}
+```
+
+Add `getAvailableSlots` function inside the service block, before `requestTestDrive`:
+
+```cds
+    // getAvailableSlots: returns standard 30-minute slots (09:00–16:30 UTC) for
+    // a vehicle on a given date, flagged available or taken.
+    // Open to guests — no @requires annotation.
+    function getAvailableSlots(vehicleId : String,
+                               branchId  : String,
+                               date      : Date)   returns array of AvailableSlot;
+```
+
+### Modify `modules/test-drive/application/test-drive-service.js`
+
+Add `windowsOverlap` helper above `module.exports` (after `'use strict'`):
+
+```js
+// Returns true when two test drive windows overlap.
+// Strict overlap: [aStart, aEnd) ∩ [bStart, bEnd) ≠ ∅
+// bDurationMin defaults to 30 — the standard slot length used for new requests.
+function windowsOverlap(aStart, aDurationMin, bStart, bDurationMin = 30) {
+  const aEnd = new Date(aStart).getTime() + aDurationMin * 60_000;
+  const bEnd = new Date(bStart).getTime() + bDurationMin * 60_000;
+  return new Date(aStart).getTime() < bEnd && aEnd > new Date(bStart).getTime();
+}
+```
+
+In `requestTestDrive` handler, replace the exact-match conflict check:
+
+```js
+    // Reject if the new window overlaps any active booking for this vehicle.
+    const activeBookings = await SELECT.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+    const conflict = activeBookings.some((b) => windowsOverlap(b.scheduledAt, b.durationMinutes, scheduledAt));
+    if (conflict) return req.error(409, 'This time slot overlaps with an existing booking for the selected vehicle');
+```
+
+Apply the same replacement in `requestTestDriveAsGuest` handler.
+
+Add `getAvailableSlots` handler after `requestTestDriveAsGuest`, before the closing `});` of `module.exports`:
+
+```js
+  // getAvailableSlots: generates 09:00–16:30 UTC slots in 30-min increments,
+  // then marks each as available or taken based on window-overlap against
+  // active bookings. Filtering is done in JS since per-vehicle booking counts
+  // are small; move to a DB date-range predicate if that assumption changes.
+  srv.on('getAvailableSlots', async (req) => {
+    const { vehicleId, date } = req.data;
+
+    const slots = [];
+    for (let hour = 9; hour < 17; hour++) {
+      for (let min = 0; min < 60; min += 30) {
+        const slot = new Date(date);
+        slot.setUTCHours(hour, min, 0, 0);
+        slots.push(slot);
+      }
+    }
+
+    const activeBookings = await SELECT.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+
+    const [year, month, day] = date.split('-').map(Number);
+    const dayBookings = activeBookings.filter((b) => {
+      if (!b.scheduledAt) return false;
+      const d = new Date(b.scheduledAt);
+      return d.getUTCFullYear() === year && d.getUTCMonth() + 1 === month && d.getUTCDate() === day;
+    });
+
+    return slots.map((slotTime) => ({
+      scheduledAt: slotTime.toISOString(),
+      available: !dayBookings.some((b) => windowsOverlap(b.scheduledAt, b.durationMinutes, slotTime)),
+    }));
   });
 ```
