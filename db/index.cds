@@ -20,3 +20,5 @@ using from '../modules/offer/db/offer';
 using from '../modules/sales/db/sales';
 
 using from '../modules/payment/db/payment';
+
+using from '../modules/delivery/db/delivery';
