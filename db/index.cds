@@ -10,3 +10,5 @@ using from '../modules/vehicle/db/vehicle';
 using from '../modules/pricing/db/pricing';
 
 using from '../modules/favorites/db/favorites';
+
+using from '../modules/reservation/db/reservation';
