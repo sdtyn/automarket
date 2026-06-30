@@ -101,6 +101,9 @@
       },
       "OfferService": {
         "impl": "modules/offer/application/offer-service.js"
+      },
+      "SalesService": {
+        "impl": "modules/sales/application/sales-service.js"
       }
     }
   }
