@@ -142,6 +142,39 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
+  // claimReservation: verifies the guestToken, then sets customer_ID to the
+  // caller's user ID and clears guestToken. Only valid while the reservation
+  // is still REQUESTED or APPROVED — expired/cancelled reservations cannot be claimed.
+  srv.on('claimReservation', async (req) => {
+    const { guestToken } = req.data;
+    let payload;
+    try {
+      payload = verifyGuestToken(guestToken);
+    } catch {
+      return req.error(401, 'Invalid or expired guest token');
+    }
+
+    const reservation = await SELECT.one.from(Reservations).where({ ID: payload.reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (reservation.customer_ID) {
+      return req.error(409, 'This reservation has already been claimed');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+      return req.error(409, `Cannot claim a reservation in status ${reservation.status}`);
+    }
+
+    await UPDATE(Reservations)
+      .set({ customer_ID: req.user.id, guestToken: null })
+      .where({ ID: payload.reservationId });
+
+    await srv.emit('ReservationClaimed', {
+      reservationId: payload.reservationId,
+      vehicleId: reservation.vehicle_ID,
+      customerId: req.user.id,
+    });
+    return true;
+  });
+
   // completeReservation: valid only from APPROVED. Marks the reservation done;
   // vehicle status is advanced to PENDING_PAYMENT by the Sales flow, not here.
   srv.on('completeReservation', async (req) => {

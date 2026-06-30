@@ -89,6 +89,18 @@ service ReservationService @(path: '/reservation') {
         vehicleId     : String;
     }
 
+    // claimReservation: converts a guest reservation into an identified-customer
+    // reservation. Caller must be authenticated (Customer role) and present the
+    // original guestToken. Sets customer_ID and clears guestToken atomically.
+    @requires: 'Customer'
+    action   claimReservation(guestToken: String)                    returns Boolean;
+
+    event ReservationClaimed {
+        reservationId : String;
+        vehicleId     : String;
+        customerId    : String;
+    }
+
     // getGuestReservation: allows a guest to fetch their reservation by token.
     // Token signature is verified in the handler — CAP auth cannot do this.
     @requires: 'any'

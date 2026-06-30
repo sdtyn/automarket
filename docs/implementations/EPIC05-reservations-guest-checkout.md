@@ -10,7 +10,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 | EPIC05-T2 | Reservation Service — `createReservation`, `approveReservation`, `rejectReservation`, `cancelReservation`, `completeReservation` actions; VehicleStateMachine integration | Done |
 | EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Done |
 | EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Done |
-| EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Open |
+| EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Done |
 | EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Open |
 | EPIC05-T7 | Operator Portal Extension — reservation list/approve/reject, branch-scoped ABAC | Open |
 
@@ -395,3 +395,63 @@ Add `getGuestReservation` and `cancelGuestReservation` handlers that verify toke
 ### Update `docs/cap-notes.md` — add §7 (applied automatically)
 
 See `docs/cap-notes.md` §7: "Guest Rate Limiting Is an Approuter Concern, Not CAP".
+
+---
+
+## T5 — Claim Flow
+
+**What & Why:** `claimReservation` converts a guest reservation into an identified-customer reservation once the guest logs in or registers. The `guestToken` is verified first, then `customer_ID` is set and `guestToken` is cleared atomically in a single UPDATE. Only `REQUESTED` or `APPROVED` reservations can be claimed — expired/cancelled ones are rejected to prevent reactivation.
+
+### Modify `modules/reservation/api/reservation-service.cds` — add action and event
+
+Add after `event ReservationCompleted` block, before `getGuestReservation`:
+```cds
+// claimReservation: converts a guest reservation into an identified-customer
+// reservation. Caller must be authenticated (Customer role) and present the
+// original guestToken. Sets customer_ID and clears guestToken atomically.
+@requires: 'Customer'
+action claimReservation(guestToken: String) returns Boolean;
+
+event ReservationClaimed {
+    reservationId : String;
+    vehicleId     : String;
+    customerId    : String;
+}
+```
+
+### Modify `modules/reservation/application/reservation-service.js` — add handler
+
+Add `claimReservation` handler alongside the other `srv.on` calls:
+```js
+// claimReservation: verifies the guestToken, then sets customer_ID to the
+// caller's user ID and clears guestToken. Only valid while the reservation
+// is still REQUESTED or APPROVED — expired/cancelled reservations cannot be claimed.
+srv.on('claimReservation', async (req) => {
+  const { guestToken } = req.data;
+  let payload;
+  try {
+    payload = verifyGuestToken(guestToken);
+  } catch {
+    return req.error(401, 'Invalid or expired guest token');
+  }
+
+  const reservation = await SELECT.one.from(Reservations).where({ ID: payload.reservationId });
+  if (!reservation) return req.error(404, 'Reservation not found');
+  if (reservation.customer_ID) {
+    return req.error(409, 'This reservation has already been claimed');
+  }
+  if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+    return req.error(409, `Cannot claim a reservation in status ${reservation.status}`);
+  }
+
+  await UPDATE(Reservations)
+    .set({ customer_ID: req.user.id, guestToken: null })
+    .where({ ID: payload.reservationId });
+
+  await srv.emit('ReservationClaimed', {
+    reservationId: payload.reservationId,
+    vehicleId: reservation.vehicle_ID,
+    customerId: req.user.id,
+  });
+  return true;
+});
