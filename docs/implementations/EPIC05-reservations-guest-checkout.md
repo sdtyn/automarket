@@ -8,7 +8,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 |---|---|---|
 | EPIC05-T1 | Reservation Domain Model — `Reservations` entity, `ReservationStatus` enum, `guestToken` field, DB schema | Done |
 | EPIC05-T2 | Reservation Service — `createReservation`, `approveReservation`, `rejectReservation`, `cancelReservation`, `completeReservation` actions; VehicleStateMachine integration | Done |
-| EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Open |
+| EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Done |
 | EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Open |
 | EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Open |
 | EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Open |
@@ -279,3 +279,46 @@ module.exports = cds.service.impl(async function (srv) {
    "FavoritesService":   { "impl": "modules/favorites/application/favorites-service.js" },
 +  "ReservationService": { "impl": "modules/reservation/application/reservation-service.js" }
 ```
+
+---
+
+## T3 — Concurrency Guard
+
+**What & Why:** Two-layer protection against duplicate active reservations. Application layer: `.forUpdate()` on the vehicle SELECT takes a row-level lock for the transaction duration, preventing two concurrent `createReservation` calls from both reading `FOR_SALE` before either commits. SQLite (local dev) silently ignores `FOR UPDATE` — the state machine and the active-reservation check are the effective guards there. DB layer: a partial unique index `UNIQUE(vehicle_ID) WHERE status IN ('REQUESTED','APPROVED')` is the last line of defence, but CDS cannot express it — see `docs/cap-notes.md` §6 for the post-deploy SQL script.
+
+### Modify `modules/reservation/application/reservation-service.js` — add lock and active-reservation check to `createReservation`
+
+Remove these lines:
+```
+const vehicle = await SELECT.one.from(Vehicles)
+  .columns('ID', 'status', 'branch_ID', 'price', 'images')
+  .where({ ID: vehicleId });
+if (!vehicle) return req.error(404, 'Vehicle not found');
+```
+
+Replace with:
+```js
+// forUpdate() takes a row-level lock on the vehicle for the duration of
+// this transaction, preventing a second concurrent createReservation from
+// reading the same FOR_SALE snapshot before either write commits.
+// SQLite (local dev) silently ignores FOR UPDATE — the state machine guard
+// is the only protection there. HANA/PG enforce the lock.
+const vehicle = await SELECT.one.from(Vehicles)
+  .columns('ID', 'status', 'branch_ID', 'price', 'images')
+  .where({ ID: vehicleId })
+  .forUpdate();
+if (!vehicle) return req.error(404, 'Vehicle not found');
+
+// Explicit active-reservation check as belt-and-suspenders.
+// The state machine catches this too (vehicle would not be FOR_SALE),
+// but this guard fires before the state machine and gives a clearer error.
+const activeReservation = await SELECT.one.from(Reservations)
+  .where({ vehicle_ID: vehicleId, status: { in: ['REQUESTED', 'APPROVED'] } });
+if (activeReservation) {
+  return req.error(409, 'This vehicle already has an active reservation');
+}
+```
+
+### Update `docs/cap-notes.md` — add §6 (applied automatically)
+
+See `docs/cap-notes.md` §6: "Partial Unique Index on Reservations Cannot Be Expressed in CDS".

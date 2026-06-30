@@ -13,10 +13,28 @@ module.exports = cds.service.impl(async function (srv) {
     const { vehicleId, notes } = req.data;
     const { Vehicles } = cds.entities('automarket');
 
+    // forUpdate() takes a row-level lock on the vehicle for the duration of
+    // this transaction, preventing a second concurrent createReservation from
+    // reading the same FOR_SALE snapshot before either write commits.
+    // SQLite (local dev) silently ignores FOR UPDATE — the state machine guard
+    // is the only protection there. HANA/PG enforce the lock.
     const vehicle = await SELECT.one
       .from(Vehicles)
       .columns('ID', 'status', 'branch_ID', 'price', 'images')
-      .where({ ID: vehicleId });
+      .where({ ID: vehicleId })
+      .forUpdate();
+    if (!vehicle) return req.error(404, 'Vehicle not found');
+
+    // Explicit active-reservation check as belt-and-suspenders.
+    // The state machine catches this too (vehicle would not be FOR_SALE),
+    // but this guard fires before the state machine and gives a clearer error.
+    const activeReservation = await SELECT.one
+      .from(Reservations)
+      .where({ vehicle_ID: vehicleId, status: { in: ['REQUESTED', 'APPROVED'] } });
+    if (activeReservation) {
+      return req.error(409, 'This vehicle already has an active reservation');
+    }
+
     if (!vehicle) return req.error(404, 'Vehicle not found');
 
     let newVehicleStatus;

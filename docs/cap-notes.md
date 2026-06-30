@@ -133,3 +133,32 @@ code change — only the deployment environment differs:
 ```
 
 CAP activates the `[production]` block automatically when `NODE_ENV=production`.
+
+---
+
+## 6. Partial Unique Index on Reservations Cannot Be Expressed in CDS
+
+**Context:** EPIC05-T3. The business rule "only one active reservation per vehicle" requires
+a `UNIQUE(vehicle_ID) WHERE status IN ('REQUESTED', 'APPROVED')` partial index. A full
+`@assert.unique` on `vehicle_ID` alone would block all historical rows for the same vehicle.
+
+**Why CDS can't express it:** CDS `@assert.unique` does not support WHERE-clause conditions.
+There is no annotation equivalent to a SQL partial index.
+
+**Solution:** Apply the index manually after deployment via a post-deploy SQL script:
+
+```sql
+-- For HANA:
+CREATE UNIQUE INDEX reservation_one_active_per_vehicle
+  ON automarket_Reservations (vehicle_ID)
+  WHERE status IN ('REQUESTED', 'APPROVED');
+
+-- For PostgreSQL:
+CREATE UNIQUE INDEX reservation_one_active_per_vehicle
+  ON "automarket_Reservations" ("vehicle_ID")
+  WHERE status IN ('REQUESTED', 'APPROVED');
+```
+
+Place this script in `db/migrations/` before the first production deployment.
+The application-layer guard (SELECT FOR UPDATE + active-reservation check in
+`createReservation`) is the primary protection in local dev where this index is absent.
