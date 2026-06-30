@@ -18,3 +18,5 @@ using from '../modules/test-drive/db/test-drive';
 using from '../modules/offer/db/offer';
 
 using from '../modules/sales/db/sales';
+
+using from '../modules/payment/db/payment';
