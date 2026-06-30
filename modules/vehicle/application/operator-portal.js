@@ -3,7 +3,7 @@
 const cds = require('@sap/cds');
 
 module.exports = cds.service.impl(async function (srv) {
-  const { Vehicles, Reservations, TestDrives } = cds.entities('automarket');
+  const { Vehicles, Reservations, TestDrives, Offers } = cds.entities('automarket');
   const { transition } = require('../domain/vehicle-state-machine');
 
   // createVehicle: inserts a DRAFT vehicle and enforces branch scoping.
@@ -153,6 +153,56 @@ module.exports = cds.service.impl(async function (srv) {
     await UPDATE(TestDrives).set({ status: 'COMPLETED' }).where({ ID: testDriveId });
     const tdSrv = await cds.connect.to('TestDriveService');
     await tdSrv.emit('TestDriveCompleted', { testDriveId, vehicleId: testDrive.vehicle_ID });
+    return true;
+  });
+
+  // approveOffer: branch guard for Managers; delegates to OfferService for the
+  // Reservation creation and event emission.
+  srv.on('approveOffer', async (req) => {
+    const { offerId } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (req.user.is('Manager') && offer.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only approve offers for your branch');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot approve an offer in status ${offer.status}`);
+    }
+
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    await UPDATE(Offers).set({ status: 'APPROVED' }).where({ ID: offerId });
+    await INSERT.into(Reservations).entries({
+      vehicle_ID: offer.vehicle_ID,
+      branch_ID: offer.branch_ID,
+      customer_ID: offer.customer_ID,
+      guestToken: null,
+      status: 'APPROVED',
+      expiresAt,
+    });
+
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.emit('OfferApproved', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+
+  // rejectOffer: branch guard for Managers; stores rejection notes and emits
+  // via OfferService so the customer's notification subscriber fires correctly.
+  srv.on('rejectOffer', async (req) => {
+    const { offerId, rejectionNotes } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (req.user.is('Manager') && offer.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only reject offers for your branch');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot reject an offer in status ${offer.status}`);
+    }
+
+    await UPDATE(Offers).set({ status: 'REJECTED', rejectionNotes }).where({ ID: offerId });
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.emit('OfferRejected', { offerId, vehicleId: offer.vehicle_ID });
     return true;
   });
 });

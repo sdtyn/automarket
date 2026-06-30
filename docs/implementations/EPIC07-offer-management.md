@@ -9,7 +9,7 @@ Sprint 7. Goal: authenticated customers submit price offers on FOR_SALE vehicles
 | EPIC07-T1 | Offer Domain Model — `Offers` entity, `OfferStatus` enum, DB schema | Done |
 | EPIC07-T2 | Offer Service — `submitOffer`, `approveOffer` (→ Reservation), `rejectOffer` actions | Done |
 | EPIC07-T3 | Offer Resubmission — `resubmitOffer` action; valid only from REJECTED status | Done |
-| EPIC07-T4 | Manager Portal Extension — branch-scoped `Offers` projection, approve/reject actions | Open |
+| EPIC07-T4 | Manager Portal Extension — branch-scoped `Offers` projection, approve/reject actions | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -21,7 +21,7 @@ Sprint 7. Goal: authenticated customers submit price offers on FOR_SALE vehicles
 
 ### Sign-off
 
-_To be completed at sprint end._
+All four tickets delivered and CI green. Sprint completed 2026-06-30.
 
 ---
 
@@ -276,3 +276,118 @@ Add after the `rejectOffer` handler, before the closing `});` of `module.exports
     return true;
   });
 ```
+
+---
+
+## T4 — Manager Portal Extension
+
+**What & Why:** Offer approval authority belongs to Manager and Admin — Operators are excluded by design (authorization matrix §8). The `Offers` projection uses `branch_ID = $user.branchId` so Managers only see their branch's offers. The `approveOffer` portal handler writes both the Offer status and the Reservation in one transaction before emitting the event — the same DB-first, emit-last pattern used throughout the portal. Using `Reservations` (already in scope from the module-level destructure) avoids re-fetching entities mid-handler.
+
+### Modify `modules/vehicle/api/operator-portal.cds`
+
+Add after the existing `using` lines:
+
+```cds
+using from '../../offer/db/offer';
+```
+
+Add before the closing `}` of the service block:
+
+```cds
+    // Offers: branch-scoped read for Managers and Admins only.
+    // Operators do not have offer approval authority.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Manager',
+            where: 'branch_ID = $user.branchId'
+        },
+        {
+            grant: 'READ',
+            to   : 'Admin'
+        }
+    ]
+    entity Offers       as projection on automarket.Offers;
+
+    // approveOffer: branch-scoped wrapper — Managers may only approve offers
+    // belonging to their branch. Creates a Reservation via OfferService.
+    @requires: [
+        'Manager',
+        'Admin'
+    ]
+    action approveOffer(offerId: String)                           returns Boolean;
+
+    // rejectOffer: branch-scoped wrapper with the same guard.
+    @requires: [
+        'Manager',
+        'Admin'
+    ]
+    action rejectOffer(offerId: String,
+                       rejectionNotes: String)                     returns Boolean;
+```
+
+### Modify `modules/vehicle/application/operator-portal.js`
+
+Update the entities destructure:
+
+```js
+  const { Vehicles, Reservations, TestDrives, Offers } = cds.entities('automarket');
+```
+
+Add after the `completeTestDrive` handler, before the closing `});` of `module.exports`:
+
+```js
+  // approveOffer: branch guard for Managers; delegates to OfferService for the
+  // Reservation creation and event emission.
+  srv.on('approveOffer', async (req) => {
+    const { offerId } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (req.user.is('Manager') && offer.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only approve offers for your branch');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot approve an offer in status ${offer.status}`);
+    }
+
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    await UPDATE(Offers).set({ status: 'APPROVED' }).where({ ID: offerId });
+    await INSERT.into(Reservations).entries({
+      vehicle_ID:  offer.vehicle_ID,
+      branch_ID:   offer.branch_ID,
+      customer_ID: offer.customer_ID,
+      guestToken:  null,
+      status:      'APPROVED',
+      expiresAt,
+    });
+
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.emit('OfferApproved', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+
+  // rejectOffer: branch guard for Managers; stores rejection notes and emits
+  // via OfferService so the customer's notification subscriber fires correctly.
+  srv.on('rejectOffer', async (req) => {
+    const { offerId, rejectionNotes } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (req.user.is('Manager') && offer.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only reject offers for your branch');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot reject an offer in status ${offer.status}`);
+    }
+
+    await UPDATE(Offers).set({ status: 'REJECTED', rejectionNotes }).where({ ID: offerId });
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.emit('OfferRejected', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+```
+
+### Sign-off
+
+All four tickets delivered. Sprint complete.
