@@ -1,5 +1,6 @@
 using {automarket} from '../db/reservation';
 
+
 // ReservationService owns the full reservation lifecycle.
 // Vehicle status transitions (FOR_SALE ↔ RESERVED) are driven here — the handler
 // updates Vehicles directly via cds.entities to bypass VehicleService's UPDATE guard.
