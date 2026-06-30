@@ -11,7 +11,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 | EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Done |
 | EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Done |
 | EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Done |
-| EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Open |
+| EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Done |
 | EPIC05-T7 | Operator Portal Extension — reservation list/approve/reject, branch-scoped ABAC | Open |
 
 ### Sprint Backlog DoD mapping
@@ -25,6 +25,93 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 ### Sign-off
 
 _To be completed at sprint end._
+
+---
+
+## T6 — Reservation Expiry Job
+
+**What & Why:** A periodic background scanner marks reservations past `expiresAt` as `EXPIRED` and returns the vehicle to `FOR_SALE`. `expiresAt` is always `createdAt + 48h` set once at creation — it is never reset by failed checkout attempts (Sprint Backlog §20). The job is started via `cds.on('served', ...)` so all services and DB connections are fully initialised before the first scan. Notification delivery is the Notification module's responsibility (EPIC10); this job only emits the `ReservationExpired` event.
+
+### Create `modules/reservation/infrastructure/expiry-job.js`
+
+```js
+'use strict';
+
+const cds = require('@sap/cds');
+const { transition } = require('../../vehicle/domain/vehicle-state-machine');
+
+const log = cds.log('expiry-job');
+const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
+
+// scanExpired: finds all REQUESTED/APPROVED reservations past their expiresAt,
+// transitions the vehicle back to FOR_SALE, marks the reservation EXPIRED,
+// and emits ReservationExpired for downstream consumers (e.g. Notifications).
+async function scanExpired(srv) {
+  const { Reservations, Vehicles } = cds.entities('automarket');
+  const now = new Date().toISOString();
+
+  const expired = await SELECT.from(Reservations).where({
+    status: { in: ['REQUESTED', 'APPROVED'] },
+    expiresAt: { '<=': now },
+  });
+
+  for (const reservation of expired) {
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status')
+      .where({ ID: reservation.vehicle_ID });
+
+    // Vehicle may already be in a terminal state if another flow ran first.
+    // Warn and skip the state machine rather than throwing, so one bad row
+    // does not block the rest of the batch.
+    try {
+      const newStatus = transition(vehicle, 'ReservationExpired');
+      await UPDATE(Vehicles).set({ status: newStatus }).where({ ID: reservation.vehicle_ID });
+    } catch (e) {
+      log.warn(`Could not transition vehicle ${reservation.vehicle_ID}: ${e.message}`);
+    }
+
+    await UPDATE(Reservations).set({ status: 'EXPIRED' }).where({ ID: reservation.ID });
+    await srv.emit('ReservationExpired', {
+      reservationId: reservation.ID,
+      vehicleId: reservation.vehicle_ID,
+    });
+  }
+
+  if (expired.length > 0) log.info(`Expired ${expired.length} reservation(s)`);
+}
+
+// startExpiryJob: runs an immediate scan on startup, then schedules a recurring
+// check. Called once from reservation-service.js via cds.on('served', ...).
+function startExpiryJob(srv) {
+  scanExpired(srv).catch((e) => log.error('Initial expiry scan failed:', e));
+  setInterval(() => scanExpired(srv).catch((e) => log.error('Expiry scan failed:', e)), CHECK_INTERVAL_MS);
+}
+
+module.exports = { startExpiryJob };
+```
+
+### Modify `modules/reservation/api/reservation-service.cds` — add event
+
+Add after `event ReservationClaimed` block:
+```cds
+event ReservationExpired {
+    reservationId : String;
+    vehicleId     : String;
+}
+```
+
+### Modify `modules/reservation/application/reservation-service.js` — wire job startup
+
+Add before the final `});` closing brace of `cds.service.impl`:
+```js
+// Start the expiry scanner after all services are up so cds.entities and
+// db connections are fully initialised before the first scan runs.
+cds.on('served', () => {
+  const { startExpiryJob } = require('../infrastructure/expiry-job');
+  startExpiryJob(srv);
+});
+```
 
 ---
 

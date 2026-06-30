@@ -101,6 +101,11 @@ service ReservationService @(path: '/reservation') {
         customerId    : String;
     }
 
+    event ReservationExpired {
+        reservationId : String;
+        vehicleId     : String;
+    }
+
     // getGuestReservation: allows a guest to fetch their reservation by token.
     // Token signature is verified in the handler — CAP auth cannot do this.
     @requires: 'any'

@@ -245,4 +245,11 @@ module.exports = cds.service.impl(async function (srv) {
     });
     return true;
   });
+
+  // Start the expiry scanner after all services are up so cds.entities and
+  // db connections are fully initialised before the first scan runs.
+  cds.on('served', () => {
+    const { startExpiryJob } = require('../infrastructure/expiry-job');
+    startExpiryJob(srv);
+  });
 });
