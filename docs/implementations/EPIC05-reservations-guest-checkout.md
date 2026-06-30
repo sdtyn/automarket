@@ -24,7 +24,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 
 ### Sign-off
 
-_To be completed at sprint end._
+Signed off by: Sedat Yeni  Date: 2026-06-30
 
 ---
 
