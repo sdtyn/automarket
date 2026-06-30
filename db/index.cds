@@ -12,3 +12,5 @@ using from '../modules/pricing/db/pricing';
 using from '../modules/favorites/db/favorites';
 
 using from '../modules/reservation/db/reservation';
+
+using from '../modules/test-drive/db/test-drive';
