@@ -25,3 +25,5 @@ using from '../modules/test-drive/api/test-drive-service';
 using from '../modules/offer/api/offer-service';
 
 using from '../modules/sales/api/sales-service';
+
+using from '../modules/payment/api/payment-service';

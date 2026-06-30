@@ -104,6 +104,9 @@
       },
       "SalesService": {
         "impl": "modules/sales/application/sales-service.js"
+      },
+      "PaymentService": {
+        "impl": "modules/payment/application/payment-service.js"
       }
     }
   }

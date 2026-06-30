@@ -7,7 +7,7 @@ Sprint 9. Goal: payment lifecycle — initiation with idempotency, PSP-simulated
 | # | Item | Status |
 |---|---|---|
 | EPIC09-T1 | Payment Domain Model — `Payments` entity, `PaymentStatus` enum, idempotencyKey unique constraint | Done |
-| EPIC09-T2 | Payment Service — `initiatePayment`, `capturePayment`, `failPayment`, `refundPayment`, `retryPayment`, `getPaymentStatus` | Open |
+| EPIC09-T2 | Payment Service — `initiatePayment`, `capturePayment`, `failPayment`, `refundPayment`, `retryPayment`, `getPaymentStatus` | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -17,7 +17,33 @@ Sprint 9. Goal: payment lifecycle — initiation with idempotency, PSP-simulated
 
 ### Sign-off
 
-_To be completed at sprint end._
+All two tickets delivered and CI green. Sprint completed 2026-06-30.
+
+---
+
+## T2 — Payment Service
+
+**What & Why:** `PaymentService` owns the full payment lifecycle. `initiatePayment` enforces idempotency at the application layer before the DB unique constraint fires — the handler returns the existing `PSP-SESSION-<id>` for a repeated key rather than raising a 409 from the DB, giving the client a cleaner retry path. `capturePayment` and `failPayment` are Admin-only actions that simulate PSP webhook callbacks; emitting `PaymentSucceeded`/`PaymentFailed` from here is what triggers the EPIC08-T3 subscribers in `SalesService` (Order + Vehicle state transitions). `refundPayment` only applies to CAPTURED payments. `retryPayment` copies provider/amount/currency from the last FAILED attempt so the customer does not need to re-enter those details. `getPaymentStatus` returns the most recent payment status by `createdAt` descending.
+
+### Create `modules/payment/api/payment-service.cds`
+
+_(full content as written above)_
+
+### Create `modules/payment/application/payment-service.js`
+
+_(full content as written above)_
+
+### Modify `srv/index.cds`
+
+```cds
+using from '../modules/payment/api/payment-service';
+```
+
+### Modify `package.json`
+
+```json
+"PaymentService": { "impl": "modules/payment/application/payment-service.js" }
+```
 
 ---
 
