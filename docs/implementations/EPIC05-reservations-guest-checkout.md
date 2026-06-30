@@ -9,7 +9,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 | EPIC05-T1 | Reservation Domain Model — `Reservations` entity, `ReservationStatus` enum, `guestToken` field, DB schema | Done |
 | EPIC05-T2 | Reservation Service — `createReservation`, `approveReservation`, `rejectReservation`, `cancelReservation`, `completeReservation` actions; VehicleStateMachine integration | Done |
 | EPIC05-T3 | Concurrency Guard — `SELECT FOR UPDATE` row lock on Vehicle before guard evaluation; partial unique index on active reservations | Done |
-| EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Open |
+| EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Done |
 | EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Open |
 | EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Open |
 | EPIC05-T7 | Operator Portal Extension — reservation list/approve/reject, branch-scoped ABAC | Open |
@@ -322,3 +322,76 @@ if (activeReservation) {
 ### Update `docs/cap-notes.md` — add §6 (applied automatically)
 
 See `docs/cap-notes.md` §6: "Partial Unique Index on Reservations Cannot Be Expressed in CDS".
+
+---
+
+## T4 — Guest Checkout
+
+**What & Why:** `createReservation` is opened to `@requires: 'any'` so unauthenticated guests can reserve a vehicle. Guest identity is replaced by a signed 48h JWT (`guestToken`) issued at creation and stored on the row. The token is the only credential that grants read/cancel access — no session, no cookie. Rate limiting at 20 req/min per IP is an Approuter concern, not CAP's (see `cap-notes.md` §7).
+
+### Create `modules/reservation/infrastructure/guest-token.js`
+
+```js
+'use strict';
+
+const jwt = require('jsonwebtoken');
+
+// Secret is loaded from env so it can be rotated without a code change.
+// The dev fallback must never be used in production — the missing env var
+// will produce tokens that any developer with this repo can forge.
+const GUEST_TOKEN_SECRET = process.env.GUEST_TOKEN_SECRET || 'guest-token-dev-secret-CHANGE-IN-PROD';
+
+// issueGuestToken: signs a short-lived JWT embedding the reservationId.
+// Expiry is 48h to match the reservation expiry window — a guest cannot
+// use a token to access an already-expired reservation.
+function issueGuestToken(reservationId) {
+  return jwt.sign(
+    { reservationId, type: 'guest-reservation' },
+    GUEST_TOKEN_SECRET,
+    { expiresIn: '48h' }
+  );
+}
+
+// verifyGuestToken: verifies signature and expiry; throws on failure.
+// Callers must catch and convert to a 401 error.
+function verifyGuestToken(token) {
+  return jwt.verify(token, GUEST_TOKEN_SECRET);
+}
+
+module.exports = { issueGuestToken, verifyGuestToken };
+```
+
+### Modify `modules/reservation/api/reservation-service.cds`
+
+Change `createReservation` from `@requires: 'Customer'` returning `String` to:
+```cds
+@requires: 'any'
+action createReservation(vehicleId: String, notes: String) returns {
+    reservationId : String;
+    guestToken    : String;
+};
+```
+
+Add before closing `}`:
+```cds
+@requires: 'any'
+function getGuestReservation(guestToken: String) returns Reservations;
+
+@requires: 'any'
+action cancelGuestReservation(guestToken: String) returns Boolean;
+```
+
+### Modify `modules/reservation/application/reservation-service.js`
+
+Add require at top:
+```js
+const { issueGuestToken, verifyGuestToken } = require('../infrastructure/guest-token');
+```
+
+In `createReservation`, replace the INSERT + emit + return block with guest-aware version (detects `!req.user.is('authenticated-user')`, issues token, persists it, returns `{ reservationId, guestToken }`).
+
+Add `getGuestReservation` and `cancelGuestReservation` handlers that verify token signature before acting.
+
+### Update `docs/cap-notes.md` — add §7 (applied automatically)
+
+See `docs/cap-notes.md` §7: "Guest Rate Limiting Is an Approuter Concern, Not CAP".

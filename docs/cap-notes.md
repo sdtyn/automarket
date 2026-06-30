@@ -162,3 +162,18 @@ CREATE UNIQUE INDEX reservation_one_active_per_vehicle
 Place this script in `db/migrations/` before the first production deployment.
 The application-layer guard (SELECT FOR UPDATE + active-reservation check in
 `createReservation`) is the primary protection in local dev where this index is absent.
+
+---
+
+## 7. Guest Rate Limiting Is an Approuter Concern, Not CAP
+
+**Context:** EPIC05-T4. The product backlog requires guest reservation writes to be
+rate-limited at 20 req/min per IP. CAP services have no built-in IP-level rate limiter.
+
+**Solution:** Rate limiting at the IP level belongs in the Approuter (`xs-app.json` route
+config or a custom middleware in the Approuter layer). CAP's `@requires: 'any'` route
+should not attempt to implement its own IP counter — the Approuter sits in front and
+is the right place for network-level policies.
+
+**Local dev:** No rate limiting applies. The restriction only takes effect when the
+Approuter is deployed (EPIC01-T6 scope).

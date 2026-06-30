@@ -2,13 +2,13 @@
 
 const cds = require('@sap/cds');
 const { transition } = require('../../vehicle/domain/vehicle-state-machine');
+const { issueGuestToken, verifyGuestToken } = require('../infrastructure/guest-token');
 
 module.exports = cds.service.impl(async function (srv) {
   const { Reservations } = cds.entities('automarket');
 
   // createReservation: validates the vehicle is FOR_SALE, moves it to RESERVED
   // via the state machine, then inserts the Reservations row.
-  // The SELECT FOR UPDATE lock is added in T3 — for now the guard is optimistic.
   srv.on('createReservation', async (req) => {
     const { vehicleId, notes } = req.data;
     const { Vehicles } = cds.entities('automarket');
@@ -35,8 +35,6 @@ module.exports = cds.service.impl(async function (srv) {
       return req.error(409, 'This vehicle already has an active reservation');
     }
 
-    if (!vehicle) return req.error(404, 'Vehicle not found');
-
     let newVehicleStatus;
     try {
       newVehicleStatus = transition(vehicle, 'ReservationCreated');
@@ -49,17 +47,26 @@ module.exports = cds.service.impl(async function (srv) {
 
     await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
 
+    const isGuest = !req.user.is('authenticated-user');
+
     const result = await INSERT.into(Reservations).entries({
       vehicle_ID: vehicleId,
       branch_ID: vehicle.branch_ID,
-      customer_ID: req.user.id,
+      customer_ID: isGuest ? null : req.user.id,
       status: 'REQUESTED',
       expiresAt,
       notes,
     });
 
+    const guestToken = isGuest ? issueGuestToken(result.ID) : null;
+
+    // Persist guestToken on the row so it can be looked up by verifyGuestToken later.
+    if (guestToken) {
+      await UPDATE(Reservations).set({ guestToken }).where({ ID: result.ID });
+    }
+
     await srv.emit('ReservationCreated', { reservationId: result.ID, vehicleId });
-    return result.ID;
+    return { reservationId: result.ID, guestToken };
   });
 
   // approveReservation: only valid from REQUESTED status.
@@ -146,6 +153,63 @@ module.exports = cds.service.impl(async function (srv) {
     }
     await UPDATE(Reservations).set({ status: 'COMPLETED' }).where({ ID: reservationId });
     await srv.emit('ReservationCompleted', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+
+  // getGuestReservation: looks up a reservation by guestToken after verifying
+  // the JWT signature. Returns 401 on invalid/expired token.
+  srv.on('getGuestReservation', async (req) => {
+    const { guestToken } = req.data;
+    let payload;
+    try {
+      payload = verifyGuestToken(guestToken);
+    } catch {
+      return req.error(401, 'Invalid or expired guest token');
+    }
+    const reservation = await SELECT.one.from(Reservations).where({ ID: payload.reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    return reservation;
+  });
+
+  // cancelGuestReservation: verifies token, then reuses the same vehicle-return
+  // logic as cancelReservation. Guests cannot cancel an already-claimed reservation
+  // (customer_ID would be set; token still valid but ownership transferred).
+  srv.on('cancelGuestReservation', async (req) => {
+    const { guestToken } = req.data;
+    const { Vehicles } = cds.entities('automarket');
+    let payload;
+    try {
+      payload = verifyGuestToken(guestToken);
+    } catch {
+      return req.error(401, 'Invalid or expired guest token');
+    }
+
+    const reservation = await SELECT.one.from(Reservations).where({ ID: payload.reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+    if (reservation.customer_ID) {
+      return req.error(409, 'This reservation has been claimed by an identified customer');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+      return req.error(409, `Cannot cancel a reservation in status ${reservation.status}`);
+    }
+
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status')
+      .where({ ID: reservation.vehicle_ID });
+    let newVehicleStatus;
+    try {
+      newVehicleStatus = transition(vehicle, 'ReservationCancelled');
+    } catch (e) {
+      return req.error(409, e.message);
+    }
+
+    await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: reservation.vehicle_ID });
+    await UPDATE(Reservations).set({ status: 'CANCELLED' }).where({ ID: payload.reservationId });
+    await srv.emit('ReservationCancelled', {
+      reservationId: payload.reservationId,
+      vehicleId: reservation.vehicle_ID,
+    });
     return true;
   });
 });
