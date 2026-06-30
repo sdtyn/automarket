@@ -1,4 +1,5 @@
 using {automarket} from '../db/vehicle';
+using {automarket as automarketReservation} from '../../reservation/db/reservation';
 
 // OperatorPortalService is the branch-scoped read/create surface for internal
 // staff. Operators are restricted to their own branch via the @restrict where
@@ -22,7 +23,7 @@ service OperatorPortalService @(path: '/operator') {
             to   : 'Manager'
         }
     ]
-    entity Vehicles as
+    entity Vehicles     as
         projection on automarket.Vehicles
         excluding {
             images
@@ -47,5 +48,35 @@ service OperatorPortalService @(path: '/operator') {
                          color: String,
                          price: Decimal,
                          currency: String,
-                         branchId: String) returns String;
+                         branchId: String)                         returns String;
+
+    // Reservations: Operators see only their branch's reservations via the
+    // $user.branchId attribute. Managers see all branches.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Operator',
+            where: 'branch_ID = $user.branchId'
+        },
+        {
+            grant: 'READ',
+            to   : 'Manager'
+        }
+    ]
+    entity Reservations as projection on automarket.Reservations;
+
+    // approveReservation: branch-scoped wrapper around the ReservationService
+    // action. Operators may only approve reservations belonging to their branch.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action approveReservation(reservationId: String)               returns Boolean;
+
+    // rejectReservation: branch-scoped wrapper with the same guard.
+    @requires: [
+        'Operator',
+        'Manager'
+    ]
+    action rejectReservation(reservationId: String, notes: String) returns Boolean;
 }

@@ -12,7 +12,7 @@ Sprint 5. Goal: reservation lifecycle, concurrency enforcement, guest checkout w
 | EPIC05-T4 | Guest Checkout — guest `createReservation` without auth, signed `guestToken` issuance, guest read/cancel via token | Done |
 | EPIC05-T5 | Claim Flow — `claimReservation` action, `ReservationClaimed` event, `customer_ID` set + `guestToken` cleared | Done |
 | EPIC05-T6 | Reservation Expiry Job — periodic scan past `createdAt + 48h`, emit `ReservationExpired`, trigger `VehicleReleased` | Done |
-| EPIC05-T7 | Operator Portal Extension — reservation list/approve/reject, branch-scoped ABAC | Open |
+| EPIC05-T7 | Operator Portal Extension — reservation list/approve/reject, branch-scoped ABAC | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -112,6 +112,38 @@ cds.on('served', () => {
   startExpiryJob(srv);
 });
 ```
+
+---
+
+## T7 — Operator Portal Extension
+
+**What & Why:** `OperatorPortalService` gets a branch-scoped `Reservations` projection and `approveReservation`/`rejectReservation` actions. Operators can only see and act on reservations that belong to their branch (`branch_ID = $user.branchId`). Events are emitted via `cds.connect.to('ReservationService')` — the service that declared them — so any subscriber wired to `ReservationService` events fires correctly.
+
+### Modify `modules/vehicle/api/operator-portal.cds`
+
+Add `using` import at top:
+```cds
+using {automarket as automarketReservation} from '../../reservation/db/reservation';
+```
+
+Add after `createVehicle` action:
+```cds
+@restrict: [
+    { grant: 'READ', to: 'Operator', where: 'branch_ID = $user.branchId' },
+    { grant: 'READ', to: 'Manager' }
+]
+entity Reservations as projection on automarket.Reservations;
+
+@requires: ['Operator', 'Manager']
+action approveReservation(reservationId: String) returns Boolean;
+
+@requires: ['Operator', 'Manager']
+action rejectReservation(reservationId: String, notes: String) returns Boolean;
+```
+
+### Modify `modules/vehicle/application/operator-portal.js`
+
+Add `Reservations` to entity destructuring and `transition` require at module level. Add `approveReservation` and `rejectReservation` handlers as siblings of `createVehicle` — not nested inside it. Each handler checks `req.user.is('Operator') && reservation.branch_ID !== req.user.attr.branchId` before acting.
 
 ---
 

@@ -3,7 +3,8 @@
 const cds = require('@sap/cds');
 
 module.exports = cds.service.impl(async function (srv) {
-  const { Vehicles } = cds.entities('automarket');
+  const { Vehicles, Reservations } = cds.entities('automarket');
+  const { transition } = require('../domain/vehicle-state-machine');
 
   // createVehicle: inserts a DRAFT vehicle and enforces branch scoping.
   // Operators always get their branch from req.user.attr.branchId —
@@ -43,5 +44,56 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'DRAFT',
     });
     return result.ID;
+  });
+
+  // approveReservation: verifies the reservation belongs to the Operator's branch,
+  // then delegates to ReservationService so subscribers receive the canonical event.
+  srv.on('approveReservation', async (req) => {
+    const { reservationId } = req.data;
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+
+    if (req.user.is('Operator') && reservation.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only approve reservations for your branch');
+    }
+    if (reservation.status !== 'REQUESTED') {
+      return req.error(409, `Cannot approve a reservation in status ${reservation.status}`);
+    }
+
+    await UPDATE(Reservations).set({ status: 'APPROVED' }).where({ ID: reservationId });
+    const resSrv = await cds.connect.to('ReservationService');
+    await resSrv.emit('ReservationApproved', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
+  });
+
+  // rejectReservation: same branch-scoped guard; returns vehicle to FOR_SALE.
+  srv.on('rejectReservation', async (req) => {
+    const { reservationId, notes } = req.data;
+    const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
+    if (!reservation) return req.error(404, 'Reservation not found');
+
+    if (req.user.is('Operator') && reservation.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only reject reservations for your branch');
+    }
+    if (!['REQUESTED', 'APPROVED'].includes(reservation.status)) {
+      return req.error(409, `Cannot reject a reservation in status ${reservation.status}`);
+    }
+
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('ID', 'status')
+      .where({ ID: reservation.vehicle_ID });
+    let newVehicleStatus;
+    try {
+      newVehicleStatus = transition(vehicle, 'ReservationCancelled');
+    } catch (e) {
+      return req.error(409, e.message);
+    }
+
+    await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: reservation.vehicle_ID });
+    await UPDATE(Reservations).set({ status: 'REJECTED', notes }).where({ ID: reservationId });
+    const resSrv = await cds.connect.to('ReservationService');
+    await resSrv.emit('ReservationRejected', { reservationId, vehicleId: reservation.vehicle_ID });
+    return true;
   });
 });
