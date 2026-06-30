@@ -23,7 +23,7 @@ Sprint 6. Goal: test drive request and scheduling, guest access without claim fl
 
 ### Sign-off
 
-_To be completed at sprint end._
+All six tickets delivered and CI green. Sprint completed 2026-06-30.
 
 ---
 
