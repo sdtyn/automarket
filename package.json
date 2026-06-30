@@ -107,6 +107,9 @@
       },
       "PaymentService": {
         "impl": "modules/payment/application/payment-service.js"
+      },
+      "DeliveryService": {
+        "impl": "modules/delivery/application/delivery-service.js"
       }
     }
   }

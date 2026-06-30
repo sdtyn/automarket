@@ -7,7 +7,7 @@ Sprint 10. Goal: home-delivery lifecycle for completed orders — scheduling, pr
 | # | Item | Status |
 |---|---|---|
 | EPIC10-T1 | Delivery Domain Model — `Deliveries` entity, `DeliveryStatus` enum | Done |
-| EPIC10-T2 | Delivery Service — `scheduleDelivery`, `updateDelivery`, `completeDelivery` | Open |
+| EPIC10-T2 | Delivery Service — `scheduleDelivery`, `updateDelivery`, `completeDelivery` | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -17,7 +17,33 @@ Sprint 10. Goal: home-delivery lifecycle for completed orders — scheduling, pr
 
 ### Sign-off
 
-_To be completed at sprint end._
+All two tickets delivered and CI green. Sprint completed 2026-06-30.
+
+---
+
+## T2 — Delivery Service
+
+**What & Why:** `DeliveryService` enforces that only HOME_DELIVERY orders get a Delivery record — `scheduleDelivery` rejects CUSTOMER_PICKUP orders with a 409. The duplicate-active-delivery check prevents a second scheduling call from creating a parallel record while the first is still PLANNED or IN_PROGRESS. `updateDelivery` accepts both `plannedDate` and `status` as optional fields, but requires at least one to avoid a no-op call. DELIVERED and FAILED are terminal statuses; `updateDelivery` rejects any attempt to modify them. `completeDelivery` accepts both PLANNED and IN_PROGRESS so that a branch operator who skipped the IN_PROGRESS step can still complete the delivery directly.
+
+### Create `modules/delivery/api/delivery-service.cds`
+
+_(full content as written above)_
+
+### Create `modules/delivery/application/delivery-service.js`
+
+_(full content as written above)_
+
+### Modify `srv/index.cds`
+
+```cds
+using from '../modules/delivery/api/delivery-service';
+```
+
+### Modify `package.json`
+
+```json
+"DeliveryService": { "impl": "modules/delivery/application/delivery-service.js" }
+```
 
 ---
 

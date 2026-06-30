@@ -27,3 +27,5 @@ using from '../modules/offer/api/offer-service';
 using from '../modules/sales/api/sales-service';
 
 using from '../modules/payment/api/payment-service';
+
+using from '../modules/delivery/api/delivery-service';
