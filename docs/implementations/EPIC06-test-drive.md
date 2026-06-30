@@ -10,7 +10,7 @@ Sprint 6. Goal: test drive request and scheduling, guest access without claim fl
 | EPIC06-T2 | Test Drive Service — `requestTestDrive`, `approveTestDrive`, `cancelTestDrive`, `completeTestDrive` actions; slot conflict guard | Done |
 | EPIC06-T3 | Guest Test Drive — guest request with `contactEmail`/`contactPhone`, no claim step; rate-limiting note | Done |
 | EPIC06-T4 | Availability Check — `getAvailableSlots` function; reject duplicate vehicle/slot requests | Done |
-| EPIC06-T5 | Auto-Cancel on Vehicle Sold — subscribe to `VehicleSold` event, cancel open test drives, emit `TestDriveCancelled` | Open |
+| EPIC06-T5 | Auto-Cancel on Vehicle Sold — subscribe to `VehicleSold` event, cancel open test drives, emit `TestDriveCancelled` | Done |
 | EPIC06-T6 | Operator Portal Extension — branch-scoped `TestDrives` projection, approve/cancel/complete actions | Open |
 
 ### Sprint Backlog DoD mapping
@@ -385,5 +385,35 @@ Add `getAvailableSlots` handler after `requestTestDriveAsGuest`, before the clos
       scheduledAt: slotTime.toISOString(),
       available: !dayBookings.some((b) => windowsOverlap(b.scheduledAt, b.durationMinutes, slotTime)),
     }));
+  });
+```
+
+---
+
+## T5 — Auto-Cancel on Vehicle Sold
+
+**What & Why:** When a vehicle is sold, any open test drives for it become meaningless — the car can no longer be driven. `TestDriveService` subscribes to `VehicleSold` via `cds.connect.to('VehicleService')`. The handler loops over all REQUESTED/APPROVED rows for the sold vehicle, sets each to CANCELLED, and emits `TestDriveCancelled` so downstream subscribers (notifications, analytics) can react. `VehicleSold` is declared in `vehicle-service.cds` but emitted by the payment flow (outside this epic's scope); the subscriber is ready whenever it fires.
+
+**Note:** The `const { TestDrives }` declaration appears after the `VehicleSrv.on(...)` registration in the file, but this is safe: the callback only executes when an event fires, which is always after the full module initialisation has run and `TestDrives` is in scope.
+
+### Modify `modules/test-drive/application/test-drive-service.js`
+
+Add after `module.exports = cds.service.impl(async function (srv) {`, before `const { TestDrives }`:
+
+```js
+  // Subscribe to VehicleService to auto-cancel open test drives when a vehicle
+  // is sold. VehicleSold is emitted by the payment flow (outside this module);
+  // we register the subscriber here so the handler is ready whenever it fires.
+  const VehicleSrv = await cds.connect.to('VehicleService');
+  VehicleSrv.on('VehicleSold', async (msg) => {
+    const { vehicleId } = msg.data;
+    const openDrives = await SELECT.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+    for (const drive of openDrives) {
+      await UPDATE(TestDrives).set({ status: 'CANCELLED' }).where({ ID: drive.ID });
+      await srv.emit('TestDriveCancelled', { testDriveId: drive.ID, vehicleId });
+    }
   });
 ```

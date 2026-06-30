@@ -12,6 +12,22 @@ function windowsOverlap(aStart, aDurationMin, bStart, bDurationMin = 30) {
 const cds = require('@sap/cds');
 
 module.exports = cds.service.impl(async function (srv) {
+  // Subscribe to VehicleService to auto-cancel open test drives when a vehicle
+  // is sold. VehicleSold is emitted by the payment flow (outside this module);
+  // we register the subscriber here so the handler is ready whenever it fires.
+  const VehicleSrv = await cds.connect.to('VehicleService');
+  VehicleSrv.on('VehicleSold', async (msg) => {
+    const { vehicleId } = msg.data;
+    const openDrives = await SELECT.from(TestDrives).where({
+      vehicle_ID: vehicleId,
+      status: { in: ['REQUESTED', 'APPROVED'] },
+    });
+    for (const drive of openDrives) {
+      await UPDATE(TestDrives).set({ status: 'CANCELLED' }).where({ ID: drive.ID });
+      await srv.emit('TestDriveCancelled', { testDriveId: drive.ID, vehicleId });
+    }
+  });
+
   const { TestDrives } = cds.entities('automarket');
 
   // requestTestDrive: inserts a REQUESTED slot after checking for slot conflicts.
@@ -19,8 +35,7 @@ module.exports = cds.service.impl(async function (srv) {
   srv.on('requestTestDrive', async (req) => {
     const { vehicleId, branchId, scheduledAt, notes } = req.data;
 
-    // Reject if the same vehicle already has an active request at this exact slot.
-    // Duration-window overlap checking is deferred to getAvailableSlots (T4).
+    // Reject if the new window overlaps any active booking for this vehicle.
     const activeBookings = await SELECT.from(TestDrives).where({
       vehicle_ID: vehicleId,
       status: { in: ['REQUESTED', 'APPROVED'] },
