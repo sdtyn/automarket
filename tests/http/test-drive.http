@@ -1,0 +1,64 @@
+### ── TEST DRIVE SERVICE (/test-drive) ──────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+### 1. Müsait slotları getir — Golf VIII, München, bugünden sonraki bir tarih
+GET {{baseUrl}}/test-drive/getAvailableSlots(vehicleId='40000000-4000-4000-4000-400000000001',branchId='aaa00000-0000-0000-0000-000000000001',date='2026-07-10')
+
+### 2. Test sürüşü talep et — Customer Bauer, Golf VIII
+# @name createTD
+POST {{baseUrl}}/test-drive/requestTestDrive
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000001",
+  "branchId": "aaa00000-0000-0000-0000-000000000001",
+  "scheduledAt": "2026-07-10T09:00:00Z",
+  "notes": "Ich möchte das Fahrzeug auf der Autobahn testen"
+}
+
+### 3. Test sürüşlerini listele — Operator
+GET {{baseUrl}}/test-drive/TestDrives
+Authorization: {{operatorAuth}}
+
+### 4. Test sürüşünü onayla — Operator
+### testDriveId: 2. adımdan dönen ID'yi buraya yaz
+POST {{baseUrl}}/test-drive/approveTestDrive
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "testDriveId": "BURAYA_ID_YAZ",
+  "scheduledAt": "2026-07-10T09:00:00Z"
+}
+
+### 5. Test sürüşünü tamamla — Operator
+POST {{baseUrl}}/test-drive/completeTestDrive
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "testDriveId": "BURAYA_ID_YAZ"
+}
+
+### 6. Test sürüşü iptal et — Customer
+POST {{baseUrl}}/test-drive/cancelTestDrive
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "testDriveId": "BURAYA_ID_YAZ"
+}
+
+### 7. Misafir test sürüşü talebi — giriş gerektirmez
+POST {{baseUrl}}/test-drive/requestTestDriveAsGuest
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000006",
+  "branchId": "aaa00000-0000-0000-0000-000000000001",
+  "scheduledAt": "2026-07-15T10:00:00Z",
+  "contactEmail": "gast@beispiel.de",
+  "contactPhone": "+49 89 555 0000",
+  "notes": "Interesse am Tiguan"
+}

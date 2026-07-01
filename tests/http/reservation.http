@@ -1,0 +1,61 @@
+### ── RESERVATION SERVICE (/reservation) ────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### NOT: createReservation sonrası dönen reservationId'yi sonraki isteklerde kullan.
+
+### 1. Rezervasyon oluştur — Customer Bauer, Tesla Model 3 (BER)
+# @name createRes
+POST {{baseUrl}}/reservation/createReservation
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "notes": "Bitte bis Freitag reservieren"
+}
+
+### 2. Rezervasyonları listele — Admin (tüm şubeler)
+GET {{baseUrl}}/reservation/Reservations
+Authorization: {{adminAuth}}
+
+### 3. Rezervasyonları listele — Customer Bauer (sadece kendi rezervasyonları)
+GET {{baseUrl}}/reservation/Reservations
+Authorization: {{customerBauerAuth}}
+
+### 4. Rezervasyonu onayla — Operator
+### reservationId: 1. adımdan dönen ID'yi buraya yaz
+POST {{baseUrl}}/reservation/approveReservation
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "reservationId": "BURAYA_ID_YAZ"
+}
+
+### 5. Aynı araca çift rezervasyon — reddedilmeli (araç zaten RESERVED)
+POST {{baseUrl}}/reservation/createReservation
+Authorization: {{customerHoffmannAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "notes": "Doppelbuchung-Test"
+}
+
+### 6. Rezervasyonu iptal et — Customer Bauer
+POST {{baseUrl}}/reservation/cancelReservation
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "reservationId": "BURAYA_ID_YAZ"
+}
+
+### 7. İptal edilen araç tekrar rezerve edilebilmeli
+POST {{baseUrl}}/reservation/createReservation
+Authorization: {{customerHoffmannAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "notes": "Jetzt wieder frei"
+}
