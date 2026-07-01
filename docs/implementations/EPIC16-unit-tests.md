@@ -11,8 +11,8 @@ so regressions are caught automatically before they reach integration testing or
 
 | Ticket | Description | Status |
 |--------|-------------|--------|
-| EPIC16-T1 | Test infrastructure — Jest config + folder structure | In Progress |
-| EPIC16-T2 | VehicleStateMachine unit tests | Open |
+| EPIC16-T1 | Test infrastructure — Jest config + folder structure | Done |
+| EPIC16-T2 | VehicleStateMachine unit tests | Done |
 | EPIC16-T3 | Identity domain unit tests | Open |
 | EPIC16-T4 | IdentityService integration tests | Open |
 | EPIC16-T5 | PaymentService integration tests | Open |
