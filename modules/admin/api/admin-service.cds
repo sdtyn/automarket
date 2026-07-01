@@ -6,6 +6,7 @@ using {automarket as br}   from '../../branch/db/branch';
 // No other role may call any action or read any entity here.
 // AuditLogs and EventOutbox are read-only even for Admin — append-only
 // guarantees are enforced at the service layer, not just by convention.
+@impl: 'modules/admin/application/admin-service.js'
 service AdminService @(path: '/admin') {
 
     @requires: 'Admin'

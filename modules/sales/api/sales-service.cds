@@ -4,6 +4,7 @@ using {automarket} from '../db/sales';
 // There is no guest path — createOrder requires an authenticated Customer.
 // The vehicle transitions to PENDING_PAYMENT immediately on order creation
 // (CheckoutStarted event); payment reactions are wired in T3.
+@impl: 'modules/sales/application/sales-service.js'
 service SalesService @(path: '/sales') {
 
     // Customers see only their own orders. Admins/Managers see all.

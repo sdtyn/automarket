@@ -4,6 +4,7 @@ using {automarket} from '../db/payment';
 // Card data never passes through this service (PCI-DSS SAQ-A / AD-4).
 // capturePayment and failPayment simulate PSP webhook callbacks —
 // in production these would be triggered by the PSP, not by a user action.
+@impl: 'modules/payment/application/payment-service.js'
 service PaymentService @(path: '/payments') {
 
     // Customers see only payments linked to their own orders.

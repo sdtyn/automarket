@@ -3,6 +3,7 @@ using {automarket} from '../db/vehicle';
 // VehicleService is scoped to /vehicle. Status transitions are only
 // possible through the publish and archive actions — never via a direct
 // PATCH on the entity — so the state machine cannot be bypassed.
+@impl: 'modules/vehicle/application/vehicle-service.js'
 service VehicleService @(path: '/vehicle') {
 
     // @odata.etag on modifiedAt: CAP returns the etag on every GET and

@@ -2,6 +2,7 @@ using {automarket} from '../db/offer';
 
 // OfferService manages the customer price-offer lifecycle.
 // There is no guest path — all actions require an authenticated session.
+@impl: 'modules/offer/application/offer-service.js'
 service OfferService @(path: '/offer') {
 
     // Customers see only their own offers. Managers and Admins see all.

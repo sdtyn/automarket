@@ -3,6 +3,7 @@ using {automarket} from '../db/reporting';
 // ReportingService exposes read models and aggregation functions for
 // Admin/Manager dashboards. All entities are read-only projections over
 // the CDS views defined in the reporting domain.
+@impl: 'modules/reporting/application/reporting-service.js'
 service ReportingService @(path: '/reporting') {
 
     @requires: [

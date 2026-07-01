@@ -3,6 +3,7 @@ using {automarket} from '../db/delivery';
 // DeliveryService handles the physical handover lifecycle for HOME_DELIVERY orders.
 // All write actions are Admin/Manager only — customers have read-only access
 // to their own delivery records via the @restrict clause.
+@impl: 'modules/delivery/application/delivery-service.js'
 service DeliveryService @(path: '/deliveries') {
 
     // Customers see only deliveries linked to their own orders.

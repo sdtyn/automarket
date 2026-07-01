@@ -6,6 +6,7 @@ using {automarket} from '../db/reservation';
 // updates Vehicles directly via cds.entities to bypass VehicleService's UPDATE guard.
 // Guest createReservation issues a signed guestToken instead of reading customer_ID.
 // Guests read/cancel via getGuestReservation and cancelGuestReservation actions.
+@impl: 'modules/reservation/application/reservation-service.js'
 service ReservationService @(path: '/reservation') {
 
     // Customers see only their own rows; Operators/Managers see their branch.

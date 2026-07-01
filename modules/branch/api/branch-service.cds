@@ -4,6 +4,7 @@ using {automarket} from '../db/branch';
 // Admin and Manager — Operators are branch members, not branch administrators.
 // deactivate is a dedicated action instead of a generic CRUD update so the
 // intent is explicit and the handler can enforce the "no active vehicles" guard later.
+@impl: 'modules/branch/application/branch-service.js'
 service BranchService @(path: '/branch') {
 
     // READ is open to any authenticated user — branch lists are needed

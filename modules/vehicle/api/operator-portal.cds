@@ -8,6 +8,7 @@ using from '../../offer/db/offer';
 // clause — CAP injects it as a SQL predicate, so Operators cannot enumerate
 // vehicles from other branches even by guessing IDs.
 // Managers see all branches and may create vehicles for any branch.
+@impl: 'modules/vehicle/application/operator-portal.js'
 service OperatorPortalService @(path: '/operator') {
 
     // Operator READ is filtered to branch_ID = req.user.attr.branchId at the

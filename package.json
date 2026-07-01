@@ -81,56 +81,6 @@
           "url": ":memory:"
         }
       }
-    },
-    "services": {
-      "IdentityService": {
-        "impl": "modules/identity/application/identity-service.js"
-      },
-      "BranchService": {
-        "impl": "modules/branch/application/branch-service.js"
-      },
-      "VehicleService": {
-        "impl": "modules/vehicle/application/vehicle-service.js"
-      },
-      "OperatorPortalService": {
-        "impl": "modules/vehicle/application/operator-portal.js"
-      },
-      "CustomerPortalService": {
-        "impl": "modules/vehicle/application/customer-portal.js"
-      },
-      "PricingService": {
-        "impl": "modules/pricing/application/pricing-service.js"
-      },
-      "FavoritesService": {
-        "impl": "modules/favorites/application/favorites-service.js"
-      },
-      "ReservationService": {
-        "impl": "modules/reservation/application/reservation-service.js"
-      },
-      "TestDriveService": {
-        "impl": "modules/test-drive/application/test-drive-service.js"
-      },
-      "OfferService": {
-        "impl": "modules/offer/application/offer-service.js"
-      },
-      "SalesService": {
-        "impl": "modules/sales/application/sales-service.js"
-      },
-      "PaymentService": {
-        "impl": "modules/payment/application/payment-service.js"
-      },
-      "DeliveryService": {
-        "impl": "modules/delivery/application/delivery-service.js"
-      },
-      "NotificationService": {
-        "impl": "modules/notification/application/notification-service.js"
-      },
-      "ReportingService": {
-        "impl": "modules/reporting/application/reporting-service.js"
-      },
-      "AdminService": {
-        "impl": "modules/admin/application/admin-service.js"
-      }
     }
   }
 }

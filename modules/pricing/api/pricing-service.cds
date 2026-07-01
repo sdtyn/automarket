@@ -3,6 +3,7 @@ using {automarket} from '../db/pricing';
 // PricingService owns all price mutations. Going through this service instead
 // of a direct PATCH on Vehicles guarantees that every price change is audited
 // and the VehiclePriceDropped event is emitted when applicable.
+@impl: 'modules/pricing/application/pricing-service.js'
 service PricingService @(path: '/pricing') {
 
     // PriceHistory is read-only here — writes happen only via updatePrice.

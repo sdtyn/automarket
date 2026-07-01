@@ -3,6 +3,7 @@ using {automarket} from '../db/favorites';
 // FavoritesService is restricted to authenticated Customers only.
 // Guests are excluded because Favorites drives notification subscriptions
 // which require a durable identity (email address) to deliver to.
+@impl: 'modules/favorites/application/favorites-service.js'
 service FavoritesService @(path: '/favorites') {
 
     // Favorites is exposed read-only with a row-level filter so each Customer

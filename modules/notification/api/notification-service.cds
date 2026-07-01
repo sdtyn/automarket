@@ -5,6 +5,7 @@ using {automarket} from '../db/notification';
 // Customers access their notifications via functions (not the entity projection)
 // because the entity uses a UUID FK for recipient_ID while req.user.id is a
 // string — the functions resolve the mapping internally.
+@impl: 'modules/notification/application/notification-service.js'
 service NotificationService @(path: '/notifications') {
 
     // Admin and Manager can read all notifications (support / troubleshooting).

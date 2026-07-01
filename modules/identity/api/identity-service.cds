@@ -3,6 +3,7 @@ using {automarket} from '../db/identity';
 // IdentityService is intentionally scoped to /identity so that rate limiting
 // and routing rules at the Approuter can target the auth surface independently
 // from domain services. No domain entity is exposed directly here — only actions.
+@impl: 'modules/identity/application/identity-service.js'
 service IdentityService @(path: '/identity') {
 
     // login is an action (not a function) because CAP maps actions to HTTP POST.

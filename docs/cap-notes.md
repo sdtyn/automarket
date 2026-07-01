@@ -62,19 +62,22 @@ srv/
 ```
 
 In a modular layout the two files are in different folders, so auto-detection fails.
-The binding must be declared explicitly in `package.json`:
 
-```json
-"cds": {
-  "services": {
-    "IdentityService": {
-      "impl": "modules/identity/application/identity-service.js"
-    }
-  }
-}
+**⚠️ `cds.services` in `package.json` does NOT work.** CAP's `factory.js` resolves impl
+via the priority chain: `o.with → def['@impl'] → _sibling(def) → o.impl → _kind()`.
+The `cds.services` key is never read during service construction — it is silently ignored.
+Entity CRUD still works because CAP's default `app-service` provides it, but custom
+actions return 501 "no handler".
+
+**Correct fix: add `@impl` annotation directly in the CDS service definition.**
+The path is resolved from the project root.
+
+```cds
+@impl: 'modules/identity/application/identity-service.js'
+service IdentityService @(path: '/identity') { ... }
 ```
 
-Each new module service needs its own entry here.
+Each new module service needs its own `@impl` annotation in the `.cds` file.
 
 ---
 
@@ -165,7 +168,37 @@ The application-layer guard (SELECT FOR UPDATE + active-reservation check in
 
 ---
 
-## 7. Guest Rate Limiting Is an Approuter Concern, Not CAP
+## 7. `@sql.append` Partial Index Breaks SQLite
+
+**Context:** EPIC10 (Orders). To enforce "only one active order per vehicle" at the DB level,
+`@sql.append` was used to append `UNIQUE (vehicle_ID) WHERE status IN (...)` to the
+`CREATE TABLE` statement.
+
+**Problem:** SQLite does not support inline `UNIQUE ... WHERE` in `CREATE TABLE`. The clause
+must be a separate `CREATE UNIQUE INDEX` DDL statement. `@sql.append` appends after the
+closing `)` of `CREATE TABLE`, producing invalid SQL that crashes the SQLite adapter on startup.
+
+**Solution:** Remove `@sql.append` for dev/SQLite. The Vehicle state machine (which transitions
+the vehicle out of `FOR_SALE` when an order is created) is the primary guard and prevents
+double-ordering at the application layer. The DB-level partial index is defense-in-depth for
+production; create it via a post-deploy migration script (same approach as note 6).
+
+```cds
+// Do NOT use this pattern — breaks SQLite:
+@sql.append: 'UNIQUE (vehicle_ID) WHERE status IN (''CREATED'', ''PENDING_PAYMENT'', ''PAID'')'
+entity Orders : BaseEntity { ... }
+```
+
+```sql
+-- Post-deploy migration for production (HANA / PostgreSQL):
+CREATE UNIQUE INDEX orders_one_active_per_vehicle
+  ON automarket_Orders (vehicle_ID)
+  WHERE status IN ('CREATED', 'PENDING_PAYMENT', 'PAID');
+```
+
+---
+
+## 8. Guest Rate Limiting Is an Approuter Concern, Not CAP
 
 **Context:** EPIC05-T4. The product backlog requires guest reservation writes to be
 rate-limited at 20 req/min per IP. CAP services have no built-in IP-level rate limiter.

@@ -4,6 +4,7 @@ using {automarket} from '../db/vehicle';
 // @requires: 'any' opens it to unauthenticated guests. The status = FOR_SALE
 // restriction is enforced in the handler so it cannot be lifted by a future
 // annotation change without also touching the handler.
+@impl: 'modules/vehicle/application/customer-portal.js'
 service CustomerPortalService @(path: '/catalog') {
 
     // images excluded from the list projection — the detail page fetches

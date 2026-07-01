@@ -10,6 +10,7 @@ type AvailableSlot {
 // Unlike Reservations, test drives do not gate vehicle status — a FOR_SALE
 // vehicle can have multiple future slots queued at the same time.
 // Guest requestTestDrive (contactEmail/contactPhone) is added in T3.
+@impl: 'modules/test-drive/application/test-drive-service.js'
 service TestDriveService @(path: '/test-drive') {
 
     // Customers see only their own rows. Operators/Managers see all branch rows
