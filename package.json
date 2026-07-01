@@ -113,6 +113,9 @@
       },
       "NotificationService": {
         "impl": "modules/notification/application/notification-service.js"
+      },
+      "ReportingService": {
+        "impl": "modules/reporting/application/reporting-service.js"
       }
     }
   }
