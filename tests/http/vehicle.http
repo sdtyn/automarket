@@ -1,0 +1,90 @@
+### ── VEHICLE SERVICE & OPERATOR PORTAL ─────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+# --- VehicleService (/vehicle) -------------------------------------------
+
+### 1. Tüm araçları listele — Admin
+GET {{baseUrl}}/vehicle/Vehicles
+Authorization: {{adminAuth}}
+
+### 2. Tek araç getir — Golf VIII (seed verisi)
+GET {{baseUrl}}/vehicle/Vehicles/40000000-4000-4000-4000-400000000001
+Authorization: {{adminAuth}}
+
+### 3. Araç fotoğraflarını getir
+GET {{baseUrl}}/vehicle/Vehicles/40000000-4000-4000-4000-400000000001/images
+Authorization: {{adminAuth}}
+
+### 4. Araç ara — marka ve yakıt türüne göre
+GET {{baseUrl}}/vehicle/searchVehicles(brand='BMW',fuelType='DIESEL',transmission=null,minPrice=null,maxPrice=null,branchId=null)
+Authorization: {{adminAuth}}
+
+### 5. Araç yayınla — DRAFT → FOR_SALE (seed araçları zaten FOR_SALE; yeni araçla dene)
+POST {{baseUrl}}/vehicle/publish
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000001"
+}
+
+### 6. Araç arşivle — FOR_SALE → ARCHIVED
+POST {{baseUrl}}/vehicle/archive
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000001"
+}
+
+### 7. Fotoğraf ekle
+POST {{baseUrl}}/vehicle/addImage
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000002",
+  "url": "https://commons.wikimedia.org/wiki/Special:FilePath/BMW_3_Series_(G20).jpg",
+  "sortOrder": 1
+}
+
+# --- OperatorPortalService (/operator) ------------------------------------
+
+### 8. Yeni araç oluştur — Operator (München şubesi)
+# @name createVehicle
+POST {{baseUrl}}/operator/createVehicle
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "vin": "WVW99999999999999",
+  "plateNumber": "M OP 9999",
+  "brand": "Volkswagen",
+  "model": "Golf VIII 2.0 TDI",
+  "year": 2023,
+  "mileage": 5000,
+  "fuelType": "DIESEL",
+  "transmission": "AUTOMATIC",
+  "color": "Blau",
+  "price": 31500.00,
+  "currency": "EUR",
+  "branchId": "aaa00000-0000-0000-0000-000000000001"
+}
+
+### 9. Operator kendi şubesindeki araçları görür
+GET {{baseUrl}}/operator/Vehicles
+Authorization: {{operatorAuth}}
+
+### 10. Operator başka şubenin aracını göremez — Manager tüm şubeleri görür
+GET {{baseUrl}}/operator/Vehicles
+Authorization: {{managerAuth}}
+
+# --- BranchService (/branch) ----------------------------------------------
+
+### 11. Tüm şubeleri listele
+GET {{baseUrl}}/branch/Branches
+Authorization: {{adminAuth}}
+
+### 12. Tek şube getir — München
+GET {{baseUrl}}/branch/Branches/aaa00000-0000-0000-0000-000000000001
+Authorization: {{adminAuth}}
