@@ -30,29 +30,40 @@
       "auth": {
         "kind": "mocked",
         "users": {
-          "admin": {
-            "password": "admin",
+          "admin.mueller@automarkt.de": {
+            "password": "Test@1234",
+            "id": "ccc00000-0000-0000-0000-000000000001",
             "roles": [
               "Admin"
             ]
           },
-          "manager": {
-            "password": "manager",
+          "manager.schmidt@automarkt.de": {
+            "password": "Test@1234",
+            "id": "ccc00000-0000-0000-0000-000000000002",
             "roles": [
               "Manager"
             ]
           },
-          "operator": {
-            "password": "operator",
+          "operator.weber@automarkt.de": {
+            "password": "Test@1234",
+            "id": "ccc00000-0000-0000-0000-000000000003",
             "roles": [
               "Operator"
             ],
             "attr": {
-              "branchId": "00000000-0000-0000-0000-000000000001"
+              "branchId": "aaa00000-0000-0000-0000-000000000001"
             }
           },
-          "customer": {
-            "password": "customer",
+          "customer.bauer@automarkt.de": {
+            "password": "Test@1234",
+            "id": "ccc00000-0000-0000-0000-000000000004",
+            "roles": [
+              "Customer"
+            ]
+          },
+          "customer.hoffmann@automarkt.de": {
+            "password": "Test@1234",
+            "id": "ccc00000-0000-0000-0000-000000000005",
             "roles": [
               "Customer"
             ]

@@ -1,0 +1,6 @@
+ID,email,passwordHash,firstName,lastName,phoneNumber,status,mfaRequired,failedLoginCount
+ccc00000-0000-0000-0000-000000000001,admin.mueller@automarkt.de,$2b$10$ttuilTyDHfcG33Xx4kuVIOlF98QBnaPV9kkSinLB4rXZqTcWTC/Rq,Thomas,Müller,+49 89 12345001,ACTIVE,true,0
+ccc00000-0000-0000-0000-000000000002,manager.schmidt@automarkt.de,$2b$10$4.HRg82dpyNciFsqZRgvV.pQ46.bgJ5hVIOT4Tv5etXeG.Gika5Hu,Anna,Schmidt,+49 30 12345002,ACTIVE,true,0
+ccc00000-0000-0000-0000-000000000003,operator.weber@automarkt.de,$2b$10$DtWPfCpiQTXUw2DLJcOGSuREF/2.GTKM8CFloESiSaDErNb6m8CXC,Klaus,Weber,+49 40 12345003,ACTIVE,true,0
+ccc00000-0000-0000-0000-000000000004,customer.bauer@automarkt.de,$2b$10$uJTCfSl25KaCpouJmUY4HOkvk.PFnCVm9scap.QaNw5P8IHSKrIgy,Maria,Bauer,+49 69 12345004,ACTIVE,false,0
+ccc00000-0000-0000-0000-000000000005,customer.hoffmann@automarkt.de,$2b$10$u88/Z390aljqOJdoyaawAeb81RpTCMAdaOY3IUNFdAG7vLABL5qXe,Stefan,Hoffmann,+49 89 12345005,ACTIVE,false,0
