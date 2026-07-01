@@ -13,8 +13,8 @@ Sprint 15. Goal: a runnable, version-controlled HTTP test suite covering every O
 | EPIC15-T5 | Reservation & TestDrive tests | Done |
 | EPIC15-T6 | Offer & Sales tests | Done |
 | EPIC15-T7 | Payment tests | Done |
-| EPIC15-T8 | Delivery & Favorites tests | In Progress |
-| EPIC15-T9 | Pricing & Reporting tests | Open |
+| EPIC15-T8 | Delivery & Favorites tests | Done |
+| EPIC15-T9 | Pricing & Reporting tests | In Progress |
 | EPIC15-T10 | Admin tests | Open |
 
 ### Sprint Backlog DoD mapping

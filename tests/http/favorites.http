@@ -1,0 +1,54 @@
+### ── FAVORITES SERVICE (/favorites) ────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+### 1. Favorilere ekle — Customer Bauer, Porsche 911
+POST {{baseUrl}}/favorites/addFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000005"
+}
+
+### 2. Favorilere ekle — Customer Bauer, Tesla Model Y
+POST {{baseUrl}}/favorites/addFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000025"
+}
+
+### 3. Favorileri listele — entity üzerinden
+GET {{baseUrl}}/favorites/Favorites
+Authorization: {{customerBauerAuth}}
+
+### 4. Favorileri listele — fonksiyon üzerinden
+GET {{baseUrl}}/favorites/listFavorites()
+Authorization: {{customerBauerAuth}}
+
+### 5. Aynı aracı tekrar ekle — reddedilmeli (duplicate)
+POST {{baseUrl}}/favorites/addFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000005"
+}
+
+### 6. Favorilerden çıkar — Porsche 911
+POST {{baseUrl}}/favorites/removeFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000005"
+}
+
+### 7. Favori listesi — Porsche 911 artık olmamalı
+GET {{baseUrl}}/favorites/listFavorites()
+Authorization: {{customerBauerAuth}}
+
+### 8. Customer Hoffmann'ın favorilerini görme — reddedilmeli
+GET {{baseUrl}}/favorites/Favorites
+Authorization: {{customerHoffmannAuth}}

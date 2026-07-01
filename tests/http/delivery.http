@@ -1,0 +1,54 @@
+### ── DELIVERY SERVICE (/deliveries) ────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Ön koşul: orderId için sales.http → createOrder; ödeme tamamlanmış olmalı.
+
+### 1. Teslimat planla — Manager
+### orderId: sales.http'deki createOrder'dan dönen ID
+# @name scheduleDelivery
+POST {{baseUrl}}/deliveries/scheduleDelivery
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ORDER_ID",
+  "plannedDate": "2026-07-15"
+}
+
+### 2. Teslimatları listele — Admin
+GET {{baseUrl}}/deliveries/Deliveries
+Authorization: {{adminAuth}}
+
+### 3. Teslimatları listele — Customer Bauer (sadece kendi siparişinin teslimatı)
+GET {{baseUrl}}/deliveries/Deliveries
+Authorization: {{customerBauerAuth}}
+
+### 4. Teslimat güncelle — tarih ve durum değiştir
+### deliveryId: 1. adımdan dönen ID
+POST {{baseUrl}}/deliveries/updateDelivery
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{
+  "deliveryId": "BURAYA_DELIVERY_ID",
+  "plannedDate": "2026-07-16",
+  "status": "IN_PROGRESS"
+}
+
+### 5. Teslimatı tamamla — DELIVERED
+POST {{baseUrl}}/deliveries/completeDelivery
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{
+  "deliveryId": "BURAYA_DELIVERY_ID"
+}
+
+### 6. Teslimat planla — Customer rolüyle (reddedilmeli — Manager/Admin only)
+POST {{baseUrl}}/deliveries/scheduleDelivery
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ORDER_ID",
+  "plannedDate": "2026-07-20"
+}
