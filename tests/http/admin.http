@@ -1,0 +1,100 @@
+### ── ADMIN SERVICE (/admin) ─────────────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Tüm işlemler Admin rolü gerektirir.
+
+### 1. Kullanıcıları listele
+GET {{baseUrl}}/admin/Users
+Authorization: {{adminAuth}}
+
+### 2. Rolleri listele
+GET {{baseUrl}}/admin/Roles
+Authorization: {{adminAuth}}
+
+### 3. Şubeleri listele
+GET {{baseUrl}}/admin/Branches
+Authorization: {{adminAuth}}
+
+### 4. Yeni şube oluştur
+# @name createBranch
+POST {{baseUrl}}/admin/createBranch
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "code": "STU",
+  "name": "AutoMarkt Stuttgart",
+  "address": "Königstraße 5",
+  "city": "Stuttgart",
+  "country": "Deutschland",
+  "region": "Baden-Württemberg"
+}
+
+### 5. Şubeyi güncelle
+### branchId: 4. adımdan dönen ID
+POST {{baseUrl}}/admin/updateBranch
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "branchId": "BURAYA_BRANCH_ID",
+  "name": "AutoMarkt Stuttgart Zentrum",
+  "address": "Königstraße 10",
+  "city": "Stuttgart",
+  "country": "Deutschland",
+  "region": "Baden-Württemberg"
+}
+
+### 6. Şubeyi devre dışı bırak
+POST {{baseUrl}}/admin/disableBranch
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "branchId": "BURAYA_BRANCH_ID"
+}
+
+### 7. Yeni kullanıcı oluştur
+# @name createUser
+POST {{baseUrl}}/admin/createUser
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "email": "operator.fischer@automarkt.de",
+  "firstName": "Hans",
+  "lastName": "Fischer",
+  "phoneNumber": "+49 711 12345678",
+  "roleCode": "Operator"
+}
+
+### 8. Rol ata — yeni kullanıcıya Manager rolü ekle
+### userId: 7. adımdan dönen ID
+POST {{baseUrl}}/admin/assignRole
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "userId": "BURAYA_USER_ID",
+  "roleCode": "Manager"
+}
+
+### 9. Kullanıcıyı devre dışı bırak
+POST {{baseUrl}}/admin/disableUser
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "userId": "BURAYA_USER_ID"
+}
+
+### 10. Audit log'ları listele
+GET {{baseUrl}}/admin/AuditLogs
+Authorization: {{adminAuth}}
+
+### 11. EventOutbox'ı listele
+GET {{baseUrl}}/admin/EventOutbox
+Authorization: {{adminAuth}}
+
+### 12. Admin işlemi — Manager rolüyle (reddedilmeli)
+GET {{baseUrl}}/admin/Users
+Authorization: {{managerAuth}}

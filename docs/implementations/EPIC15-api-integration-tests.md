@@ -15,7 +15,7 @@ Sprint 15. Goal: a runnable, version-controlled HTTP test suite covering every O
 | EPIC15-T7 | Payment tests | Done |
 | EPIC15-T8 | Delivery & Favorites tests | Done |
 | EPIC15-T9 | Pricing & Reporting tests | Done |
-| EPIC15-T10 | Admin tests | In Progress |
+| EPIC15-T10 | Admin tests | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -25,4 +25,4 @@ Sprint 15. Goal: a runnable, version-controlled HTTP test suite covering every O
 
 ### Sign-off
 
-_To be completed at sprint end._
+All 10 tickets done. 13 `.http` files covering all 13 services. CI green.
