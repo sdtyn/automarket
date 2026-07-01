@@ -1,0 +1,50 @@
+### ── SALES SERVICE (/sales) ─────────────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Akış: createOrder → (PaymentService capture) → completeOrder
+
+### 1. Sipariş oluştur — Customer Bauer, VW Golf GTI (MUC)
+# @name createOrder
+POST {{baseUrl}}/sales/createOrder
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000010",
+  "deliveryType": "HOME_DELIVERY"
+}
+
+### 2. Siparişleri listele — Admin
+GET {{baseUrl}}/sales/Orders
+Authorization: {{adminAuth}}
+
+### 3. Siparişleri listele — Customer Bauer (sadece kendi siparişleri)
+GET {{baseUrl}}/sales/Orders
+Authorization: {{customerBauerAuth}}
+
+### 4. Siparişi iptal et — Customer Bauer
+### orderId: 1. adımdan dönen ID'yi buraya yaz
+POST {{baseUrl}}/sales/cancelOrder
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ID_YAZ"
+}
+
+### 5. Siparişi tamamla — Manager (ödeme sonrası manuel tamamlama)
+POST {{baseUrl}}/sales/completeOrder
+Authorization: {{managerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ID_YAZ"
+}
+
+### 6. Başka müşterinin siparişini iptal etmeye çalış — reddedilmeli
+POST {{baseUrl}}/sales/cancelOrder
+Authorization: {{customerHoffmannAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ID_YAZ"
+}

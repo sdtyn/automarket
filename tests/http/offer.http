@@ -1,0 +1,57 @@
+### ── OFFER SERVICE (/offer) ─────────────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Akış: submitOffer → approveOffer (Operator) → Order oluşur
+
+### 1. Teklif gönder — Customer Bauer, Audi A4 (MUC)
+# @name submitOffer
+POST {{baseUrl}}/offer/submitOffer
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000004",
+  "offeredPrice": 34500.00,
+  "currency": "EUR",
+  "desiredPickupDate": "2026-08-01",
+  "notes": "Ich biete 34.500 EUR für den Audi A4"
+}
+
+### 2. Teklifleri listele — Operator
+GET {{baseUrl}}/offer/Offers
+Authorization: {{operatorAuth}}
+
+### 3. Teklifleri listele — Customer Bauer (sadece kendi teklifleri)
+GET {{baseUrl}}/offer/Offers
+Authorization: {{customerBauerAuth}}
+
+### 4. Teklifi onayla — Operator
+### offerId: 1. adımdan dönen ID'yi buraya yaz
+POST {{baseUrl}}/offer/approveOffer
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "offerId": "BURAYA_ID_YAZ"
+}
+
+### 5. Teklifi reddet — Operator (yeni teklif için)
+# Önce submitOffer ile yeni teklif oluştur, sonra reddet
+POST {{baseUrl}}/offer/rejectOffer
+Authorization: {{operatorAuth}}
+Content-Type: application/json
+
+{
+  "offerId": "BURAYA_ID_YAZ",
+  "notes": "Preis zu niedrig — Mindestpreis 36.000 EUR"
+}
+
+### 6. Reddedilen teklifi yeniden gönder — Customer Bauer
+POST {{baseUrl}}/offer/resubmitOffer
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "offerId": "BURAYA_ID_YAZ",
+  "offeredPrice": 36000.00,
+  "notes": "Ich akzeptiere den Mindestpreis"
+}
