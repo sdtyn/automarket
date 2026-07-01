@@ -1,0 +1,5 @@
+ID,code,name,address,city,country,region,status
+aaa00000-0000-0000-0000-000000000001,MUC,AutoMarkt München,Leopoldstraße 123,München,Deutschland,Bayern,ACTIVE
+aaa00000-0000-0000-0000-000000000002,BER,AutoMarkt Berlin,Kurfürstendamm 56,Berlin,Deutschland,Berlin,ACTIVE
+aaa00000-0000-0000-0000-000000000003,HAM,AutoMarkt Hamburg,Mönckebergstraße 12,Hamburg,Deutschland,Hamburg,ACTIVE
+aaa00000-0000-0000-0000-000000000004,FRA,AutoMarkt Frankfurt,Zeil 90,Frankfurt am Main,Deutschland,Hessen,ACTIVE

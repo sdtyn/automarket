@@ -1,0 +1,5 @@
+ID,code,description
+bbb00000-0000-0000-0000-000000000001,Admin,Systemadministrator – vollständiger Zugriff auf alle Funktionen
+bbb00000-0000-0000-0000-000000000002,Manager,Filialleiter – filialübergreifende Verwaltung und Auswertungen
+bbb00000-0000-0000-0000-000000000003,Operator,Filialmitarbeiter – Verwaltung innerhalb der eigenen Filiale
+bbb00000-0000-0000-0000-000000000004,Customer,Registrierter Kunde – Reservierungen, Angebote und Käufe
