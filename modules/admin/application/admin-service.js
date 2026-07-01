@@ -15,7 +15,9 @@ module.exports = cds.service.impl(async function (srv) {
     const existing = await SELECT.one.from(Branches).where({ code });
     if (existing) return req.error(409, `Branch code "${code}" is already in use`);
 
-    const result = await INSERT.into(Branches).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Branches).entries({
+      ID: id,
       code,
       name,
       address,
@@ -24,7 +26,7 @@ module.exports = cds.service.impl(async function (srv) {
       region,
       status: 'ACTIVE',
     });
-    return result.ID;
+    return id;
   });
 
   // updateBranch: applies partial updates — only provided fields are changed.
@@ -75,7 +77,9 @@ module.exports = cds.service.impl(async function (srv) {
     const tempPassword = crypto.randomBytes(16).toString('hex');
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-    const result = await INSERT.into(Users).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Users).entries({
+      ID: id,
       email,
       firstName,
       lastName,
@@ -86,8 +90,8 @@ module.exports = cds.service.impl(async function (srv) {
       failedLoginCount: 0,
     });
 
-    await INSERT.into(UserRoles).entries({ user_ID: result.ID, role_ID: role.ID });
-    return result.ID;
+    await INSERT.into(UserRoles).entries({ user_ID: id, role_ID: role.ID });
+    return id;
   });
 
   // disableUser: sets status to INACTIVE — permanent admin-initiated disable,
