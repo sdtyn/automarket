@@ -33,3 +33,5 @@ using from '../modules/delivery/api/delivery-service';
 using from '../modules/notification/api/notification-service';
 
 using from '../modules/reporting/api/reporting-service';
+
+using from '../modules/admin/api/admin-service';

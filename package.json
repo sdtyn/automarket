@@ -116,6 +116,9 @@
       },
       "ReportingService": {
         "impl": "modules/reporting/application/reporting-service.js"
+      },
+      "AdminService": {
+        "impl": "modules/admin/application/admin-service.js"
       }
     }
   }

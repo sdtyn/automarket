@@ -7,7 +7,7 @@ Sprint 13. Goal: system administration surface and audit trail. AuditLogs provid
 | # | Item | Status |
 |---|---|---|
 | EPIC13-T1 | Audit Domain — `AuditLogs` + `EventOutbox` entities | Done |
-| EPIC13-T2 | Admin Service — `Branches`, `Users`, `Roles`, `AuditLogs` projections + `createBranch`, `updateBranch`, `disableBranch`, `createUser`, `disableUser`, `assignRole` | Open |
+| EPIC13-T2 | Admin Service — `Branches`, `Users`, `Roles`, `AuditLogs` projections + `createBranch`, `updateBranch`, `disableBranch`, `createUser`, `disableUser`, `assignRole` | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -17,7 +17,33 @@ Sprint 13. Goal: system administration surface and audit trail. AuditLogs provid
 
 ### Sign-off
 
-_To be completed at sprint end._
+All two tickets delivered and CI green. Sprint completed 2026-07-01.
+
+---
+
+## T2 — Admin Service
+
+**What & Why:** All entities are `@requires: 'Admin'` — no role exception exists anywhere in this service. `Users` excludes `passwordHash` from the projection so the field is never sent over the wire even to Admin. `AuditLogs` and `EventOutbox` carry `@readonly` to prevent even Admin from inserting or mutating rows via OData. `createUser` hashes a cryptographically random temp password (bcryptjs, cost 12) — the password is never returned to the caller; in production a reset-email flow replaces it. `assignRole` is idempotent: if the userId+role_ID pair already exists in `UserRoles`, it returns `true` without inserting a duplicate. `disableUser` sets `status = 'INACTIVE'` (permanent admin action), distinct from `LOCKED` (temporary, time-based). The `using` aliases (`aud`, `br`) avoid namespace collision between the three imported modules that all share the `automarket` namespace.
+
+### Create `modules/admin/api/admin-service.cds`
+
+_(full content as written above)_
+
+### Create `modules/admin/application/admin-service.js`
+
+_(full content as written above)_
+
+### Modify `srv/index.cds`
+
+```cds
+using from '../modules/admin/api/admin-service';
+```
+
+### Modify `package.json`
+
+```json
+"AdminService": { "impl": "modules/admin/application/admin-service.js" }
+```
 
 ---
 
