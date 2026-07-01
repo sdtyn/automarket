@@ -1,0 +1,83 @@
+### ── PAYMENT SERVICE (/payments) ───────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Akış: createOrder (sales.http) → initiatePayment → capturePayment → refundPayment
+### Admin/Manager: capturePayment, failPayment (PSP simülasyonu)
+
+### 1. Ödemeyi başlat — Customer Bauer
+### orderId: sales.http'deki createOrder'dan dönen ID
+# @name initPayment
+POST {{baseUrl}}/payments/initiatePayment
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ORDER_ID",
+  "provider": "StripeDE",
+  "idempotencyKey": "pay-test-001",
+  "amount": 38900.00,
+  "currency": "EUR"
+}
+
+### 2. Aynı idempotencyKey ile tekrar — aynı session dönmeli (yeni kayıt oluşmaz)
+POST {{baseUrl}}/payments/initiatePayment
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ORDER_ID",
+  "provider": "StripeDE",
+  "idempotencyKey": "pay-test-001",
+  "amount": 38900.00,
+  "currency": "EUR"
+}
+
+### 3. Ödemeyi yakala — Admin (PSP simülasyonu)
+### paymentId: 1. adımdan dönen ID
+POST {{baseUrl}}/payments/capturePayment
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "paymentId": "BURAYA_PAYMENT_ID",
+  "transactionReference": "TXN-STRIPE-001"
+}
+
+### 4. Ödeme durumunu sorgula — Customer
+GET {{baseUrl}}/payments/getPaymentStatus(orderId='BURAYA_ORDER_ID')
+Authorization: {{customerBauerAuth}}
+
+### 5. Ödemeleri listele — Admin
+GET {{baseUrl}}/payments/Payments
+Authorization: {{adminAuth}}
+
+### 6. İadeyi başlat — Admin (CAPTURED durumundan)
+POST {{baseUrl}}/payments/refundPayment
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "paymentId": "BURAYA_PAYMENT_ID"
+}
+
+### 7. Ödemeyi başarısız say — Admin (yeni bir ödeme üzerinde)
+POST {{baseUrl}}/payments/failPayment
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "paymentId": "BURAYA_PAYMENT_ID"
+}
+
+### 8. Başarısız ödemeden sonra yeniden dene — Customer
+POST {{baseUrl}}/payments/retryPayment
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "orderId": "BURAYA_ORDER_ID",
+  "idempotencyKey": "pay-test-002"
+}
+
+### 9. Başka müşterinin ödeme durumunu sorgu — reddedilmeli
+GET {{baseUrl}}/payments/getPaymentStatus(orderId='BURAYA_ORDER_ID')
+Authorization: {{customerHoffmannAuth}}
