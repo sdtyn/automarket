@@ -6,9 +6,9 @@ Sprint 15. Goal: a runnable, version-controlled HTTP test suite covering every O
 
 | # | Item | Status |
 |---|---|---|
-| EPIC15-T1 | Test infrastructure — `tests/http/` directory, `.vscode/settings.json` REST Client env, README | In Progress |
-| EPIC15-T2 | Identity & Auth tests | Open |
-| EPIC15-T3 | Vehicle & Branch tests | Open |
+| EPIC15-T1 | Test infrastructure — `tests/http/` directory, `.vscode/settings.json` REST Client env, README | Done |
+| EPIC15-T2 | Identity & Auth tests | Done |
+| EPIC15-T3 | Vehicle & Branch tests | In Progress |
 | EPIC15-T4 | Customer Portal tests | Open |
 | EPIC15-T5 | Reservation & TestDrive tests | Open |
 | EPIC15-T6 | Offer & Sales tests | Open |

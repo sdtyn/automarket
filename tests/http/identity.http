@@ -1,0 +1,107 @@
+### ── IDENTITY SERVICE ──────────────────────────────────────────────────────
+### Ortamı seç: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+### 1. Başarılı login — Admin (mfaPending: true dönmeli)
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "admin.mueller@automarkt.de",
+  "password": "Test@1234"
+}
+
+### 2. Başarılı login — Customer
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.bauer@automarkt.de",
+  "password": "Test@1234"
+}
+
+### 3. Hatalı şifre — 1. deneme (failedLoginCount artar)
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "WrongPassword"
+}
+
+### 4. Hatalı şifre — 2. deneme
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "WrongPassword"
+}
+
+### 5. Hatalı şifre — 3. deneme
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "WrongPassword"
+}
+
+### 6. Hatalı şifre — 4. deneme
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "WrongPassword"
+}
+
+### 7. Hatalı şifre — 5. deneme → hesap kilitlenmeli
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "WrongPassword"
+}
+
+### 8. Kilitli hesapla doğru şifre → hâlâ reddedilmeli (LOCKED)
+POST {{baseUrl}}/identity/login
+Content-Type: application/json
+
+{
+  "email": "customer.hoffmann@automarkt.de",
+  "password": "Test@1234"
+}
+
+### 9. Profil görüntüle — Admin
+GET {{baseUrl}}/identity/getProfile()
+Authorization: {{adminAuth}}
+
+### 10. Profil güncelle — Customer Bauer
+POST {{baseUrl}}/identity/updateProfile
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "firstName": "Maria",
+  "lastName": "Bauer",
+  "phoneNumber": "+49 69 99999999"
+}
+
+### 11. Şifre değiştir — Customer Bauer
+POST {{baseUrl}}/identity/changePassword
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "oldPassword": "Test@1234",
+  "newPassword": "Test@1234"
+}
+
+### 12. Kullanıcı listesi — Admin
+GET {{baseUrl}}/identity/listUsers()
+Authorization: {{adminAuth}}
+
+### 13. Kullanıcı listesi — Customer (reddedilmeli — Admin only)
+GET {{baseUrl}}/identity/listUsers()
+Authorization: {{customerBauerAuth}}
