@@ -24,3 +24,5 @@ using from '../modules/payment/db/payment';
 using from '../modules/delivery/db/delivery';
 
 using from '../modules/notification/db/notification';
+
+using from '../modules/reporting/db/reporting';
