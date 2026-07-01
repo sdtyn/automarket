@@ -1,7 +1,7 @@
 ### ── FAVORITES SERVICE (/favorites) ────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
 
-### 1. Favorilere ekle — Customer Bauer, Porsche 911
+### 1. Add to favorites — Customer Bauer, Porsche 911
 POST {{baseUrl}}/favorites/addFavorite
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -10,7 +10,7 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000005"
 }
 
-### 2. Favorilere ekle — Customer Bauer, Tesla Model Y
+### 2. Add to favorites — Customer Bauer, Tesla Model Y
 POST {{baseUrl}}/favorites/addFavorite
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -19,15 +19,15 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000025"
 }
 
-### 3. Favorileri listele — entity üzerinden
+### 3. List favorites — via entity
 GET {{baseUrl}}/favorites/Favorites
 Authorization: {{customerBauerAuth}}
 
-### 4. Favorileri listele — fonksiyon üzerinden
+### 4. List favorites — via function
 GET {{baseUrl}}/favorites/listFavorites()
 Authorization: {{customerBauerAuth}}
 
-### 5. Aynı aracı tekrar ekle — reddedilmeli (duplicate)
+### 5. Add same vehicle again — should be rejected (duplicate)
 POST {{baseUrl}}/favorites/addFavorite
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -36,7 +36,7 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000005"
 }
 
-### 6. Favorilerden çıkar — Porsche 911
+### 6. Remove from favorites — Porsche 911
 POST {{baseUrl}}/favorites/removeFavorite
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -45,10 +45,10 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000005"
 }
 
-### 7. Favori listesi — Porsche 911 artık olmamalı
+### 7. Favorites list — Porsche 911 should no longer be present
 GET {{baseUrl}}/favorites/listFavorites()
 Authorization: {{customerBauerAuth}}
 
-### 8. Customer Hoffmann'ın favorilerini görme — reddedilmeli
+### 8. View Customer Hoffmann's favorites — should be rejected
 GET {{baseUrl}}/favorites/Favorites
 Authorization: {{customerHoffmannAuth}}

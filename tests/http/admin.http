@@ -1,20 +1,20 @@
 ### ── ADMIN SERVICE (/admin) ─────────────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
-### Tüm işlemler Admin rolü gerektirir.
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### All operations require the Admin role.
 
-### 1. Kullanıcıları listele
+### 1. List users
 GET {{baseUrl}}/admin/Users
 Authorization: {{adminAuth}}
 
-### 2. Rolleri listele
+### 2. List roles
 GET {{baseUrl}}/admin/Roles
 Authorization: {{adminAuth}}
 
-### 3. Şubeleri listele
+### 3. List branches
 GET {{baseUrl}}/admin/Branches
 Authorization: {{adminAuth}}
 
-### 4. Yeni şube oluştur
+### 4. Create new branch
 # @name createBranch
 POST {{baseUrl}}/admin/createBranch
 Authorization: {{adminAuth}}
@@ -29,14 +29,14 @@ Content-Type: application/json
   "region": "Baden-Württemberg"
 }
 
-### 5. Şubeyi güncelle
-### branchId: 4. adımdan dönen ID
+### 5. Update branch
+### branchId: replace with ID returned from step 4
 POST {{baseUrl}}/admin/updateBranch
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
 {
-  "branchId": "BURAYA_BRANCH_ID",
+  "branchId": "REPLACE_WITH_BRANCH_ID",
   "name": "AutoMarkt Stuttgart Zentrum",
   "address": "Königstraße 10",
   "city": "Stuttgart",
@@ -44,16 +44,16 @@ Content-Type: application/json
   "region": "Baden-Württemberg"
 }
 
-### 6. Şubeyi devre dışı bırak
+### 6. Disable branch
 POST {{baseUrl}}/admin/disableBranch
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
 {
-  "branchId": "BURAYA_BRANCH_ID"
+  "branchId": "REPLACE_WITH_BRANCH_ID"
 }
 
-### 7. Yeni kullanıcı oluştur
+### 7. Create new user
 # @name createUser
 POST {{baseUrl}}/admin/createUser
 Authorization: {{adminAuth}}
@@ -67,34 +67,34 @@ Content-Type: application/json
   "roleCode": "Operator"
 }
 
-### 8. Rol ata — yeni kullanıcıya Manager rolü ekle
-### userId: 7. adımdan dönen ID
+### 8. Assign role — add Manager role to new user
+### userId: replace with ID returned from step 7
 POST {{baseUrl}}/admin/assignRole
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
 {
-  "userId": "BURAYA_USER_ID",
+  "userId": "REPLACE_WITH_USER_ID",
   "roleCode": "Manager"
 }
 
-### 9. Kullanıcıyı devre dışı bırak
+### 9. Disable user
 POST {{baseUrl}}/admin/disableUser
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
 {
-  "userId": "BURAYA_USER_ID"
+  "userId": "REPLACE_WITH_USER_ID"
 }
 
-### 10. Audit log'ları listele
+### 10. List audit logs
 GET {{baseUrl}}/admin/AuditLogs
 Authorization: {{adminAuth}}
 
-### 11. EventOutbox'ı listele
+### 11. List event outbox
 GET {{baseUrl}}/admin/EventOutbox
 Authorization: {{adminAuth}}
 
-### 12. Admin işlemi — Manager rolüyle (reddedilmeli)
+### 12. Admin operation as Manager — should be rejected
 GET {{baseUrl}}/admin/Users
 Authorization: {{managerAuth}}

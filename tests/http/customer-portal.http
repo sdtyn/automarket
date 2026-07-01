@@ -1,45 +1,45 @@
 ### ── CUSTOMER PORTAL SERVICE (/catalog) ────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
 
-### 1. Kataloğu listele — giriş yapmadan (anonim)
+### 1. List catalog — unauthenticated (anonymous)
 GET {{baseUrl}}/catalog/Vehicles
 
-### 2. Kataloğu listele — Customer olarak
+### 2. List catalog — as Customer
 GET {{baseUrl}}/catalog/Vehicles
 Authorization: {{customerBauerAuth}}
 
-### 3. Tek araç detayı — Porsche 911
+### 3. Single vehicle detail — Porsche 911
 GET {{baseUrl}}/catalog/Vehicles/40000000-4000-4000-4000-400000000005
 Authorization: {{customerBauerAuth}}
 
-### 4. Araç fotoğrafları — Porsche 911
+### 4. Vehicle images — Porsche 911
 GET {{baseUrl}}/catalog/VehicleImages?$filter=vehicle_ID eq 40000000-4000-4000-4000-400000000005
 Authorization: {{customerBauerAuth}}
 
-### 5. Fiyat geçmişi — Porsche 911 (PriceHistory seed verisi var)
+### 5. Price history — Porsche 911 (seed data available)
 GET {{baseUrl}}/catalog/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000005')
 Authorization: {{customerBauerAuth}}
 
-### 6. Filtrele — sadece elektrikli araçlar
+### 6. Filter — electric vehicles only
 GET {{baseUrl}}/catalog/Vehicles?$filter=fuelType eq 'ELECTRIC'
 Authorization: {{customerBauerAuth}}
 
-### 7. Filtrele — BMW marka araçlar
+### 7. Filter — BMW brand vehicles
 GET {{baseUrl}}/catalog/Vehicles?$filter=brand eq 'BMW'
 Authorization: {{customerBauerAuth}}
 
-### 8. Filtrele — fiyat aralığı (30.000–60.000 EUR)
+### 8. Filter — price range (30,000–60,000 EUR)
 GET {{baseUrl}}/catalog/Vehicles?$filter=price ge 30000 and price le 60000
 Authorization: {{customerBauerAuth}}
 
-### 9. Sırala — fiyata göre artan
+### 9. Sort — by price ascending
 GET {{baseUrl}}/catalog/Vehicles?$orderby=price asc
 Authorization: {{customerBauerAuth}}
 
-### 10. Sayfalama — ilk 5 araç
+### 10. Pagination — first 5 vehicles
 GET {{baseUrl}}/catalog/Vehicles?$top=5&$skip=0
 Authorization: {{customerBauerAuth}}
 
-### 11. Favorileri getir — Customer Bauer (favori yoksa boş liste dönmeli)
+### 11. Get favorites — Customer Bauer (should return empty list if none)
 GET {{baseUrl}}/catalog/getFavoriteVehicles()
 Authorization: {{customerBauerAuth}}

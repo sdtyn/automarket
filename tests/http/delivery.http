@@ -1,54 +1,54 @@
 ### ── DELIVERY SERVICE (/deliveries) ────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
-### Ön koşul: orderId için sales.http → createOrder; ödeme tamamlanmış olmalı.
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Prerequisite: get orderId from sales.http → createOrder; payment must be completed.
 
-### 1. Teslimat planla — Manager
-### orderId: sales.http'deki createOrder'dan dönen ID
+### 1. Schedule delivery — Manager
+### orderId: replace with ID returned from createOrder in sales.http
 # @name scheduleDelivery
 POST {{baseUrl}}/deliveries/scheduleDelivery
 Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
-  "orderId": "BURAYA_ORDER_ID",
+  "orderId": "REPLACE_WITH_ORDER_ID",
   "plannedDate": "2026-07-15"
 }
 
-### 2. Teslimatları listele — Admin
+### 2. List deliveries — Admin
 GET {{baseUrl}}/deliveries/Deliveries
 Authorization: {{adminAuth}}
 
-### 3. Teslimatları listele — Customer Bauer (sadece kendi siparişinin teslimatı)
+### 3. List deliveries — Customer Bauer (own order deliveries only)
 GET {{baseUrl}}/deliveries/Deliveries
 Authorization: {{customerBauerAuth}}
 
-### 4. Teslimat güncelle — tarih ve durum değiştir
-### deliveryId: 1. adımdan dönen ID
+### 4. Update delivery — change date and status
+### deliveryId: replace with ID returned from step 1
 POST {{baseUrl}}/deliveries/updateDelivery
 Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
-  "deliveryId": "BURAYA_DELIVERY_ID",
+  "deliveryId": "REPLACE_WITH_DELIVERY_ID",
   "plannedDate": "2026-07-16",
   "status": "IN_PROGRESS"
 }
 
-### 5. Teslimatı tamamla — DELIVERED
+### 5. Complete delivery — DELIVERED
 POST {{baseUrl}}/deliveries/completeDelivery
 Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
-  "deliveryId": "BURAYA_DELIVERY_ID"
+  "deliveryId": "REPLACE_WITH_DELIVERY_ID"
 }
 
-### 6. Teslimat planla — Customer rolüyle (reddedilmeli — Manager/Admin only)
+### 6. Schedule delivery as Customer — should be rejected (Manager/Admin only)
 POST {{baseUrl}}/deliveries/scheduleDelivery
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
 
 {
-  "orderId": "BURAYA_ORDER_ID",
+  "orderId": "REPLACE_WITH_ORDER_ID",
   "plannedDate": "2026-07-20"
 }

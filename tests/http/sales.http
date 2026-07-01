@@ -1,8 +1,8 @@
 ### ── SALES SERVICE (/sales) ─────────────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
-### Akış: createOrder → (PaymentService capture) → completeOrder
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Flow: createOrder → (PaymentService capture) → completeOrder
 
-### 1. Sipariş oluştur — Customer Bauer, VW Golf GTI (MUC)
+### 1. Create order — Customer Bauer, VW Golf GTI (MUC)
 # @name createOrder
 POST {{baseUrl}}/sales/createOrder
 Authorization: {{customerBauerAuth}}
@@ -13,38 +13,38 @@ Content-Type: application/json
   "deliveryType": "HOME_DELIVERY"
 }
 
-### 2. Siparişleri listele — Admin
+### 2. List orders — Admin
 GET {{baseUrl}}/sales/Orders
 Authorization: {{adminAuth}}
 
-### 3. Siparişleri listele — Customer Bauer (sadece kendi siparişleri)
+### 3. List orders — Customer Bauer (own orders only)
 GET {{baseUrl}}/sales/Orders
 Authorization: {{customerBauerAuth}}
 
-### 4. Siparişi iptal et — Customer Bauer
-### orderId: 1. adımdan dönen ID'yi buraya yaz
+### 4. Cancel order — Customer Bauer
+### orderId: replace with ID returned from step 1
 POST {{baseUrl}}/sales/cancelOrder
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
 
 {
-  "orderId": "BURAYA_ID_YAZ"
+  "orderId": "REPLACE_WITH_ID"
 }
 
-### 5. Siparişi tamamla — Manager (ödeme sonrası manuel tamamlama)
+### 5. Complete order — Manager (manual completion after payment)
 POST {{baseUrl}}/sales/completeOrder
 Authorization: {{managerAuth}}
 Content-Type: application/json
 
 {
-  "orderId": "BURAYA_ID_YAZ"
+  "orderId": "REPLACE_WITH_ID"
 }
 
-### 6. Başka müşterinin siparişini iptal etmeye çalış — reddedilmeli
+### 6. Try to cancel another customer's order — should be rejected
 POST {{baseUrl}}/sales/cancelOrder
 Authorization: {{customerHoffmannAuth}}
 Content-Type: application/json
 
 {
-  "orderId": "BURAYA_ID_YAZ"
+  "orderId": "REPLACE_WITH_ID"
 }

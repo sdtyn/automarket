@@ -1,7 +1,7 @@
 ### ── IDENTITY SERVICE ──────────────────────────────────────────────────────
-### Ortamı seç: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
 
-### 1. Başarılı login — Admin (mfaPending: true dönmeli)
+### 1. Successful login — Admin (should return mfaPending: true)
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -10,7 +10,7 @@ Content-Type: application/json
   "password": "Test@1234"
 }
 
-### 2. Başarılı login — Customer
+### 2. Successful login — Customer
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -19,7 +19,7 @@ Content-Type: application/json
   "password": "Test@1234"
 }
 
-### 3. Hatalı şifre — 1. deneme (failedLoginCount artar)
+### 3. Wrong password — attempt 1 (failedLoginCount increments)
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -28,7 +28,7 @@ Content-Type: application/json
   "password": "WrongPassword"
 }
 
-### 4. Hatalı şifre — 2. deneme
+### 4. Wrong password — attempt 2
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -37,7 +37,7 @@ Content-Type: application/json
   "password": "WrongPassword"
 }
 
-### 5. Hatalı şifre — 3. deneme
+### 5. Wrong password — attempt 3
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -46,7 +46,7 @@ Content-Type: application/json
   "password": "WrongPassword"
 }
 
-### 6. Hatalı şifre — 4. deneme
+### 6. Wrong password — attempt 4
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -55,7 +55,7 @@ Content-Type: application/json
   "password": "WrongPassword"
 }
 
-### 7. Hatalı şifre — 5. deneme → hesap kilitlenmeli
+### 7. Wrong password — attempt 5 → account should be locked
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -64,7 +64,7 @@ Content-Type: application/json
   "password": "WrongPassword"
 }
 
-### 8. Kilitli hesapla doğru şifre → hâlâ reddedilmeli (LOCKED)
+### 8. Correct password on locked account → should still be rejected (LOCKED)
 POST {{baseUrl}}/identity/login
 Content-Type: application/json
 
@@ -73,11 +73,11 @@ Content-Type: application/json
   "password": "Test@1234"
 }
 
-### 9. Profil görüntüle — Admin
+### 9. View profile — Admin
 GET {{baseUrl}}/identity/getProfile()
 Authorization: {{adminAuth}}
 
-### 10. Profil güncelle — Customer Bauer
+### 10. Update profile — Customer Bauer
 POST {{baseUrl}}/identity/updateProfile
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -88,7 +88,7 @@ Content-Type: application/json
   "phoneNumber": "+49 69 99999999"
 }
 
-### 11. Şifre değiştir — Customer Bauer
+### 11. Change password — Customer Bauer
 POST {{baseUrl}}/identity/changePassword
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
@@ -98,10 +98,10 @@ Content-Type: application/json
   "newPassword": "Test@1234"
 }
 
-### 12. Kullanıcı listesi — Admin
+### 12. List users — Admin
 GET {{baseUrl}}/identity/listUsers()
 Authorization: {{adminAuth}}
 
-### 13. Kullanıcı listesi — Customer (reddedilmeli — Admin only)
+### 13. List users — Customer (should be rejected — Admin only)
 GET {{baseUrl}}/identity/listUsers()
 Authorization: {{customerBauerAuth}}

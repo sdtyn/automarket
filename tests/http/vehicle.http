@@ -1,25 +1,25 @@
 ### ── VEHICLE SERVICE & OPERATOR PORTAL ─────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
 
 # --- VehicleService (/vehicle) -------------------------------------------
 
-### 1. Tüm araçları listele — Admin
+### 1. List all vehicles — Admin
 GET {{baseUrl}}/vehicle/Vehicles
 Authorization: {{adminAuth}}
 
-### 2. Tek araç getir — Golf VIII (seed verisi)
+### 2. Get single vehicle — Golf VIII (seed data)
 GET {{baseUrl}}/vehicle/Vehicles/40000000-4000-4000-4000-400000000001
 Authorization: {{adminAuth}}
 
-### 3. Araç fotoğraflarını getir
+### 3. Get vehicle images
 GET {{baseUrl}}/vehicle/Vehicles/40000000-4000-4000-4000-400000000001/images
 Authorization: {{adminAuth}}
 
-### 4. Araç ara — marka ve yakıt türüne göre
+### 4. Search vehicles — by brand and fuel type
 GET {{baseUrl}}/vehicle/searchVehicles(brand='BMW',fuelType='DIESEL',transmission=null,minPrice=null,maxPrice=null,branchId=null)
 Authorization: {{adminAuth}}
 
-### 5. Araç yayınla — DRAFT → FOR_SALE (seed araçları zaten FOR_SALE; yeni araçla dene)
+### 5. Publish vehicle — DRAFT → FOR_SALE (seed vehicles are already FOR_SALE; use a newly created vehicle)
 POST {{baseUrl}}/vehicle/publish
 Authorization: {{adminAuth}}
 Content-Type: application/json
@@ -28,7 +28,7 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000001"
 }
 
-### 6. Araç arşivle — FOR_SALE → ARCHIVED
+### 6. Archive vehicle — FOR_SALE → ARCHIVED
 POST {{baseUrl}}/vehicle/archive
 Authorization: {{adminAuth}}
 Content-Type: application/json
@@ -37,7 +37,7 @@ Content-Type: application/json
   "vehicleId": "40000000-4000-4000-4000-400000000001"
 }
 
-### 7. Fotoğraf ekle
+### 7. Add image
 POST {{baseUrl}}/vehicle/addImage
 Authorization: {{adminAuth}}
 Content-Type: application/json
@@ -50,7 +50,7 @@ Content-Type: application/json
 
 # --- OperatorPortalService (/operator) ------------------------------------
 
-### 8. Yeni araç oluştur — Operator (München şubesi)
+### 8. Create vehicle — Operator (München branch)
 # @name createVehicle
 POST {{baseUrl}}/operator/createVehicle
 Authorization: {{operatorAuth}}
@@ -71,20 +71,20 @@ Content-Type: application/json
   "branchId": "aaa00000-0000-0000-0000-000000000001"
 }
 
-### 9. Operator kendi şubesindeki araçları görür
+### 9. Operator sees only their own branch vehicles
 GET {{baseUrl}}/operator/Vehicles
 Authorization: {{operatorAuth}}
 
-### 10. Operator başka şubenin aracını göremez — Manager tüm şubeleri görür
+### 10. Operator cannot see other branch vehicles — Manager sees all branches
 GET {{baseUrl}}/operator/Vehicles
 Authorization: {{managerAuth}}
 
 # --- BranchService (/branch) ----------------------------------------------
 
-### 11. Tüm şubeleri listele
+### 11. List all branches
 GET {{baseUrl}}/branch/Branches
 Authorization: {{adminAuth}}
 
-### 12. Tek şube getir — München
+### 12. Get single branch — München
 GET {{baseUrl}}/branch/Branches/aaa00000-0000-0000-0000-000000000001
 Authorization: {{adminAuth}}

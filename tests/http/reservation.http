@@ -1,8 +1,8 @@
 ### ── RESERVATION SERVICE (/reservation) ────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
-### NOT: createReservation sonrası dönen reservationId'yi sonraki isteklerde kullan.
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### NOTE: use the reservationId returned from createReservation in subsequent requests.
 
-### 1. Rezervasyon oluştur — Customer Bauer, Tesla Model 3 (BER)
+### 1. Create reservation — Customer Bauer, Tesla Model 3 (BER)
 # @name createRes
 POST {{baseUrl}}/reservation/createReservation
 Authorization: {{customerBauerAuth}}
@@ -13,25 +13,25 @@ Content-Type: application/json
   "notes": "Bitte bis Freitag reservieren"
 }
 
-### 2. Rezervasyonları listele — Admin (tüm şubeler)
+### 2. List reservations — Admin (all branches)
 GET {{baseUrl}}/reservation/Reservations
 Authorization: {{adminAuth}}
 
-### 3. Rezervasyonları listele — Customer Bauer (sadece kendi rezervasyonları)
+### 3. List reservations — Customer Bauer (own reservations only)
 GET {{baseUrl}}/reservation/Reservations
 Authorization: {{customerBauerAuth}}
 
-### 4. Rezervasyonu onayla — Operator
-### reservationId: 1. adımdan dönen ID'yi buraya yaz
+### 4. Approve reservation — Operator
+### reservationId: replace with ID returned from step 1
 POST {{baseUrl}}/reservation/approveReservation
 Authorization: {{operatorAuth}}
 Content-Type: application/json
 
 {
-  "reservationId": "BURAYA_ID_YAZ"
+  "reservationId": "REPLACE_WITH_ID"
 }
 
-### 5. Aynı araca çift rezervasyon — reddedilmeli (araç zaten RESERVED)
+### 5. Double reservation on same vehicle — should be rejected (vehicle already RESERVED)
 POST {{baseUrl}}/reservation/createReservation
 Authorization: {{customerHoffmannAuth}}
 Content-Type: application/json
@@ -41,16 +41,16 @@ Content-Type: application/json
   "notes": "Doppelbuchung-Test"
 }
 
-### 6. Rezervasyonu iptal et — Customer Bauer
+### 6. Cancel reservation — Customer Bauer
 POST {{baseUrl}}/reservation/cancelReservation
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json
 
 {
-  "reservationId": "BURAYA_ID_YAZ"
+  "reservationId": "REPLACE_WITH_ID"
 }
 
-### 7. İptal edilen araç tekrar rezerve edilebilmeli
+### 7. Cancelled vehicle should be reservable again
 POST {{baseUrl}}/reservation/createReservation
 Authorization: {{customerHoffmannAuth}}
 Content-Type: application/json

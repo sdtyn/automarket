@@ -1,15 +1,15 @@
 ### ── PRICING SERVICE (/pricing) ─────────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
 
-### 1. Fiyat geçmişini getir — Porsche 911 (PriceHistory seed verisi var)
+### 1. Get price history — Porsche 911 (has seed data in PriceHistory)
 GET {{baseUrl}}/pricing/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000005')
 Authorization: {{adminAuth}}
 
-### 2. Fiyat geçmişini entity üzerinden listele
+### 2. List price history via entity
 GET {{baseUrl}}/pricing/PriceHistory?$filter=vehicle_ID eq 40000000-4000-4000-4000-400000000005
 Authorization: {{adminAuth}}
 
-### 3. Fiyat güncelle — Admin, Golf VIII'i indir
+### 3. Update price — Admin, lower Golf VIII price
 POST {{baseUrl}}/pricing/updatePrice
 Authorization: {{adminAuth}}
 Content-Type: application/json
@@ -20,15 +20,15 @@ Content-Type: application/json
   "currency": "EUR"
 }
 
-### 4. Güncelleme sonrası fiyat geçmişi — yeni kayıt eklenmeli
+### 4. Price history after update — new record should be present
 GET {{baseUrl}}/pricing/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000001')
 Authorization: {{adminAuth}}
 
-### 5. Liste fiyatıyla karşılaştır — Audi A4
+### 5. Compare to list price — Audi A4
 GET {{baseUrl}}/pricing/compareToListPrice(vehicleId='40000000-4000-4000-4000-400000000004',offerAmount=35000)
 Authorization: {{customerBauerAuth}}
 
-### 6. Fiyat güncelle — Customer rolüyle (reddedilmeli — Admin/Manager only)
+### 6. Update price as Customer — should be rejected (Admin/Manager only)
 POST {{baseUrl}}/pricing/updatePrice
 Authorization: {{customerBauerAuth}}
 Content-Type: application/json

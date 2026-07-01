@@ -1,43 +1,43 @@
 ### ── REPORTING SERVICE (/reporting) ────────────────────────────────────────
-### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
-### Raporlar seed verisiyle çalışır — ek işlem gerekmez.
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Reports work against seed data — no additional setup required.
 
-### 1. Satış dashboard — tüm şubeler özet
+### 1. Sales dashboard — summary across all branches
 GET {{baseUrl}}/reporting/getSalesDashboard()
 Authorization: {{managerAuth}}
 
-### 2. Şube performansı — München
+### 2. Branch performance — München
 GET {{baseUrl}}/reporting/getBranchPerformance(branchId='aaa00000-0000-0000-0000-000000000001')
 Authorization: {{managerAuth}}
 
-### 3. Şube performansı — tüm şubeler (branchId boş)
+### 3. Branch performance — all branches (branchId empty)
 GET {{baseUrl}}/reporting/getBranchPerformance(branchId=null)
 Authorization: {{managerAuth}}
 
-### 4. Dönüşüm oranları — direkt satış kanalı
+### 4. Conversion rates — direct sales funnel
 GET {{baseUrl}}/reporting/getConversionRates(funnelType='direct')
 Authorization: {{managerAuth}}
 
-### 5. Dönüşüm oranları — rezervasyon kanalı
+### 5. Conversion rates — reservation-led funnel
 GET {{baseUrl}}/reporting/getConversionRates(funnelType='reservation-led')
 Authorization: {{managerAuth}}
 
-### 6. Araç satış raporu — entity
+### 6. Vehicle sales report — entity
 GET {{baseUrl}}/reporting/VehicleSalesReport
 Authorization: {{managerAuth}}
 
-### 7. Rezervasyon raporu — entity
+### 7. Reservation report — entity
 GET {{baseUrl}}/reporting/ReservationReport
 Authorization: {{managerAuth}}
 
-### 8. Teklif dönüşüm raporu — entity
+### 8. Offer conversion report — entity
 GET {{baseUrl}}/reporting/OfferConversionReport
 Authorization: {{managerAuth}}
 
-### 9. Şube performans raporu — entity
+### 9. Branch performance report — entity
 GET {{baseUrl}}/reporting/BranchPerformanceReport
 Authorization: {{managerAuth}}
 
-### 10. Raporlama — Customer rolüyle (reddedilmeli — Manager/Admin only)
+### 10. Reporting as Customer — should be rejected (Manager/Admin only)
 GET {{baseUrl}}/reporting/getSalesDashboard()
 Authorization: {{customerBauerAuth}}
