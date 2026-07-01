@@ -1,0 +1,45 @@
+### ── CUSTOMER PORTAL SERVICE (/catalog) ────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+### 1. Kataloğu listele — giriş yapmadan (anonim)
+GET {{baseUrl}}/catalog/Vehicles
+
+### 2. Kataloğu listele — Customer olarak
+GET {{baseUrl}}/catalog/Vehicles
+Authorization: {{customerBauerAuth}}
+
+### 3. Tek araç detayı — Porsche 911
+GET {{baseUrl}}/catalog/Vehicles/40000000-4000-4000-4000-400000000005
+Authorization: {{customerBauerAuth}}
+
+### 4. Araç fotoğrafları — Porsche 911
+GET {{baseUrl}}/catalog/VehicleImages?$filter=vehicle_ID eq 40000000-4000-4000-4000-400000000005
+Authorization: {{customerBauerAuth}}
+
+### 5. Fiyat geçmişi — Porsche 911 (PriceHistory seed verisi var)
+GET {{baseUrl}}/catalog/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000005')
+Authorization: {{customerBauerAuth}}
+
+### 6. Filtrele — sadece elektrikli araçlar
+GET {{baseUrl}}/catalog/Vehicles?$filter=fuelType eq 'ELECTRIC'
+Authorization: {{customerBauerAuth}}
+
+### 7. Filtrele — BMW marka araçlar
+GET {{baseUrl}}/catalog/Vehicles?$filter=brand eq 'BMW'
+Authorization: {{customerBauerAuth}}
+
+### 8. Filtrele — fiyat aralığı (30.000–60.000 EUR)
+GET {{baseUrl}}/catalog/Vehicles?$filter=price ge 30000 and price le 60000
+Authorization: {{customerBauerAuth}}
+
+### 9. Sırala — fiyata göre artan
+GET {{baseUrl}}/catalog/Vehicles?$orderby=price asc
+Authorization: {{customerBauerAuth}}
+
+### 10. Sayfalama — ilk 5 araç
+GET {{baseUrl}}/catalog/Vehicles?$top=5&$skip=0
+Authorization: {{customerBauerAuth}}
+
+### 11. Favorileri getir — Customer Bauer (favori yoksa boş liste dönmeli)
+GET {{baseUrl}}/catalog/getFavoriteVehicles()
+Authorization: {{customerBauerAuth}}
