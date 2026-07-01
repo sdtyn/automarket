@@ -1,0 +1,40 @@
+### ── PRICING SERVICE (/pricing) ─────────────────────────────────────────────
+### Ortam: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+
+### 1. Fiyat geçmişini getir — Porsche 911 (PriceHistory seed verisi var)
+GET {{baseUrl}}/pricing/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000005')
+Authorization: {{adminAuth}}
+
+### 2. Fiyat geçmişini entity üzerinden listele
+GET {{baseUrl}}/pricing/PriceHistory?$filter=vehicle_ID eq 40000000-4000-4000-4000-400000000005
+Authorization: {{adminAuth}}
+
+### 3. Fiyat güncelle — Admin, Golf VIII'i indir
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000001",
+  "newPrice": 27500.00,
+  "currency": "EUR"
+}
+
+### 4. Güncelleme sonrası fiyat geçmişi — yeni kayıt eklenmeli
+GET {{baseUrl}}/pricing/getPriceHistory(vehicleId='40000000-4000-4000-4000-400000000001')
+Authorization: {{adminAuth}}
+
+### 5. Liste fiyatıyla karşılaştır — Audi A4
+GET {{baseUrl}}/pricing/compareToListPrice(vehicleId='40000000-4000-4000-4000-400000000004',offerAmount=35000)
+Authorization: {{customerBauerAuth}}
+
+### 6. Fiyat güncelle — Customer rolüyle (reddedilmeli — Admin/Manager only)
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000001",
+  "newPrice": 1.00,
+  "currency": "EUR"
+}
