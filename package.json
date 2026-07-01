@@ -110,6 +110,9 @@
       },
       "DeliveryService": {
         "impl": "modules/delivery/application/delivery-service.js"
+      },
+      "NotificationService": {
+        "impl": "modules/notification/application/notification-service.js"
       }
     }
   }

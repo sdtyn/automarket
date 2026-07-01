@@ -7,7 +7,7 @@ Sprint 11. Goal: event-driven notification system. Notifications are never creat
 | # | Item | Status |
 |---|---|---|
 | EPIC11-T1 | Notification Domain Model — `Notifications` entity, `NotificationChannel`/`NotificationStatus` enums | Done |
-| EPIC11-T2 | Notification Service — read-only entity, `getMyNotifications`, `getUnreadCount`, event subscribers | Open |
+| EPIC11-T2 | Notification Service — read-only entity, `getMyNotifications`, `getUnreadCount`, event subscribers | Done |
 
 ### Sprint Backlog DoD mapping
 
@@ -17,7 +17,33 @@ Sprint 11. Goal: event-driven notification system. Notifications are never creat
 
 ### Sign-off
 
-_To be completed at sprint end._
+All two tickets delivered and CI green. Sprint completed 2026-07-01.
+
+---
+
+## T2 — Notification Service
+
+**What & Why:** Customers cannot query the `Notifications` entity projection directly because `recipient_ID` is a UUID FK to `Users`, while `req.user.id` is the JWT subject string (email). Exposing the entity with `where: 'recipient_ID = $user'` would never match. The solution: customers use `getMyNotifications` / `getUnreadCount` functions, which resolve the JWT subject to a Users UUID via `resolveUserId(email)` before querying. Admin/Manager retain direct entity access for support use. The `createNotificationsForFavorites` helper is shared by all three event subscribers to avoid repetition — it queries Favorites, resolves each `customer_ID` to a UUID, and inserts PENDING PUSH notifications. `VehicleSold` is immediately active; `VehiclePriceDropped` and `SimilarVehicleListed` subscribers are registered and will fire once the emitting services (PricingService, VehicleService) add those events.
+
+### Create `modules/notification/api/notification-service.cds`
+
+_(full content as written above)_
+
+### Create `modules/notification/application/notification-service.js`
+
+_(full content as written above)_
+
+### Modify `srv/index.cds`
+
+```cds
+using from '../modules/notification/api/notification-service';
+```
+
+### Modify `package.json`
+
+```json
+"NotificationService": { "impl": "modules/notification/application/notification-service.js" }
+```
 
 ---
 

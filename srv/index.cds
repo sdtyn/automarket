@@ -29,3 +29,5 @@ using from '../modules/sales/api/sales-service';
 using from '../modules/payment/api/payment-service';
 
 using from '../modules/delivery/api/delivery-service';
+
+using from '../modules/notification/api/notification-service';
