@@ -98,7 +98,9 @@ module.exports = cds.service.impl(async function (srv) {
 
     await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
 
-    const result = await INSERT.into(Orders).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Orders).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       branch_ID: vehicle.branch_ID,
       customer_ID: req.user.id,
@@ -109,8 +111,8 @@ module.exports = cds.service.impl(async function (srv) {
 
     const vehicleSrv = await cds.connect.to('VehicleService');
     await vehicleSrv.emit('VehicleCheckoutStarted', { vehicleId });
-    await srv.emit('OrderCreated', { orderId: result.ID, vehicleId });
-    return result.ID;
+    await srv.emit('OrderCreated', { orderId: id, vehicleId });
+    return id;
   });
 
   // cancelOrder: reverses the vehicle's PENDING_PAYMENT lock using the PaymentFailed

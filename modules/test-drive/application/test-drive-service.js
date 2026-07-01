@@ -49,7 +49,9 @@ module.exports = cds.service.impl(async function (srv) {
         'This time slot overlaps with an existing booking for the selected vehicle'
       );
 
-    const result = await INSERT.into(TestDrives).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(TestDrives).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       branch_ID: branchId,
       customer_ID: req.user.id,
@@ -58,8 +60,8 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'REQUESTED',
     });
 
-    await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
-    return result.ID;
+    await srv.emit('TestDriveRequested', { testDriveId: id, vehicleId });
+    return id;
   });
 
   // approveTestDrive: advances a REQUESTED test drive to APPROVED.
@@ -133,7 +135,9 @@ module.exports = cds.service.impl(async function (srv) {
         'This time slot overlaps with an existing booking for the selected vehicle'
       );
 
-    const result = await INSERT.into(TestDrives).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(TestDrives).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       branch_ID: branchId,
       customer_ID: null,
@@ -144,8 +148,8 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'REQUESTED',
     });
 
-    await srv.emit('TestDriveRequested', { testDriveId: result.ID, vehicleId });
-    return result.ID;
+    await srv.emit('TestDriveRequested', { testDriveId: id, vehicleId });
+    return id;
   });
 
   // getAvailableSlots: generates 09:00–16:30 UTC slots in 30-min increments,

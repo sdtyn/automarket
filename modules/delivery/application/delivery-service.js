@@ -25,13 +25,15 @@ module.exports = cds.service.impl(async function (srv) {
       .where({ order_ID: orderId, status: { in: ['PLANNED', 'IN_PROGRESS'] } });
     if (existing) return req.error(409, 'An active delivery already exists for this order');
 
-    const result = await INSERT.into(Deliveries).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Deliveries).entries({
+      ID: id,
       order_ID: orderId,
       plannedDate,
       status: 'PLANNED',
     });
 
-    return result.ID;
+    return id;
   });
 
   // updateDelivery: updates plannedDate and/or status for a non-terminal delivery.

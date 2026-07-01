@@ -10,8 +10,9 @@ module.exports = cds.service.impl(async function (srv) {
   srv.on('addFavorite', async (req) => {
     const { vehicleId } = req.data;
     const customer_ID = req.user.id;
-    const result = await INSERT.into(Favorites).entries({ customer_ID, vehicle_ID: vehicleId });
-    return result.ID;
+    const id = cds.utils.uuid();
+    await INSERT.into(Favorites).entries({ ID: id, customer_ID, vehicle_ID: vehicleId });
+    return id;
   });
 
   // removeFavorite: deletes the row matching the caller's user ID and vehicleId.

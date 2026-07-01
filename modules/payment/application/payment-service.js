@@ -31,7 +31,9 @@ module.exports = cds.service.impl(async function (srv) {
 
     await UPDATE(Orders).set({ status: 'PENDING_PAYMENT' }).where({ ID: orderId });
 
-    const result = await INSERT.into(Payments).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Payments).entries({
+      ID: id,
       order_ID: orderId,
       provider,
       amount,
@@ -40,7 +42,7 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'INITIATED',
     });
 
-    return `PSP-SESSION-${result.ID}`;
+    return `PSP-SESSION-${id}`;
   });
 
   // retryPayment: opens a new INITIATED payment after a FAILED attempt.
@@ -71,7 +73,9 @@ module.exports = cds.service.impl(async function (srv) {
       .where({ order_ID: orderId, status: { in: ['INITIATED', 'AUTHORIZED'] } });
     if (active) return req.error(409, 'An active payment already exists for this order');
 
-    const result = await INSERT.into(Payments).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Payments).entries({
+      ID: id,
       order_ID: orderId,
       provider: failed.provider,
       amount: failed.amount,
@@ -80,7 +84,7 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'INITIATED',
     });
 
-    return `PSP-SESSION-${result.ID}`;
+    return `PSP-SESSION-${id}`;
   });
 
   // capturePayment: simulates a PSP success webhook; emits PaymentSucceeded.

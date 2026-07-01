@@ -5,6 +5,51 @@ New entries go at the top (newest first).
 
 ---
 
+## [2026-07-01] All INSERT-based actions return 204 — `INSERT.into().entries()` does not expose the generated ID
+
+**Error message:**  
+No error message. The action returned `HTTP 204 No Content` instead of the expected UUID string.
+
+**Symptom:** Any action that creates a new entity and returns its ID (e.g. `createOrder`, `createReservation`, `createBranch`, `requestTestDrive`, `submitOffer`, etc.) returned 204 with an empty body after the `@impl` fix made handlers callable.
+
+**Root cause:** All handler files used the pattern:
+
+```js
+const result = await INSERT.into(Entity).entries({ field1, field2, ... });
+return result.ID;
+```
+
+`INSERT.into().entries()` in CAP does not return the inserted record. The result object is an `InsertResult` (a rowcount/key container), and `result.ID` is always `undefined`. When a CAP action handler returns `undefined`, the framework sends `204 No Content`.
+
+This was a systematic bug present across all modules because the pattern was copied from early scaffold code that assumed CAP would behave like an ORM and expose the auto-generated ID.
+
+**Fix:** Pre-generate the UUID with `cds.utils.uuid()` before the INSERT, pass it as `ID` in the entries object, then return the pre-generated value:
+
+```js
+// Before (broken — result.ID is always undefined):
+const result = await INSERT.into(Entity).entries({ field1, field2 });
+return result.ID;
+
+// After (correct):
+const id = cds.utils.uuid();
+await INSERT.into(Entity).entries({ ID: id, field1, field2 });
+return id;
+```
+
+**Files changed (11 files):**
+- `modules/sales/application/sales-service.js` ← `createOrder`
+- `modules/delivery/application/delivery-service.js` ← `scheduleDelivery`
+- `modules/favorites/application/favorites-service.js` ← `addToFavorites`
+- `modules/offer/application/offer-service.js` ← `submitOffer`
+- `modules/branch/application/branch-service.js` ← `createBranch`
+- `modules/test-drive/application/test-drive-service.js` ← `requestTestDrive`, `requestTestDriveAsGuest`
+- `modules/payment/application/payment-service.js` ← `initiatePayment`, `retryPayment`
+- `modules/vehicle/application/operator-portal.js` ← `createVehicle`, `approveOffer` (Reservation INSERT)
+- `modules/reservation/application/reservation-service.js` ← `createReservation`
+- `modules/vehicle/application/vehicle-service.js` ← `addImage`
+
+---
+
 ## [2026-07-01] `getPriceHistory` returns 500 — `changedAt` not found in `PriceHistory`
 
 **Error message:**

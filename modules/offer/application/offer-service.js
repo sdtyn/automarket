@@ -18,7 +18,9 @@ module.exports = cds.service.impl(async function (srv) {
     if (vehicle.status !== 'FOR_SALE')
       return req.error(409, 'Offers can only be submitted for FOR_SALE vehicles');
 
-    const result = await INSERT.into(Offers).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Offers).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       branch_ID: vehicle.branch_ID,
       customer_ID: req.user.id,
@@ -28,8 +30,8 @@ module.exports = cds.service.impl(async function (srv) {
       status: 'SUBMITTED',
     });
 
-    await srv.emit('OfferSubmitted', { offerId: result.ID, vehicleId });
-    return result.ID;
+    await srv.emit('OfferSubmitted', { offerId: id, vehicleId });
+    return id;
   });
 
   // approveOffer: transitions offer to APPROVED, then creates an APPROVED

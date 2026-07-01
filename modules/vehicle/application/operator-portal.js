@@ -28,7 +28,9 @@ module.exports = cds.service.impl(async function (srv) {
     const branch_ID = req.user.is('Operator') ? req.user.attr.branchId : branchId;
     if (!branch_ID) return req.error(400, 'branchId is required for Manager role.');
 
-    const result = await INSERT.into(Vehicles).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Vehicles).entries({
+      ID: id,
       vin,
       plateNumber,
       brand,
@@ -43,7 +45,7 @@ module.exports = cds.service.impl(async function (srv) {
       branch_ID,
       status: 'DRAFT',
     });
-    return result.ID;
+    return id;
   });
 
   // approveReservation: verifies the reservation belongs to the Operator's branch,
@@ -172,7 +174,9 @@ module.exports = cds.service.impl(async function (srv) {
 
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
     await UPDATE(Offers).set({ status: 'APPROVED' }).where({ ID: offerId });
+    const reservationId = cds.utils.uuid();
     await INSERT.into(Reservations).entries({
+      ID: reservationId,
       vehicle_ID: offer.vehicle_ID,
       branch_ID: offer.branch_ID,
       customer_ID: offer.customer_ID,

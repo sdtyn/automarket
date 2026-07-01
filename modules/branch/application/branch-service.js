@@ -8,7 +8,9 @@ module.exports = cds.service.impl(async function (srv) {
   // so CAP will reject duplicates before the INSERT reaches the database.
   srv.on('createBranch', async (req) => {
     const { code, name, address, city, country, region } = req.data;
-    const result = await INSERT.into(Branches).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Branches).entries({
+      ID: id,
       code,
       name,
       address,
@@ -17,7 +19,7 @@ module.exports = cds.service.impl(async function (srv) {
       region,
       status: 'ACTIVE',
     });
-    return result.ID;
+    return id;
   });
 
   // updateBranch: updates mutable display and address fields only.

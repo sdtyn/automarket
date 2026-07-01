@@ -131,12 +131,14 @@ module.exports = cds.service.impl(async function (srv) {
         `An image with sortOrder ${sortOrder} already exists for this vehicle.`
       );
 
-    const result = await INSERT.into(VehicleImages).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(VehicleImages).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       url,
       sortOrder,
     });
-    return result.ID;
+    return id;
   });
 
   // updateImageOrder: fetches the image to resolve its vehicle, then checks

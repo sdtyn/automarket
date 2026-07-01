@@ -49,7 +49,9 @@ module.exports = cds.service.impl(async function (srv) {
 
     const isGuest = !req.user.is('authenticated-user');
 
-    const result = await INSERT.into(Reservations).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Reservations).entries({
+      ID: id,
       vehicle_ID: vehicleId,
       branch_ID: vehicle.branch_ID,
       customer_ID: isGuest ? null : req.user.id,
@@ -58,15 +60,15 @@ module.exports = cds.service.impl(async function (srv) {
       notes,
     });
 
-    const guestToken = isGuest ? issueGuestToken(result.ID) : null;
+    const guestToken = isGuest ? issueGuestToken(id) : null;
 
     // Persist guestToken on the row so it can be looked up by verifyGuestToken later.
     if (guestToken) {
-      await UPDATE(Reservations).set({ guestToken }).where({ ID: result.ID });
+      await UPDATE(Reservations).set({ guestToken }).where({ ID: id });
     }
 
-    await srv.emit('ReservationCreated', { reservationId: result.ID, vehicleId });
-    return { reservationId: result.ID, guestToken };
+    await srv.emit('ReservationCreated', { reservationId: id, vehicleId });
+    return { reservationId: id, guestToken };
   });
 
   // approveReservation: only valid from REQUESTED status.
