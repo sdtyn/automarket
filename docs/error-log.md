@@ -5,6 +5,25 @@ New entries go at the top (newest first).
 
 ---
 
+## [2026-07-01] `getPriceHistory` returns 500 — `changedAt` not found in `PriceHistory`
+
+**Error message:**
+```
+500 - "changedAt" not found in the elements of "automarket.PriceHistory"
+```
+
+**Symptom:** `GET /catalog/getPriceHistory(...)` and `GET /pricing/getPriceHistory(...)` returned 500.
+
+**Root cause:** Both `customer-portal.js` and `pricing-service.js` referenced `changedAt` in `.columns()` and `.orderBy()` calls, but the `PriceHistory` entity has no such field. The entity extends `BaseEntity` which provides `createdAt` — since PriceHistory rows are append-only (never updated), `createdAt` is the correct timestamp for when the price was changed.
+
+**Fix:** Replaced all `changedAt` references with `createdAt` in both handlers.
+
+**Files changed:**
+- `modules/pricing/application/pricing-service.js` ← `orderBy({ changedAt })` → `orderBy({ createdAt })`
+- `modules/vehicle/application/customer-portal.js` ← `.columns('changedAt')`, `orderBy({ changedAt })` → `createdAt`
+
+---
+
 ## [2026-07-01] `JWT_SECRET` env var not set — `identity/login` returns 500
 
 **Error message:**

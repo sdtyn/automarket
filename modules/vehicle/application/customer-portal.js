@@ -26,13 +26,13 @@ module.exports = cds.service.impl(async function (srv) {
   });
 
   // getPriceHistory: returns price-change rows for sparkline rendering.
-  // Only newPrice, currency, and changedAt are exposed — cost basis and
+  // Only newPrice, currency, and createdAt are exposed — cost basis and
   // who changed the price are internal-tier data, not shown to customers.
   srv.on('getPriceHistory', async (req) => {
     const { vehicleId } = req.data;
     return SELECT.from(PriceHistory)
-      .columns('newPrice', 'currency', 'changedAt')
+      .columns('newPrice', 'currency', 'createdAt')
       .where({ vehicle_ID: vehicleId })
-      .orderBy({ changedAt: 'asc' });
+      .orderBy({ createdAt: 'asc' });
   });
 });

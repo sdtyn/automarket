@@ -43,7 +43,7 @@ module.exports = cds.service.impl(async function (srv) {
     const { vehicleId } = req.data;
     return SELECT.from(PriceHistory)
       .where({ vehicle_ID: vehicleId })
-      .orderBy({ changedAt: 'desc' });
+      .orderBy({ createdAt: 'desc' });
   });
   // compareToListPrice: computes how far the offer sits below the current list
   // price and below the all-time lowest recorded price for the same vehicle.
