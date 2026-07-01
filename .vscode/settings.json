@@ -1,0 +1,12 @@
+{
+  "rest-client.environmentVariables": {
+    "dev": {
+      "baseUrl": "http://localhost:4004",
+      "adminAuth": "Basic YWRtaW4ubXVlbGxlckBhdXRvbWFya3QuZGU6VGVzdEAxMjM0",
+      "managerAuth": "Basic bWFuYWdlci5zY2htaWR0QGF1dG9tYXJrdC5kZTpUZXN0QDEyMzQ=",
+      "operatorAuth": "Basic b3BlcmF0b3Iud2ViZXJAYXV0b21hcmt0LmRlOlRlc3RAMTIzNA==",
+      "customerBauerAuth": "Basic Y3VzdG9tZXIuYmF1ZXJAYXV0b21hcmt0LmRlOlRlc3RAMTIzNA==",
+      "customerHoffmannAuth": "Basic Y3VzdG9tZXIuaG9mZm1hbm5AYXV0b21hcmt0LmRlOlRlc3RAMTIzNA=="
+    }
+  }
+}
