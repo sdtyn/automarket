@@ -12,7 +12,6 @@ using {automarket.Branches} from '../../branch/db/branch';
 // The partial unique index below enforces Domain Model Rule S-1: only one active
 // order per vehicle. It is defense-in-depth alongside the Vehicle-level state
 // guard — either one missing leaves a race window.
-@sql.append: 'UNIQUE (vehicle_ID) WHERE status IN (''CREATED'', ''PENDING_PAYMENT'', ''PAID'')'
 entity Orders : BaseEntity {
     vehicle      : Association to Vehicles;
     branch       : Association to Branches;

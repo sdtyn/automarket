@@ -14,5 +14,9 @@ entity Favorites : BaseEntity {
     // customer_ID stores req.user.id — a string rather than a foreign key
     // to avoid a hard dependency on the Identity module's Users entity.
     customer_ID : String(255);
-    vehicle     : Association to Vehicles;
+    // Explicit FK so @assert.unique can reference it — managed associations
+    // generate vehicle_ID implicitly, which @assert.unique cannot resolve.
+    vehicle_ID  : UUID not null;
+    vehicle     : Association to Vehicles
+                      on vehicle.ID = vehicle_ID;
 }
