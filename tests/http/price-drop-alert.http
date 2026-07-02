@@ -1,0 +1,74 @@
+### ── PRICE-DROP ALERTS (EPIC18) ────────────────────────────────────────────
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Flow: addFavorite → updatePrice (lower) → getMyNotifications shows an EMAIL alert
+### Uses Tesla Model 3 (BER) — not part of any other file's flow, so its price
+### history stays clean across repeat runs.
+
+### 1. Add to favorites — Customer Bauer, Tesla Model 3 (BER)
+POST {{baseUrl}}/favorites/addFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016"
+}
+
+### 2. Lower the price — Admin
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "newPrice": 35900.00,
+  "currency": "EUR"
+}
+
+### 3. Check notifications — Customer Bauer should see an EMAIL alert in German
+GET {{baseUrl}}/notifications/getMyNotifications()
+Authorization: {{customerBauerAuth}}
+
+### 4. Filter notifications by channel — EMAIL only
+GET {{baseUrl}}/notifications/getMyNotifications(channel='EMAIL')
+Authorization: {{customerBauerAuth}}
+
+### 5. Unread count — should include the new price-drop notification
+GET {{baseUrl}}/notifications/getUnreadCount()
+Authorization: {{customerBauerAuth}}
+
+### 6. Opt out of price-drop alerts — Customer Bauer
+POST {{baseUrl}}/identity/updateNotificationPreference
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "notifyOnPriceDrop": false
+}
+
+### 7. Lower the price again — opted-out user should get no new alert
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "newPrice": 34900.00,
+  "currency": "EUR"
+}
+
+### 8. Unread count — unchanged from step 5 (opt-out respected)
+GET {{baseUrl}}/notifications/getUnreadCount()
+Authorization: {{customerBauerAuth}}
+
+### 9. Opt back in — cleanup so repeat runs of this file behave consistently
+POST {{baseUrl}}/identity/updateNotificationPreference
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "notifyOnPriceDrop": true
+}
+
+### 10. Another customer who never favorited this vehicle — sees no such alert
+GET {{baseUrl}}/notifications/getMyNotifications()
+Authorization: {{customerHoffmannAuth}}

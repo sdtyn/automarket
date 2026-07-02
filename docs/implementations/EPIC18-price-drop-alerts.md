@@ -16,7 +16,7 @@ the flow with an integration test.
 |--------|-------------|--------|
 | EPIC18-T1 | NotificationService price-drop handler | Done |
 | EPIC18-T2 | Notification preference field | Done |
-| EPIC18-T3 | Integration test | Open |
+| EPIC18-T3 | Integration test | Done |
 
 ### Sprint Backlog DoD Mapping
 
@@ -27,7 +27,9 @@ the flow with an integration test.
 
 ### Sign-off
 
-_To be filled in at sprint end._
+All three tickets delivered and CI green. `price-drop-alert.http`'s full 10-request flow was
+verified by hand against a live `cds-serve` instance (not just read) before being committed.
+Sprint completed 2026-07-02.
 
 ---
 
@@ -290,5 +292,136 @@ npm test
 ```
 
 Expected: `Test Suites: 10 passed, 10 total`, `Tests: 116 passed, 116 total`.
+
+---
+
+## EPIC18-T3: Integration test
+
+### What & Why
+
+Per the Post-MVP Backlog (EPIC18-T3), the price-drop flow needs a `.http` file — this project's
+established format for manual/hand-run API integration tests (`tests/http/`, see
+`tests/http/README.md`). Unlike the jest suites in EPIC17-T4/EPIC18-T1/T2 (which prove the
+handler logic in isolation with an in-memory DB), this file exercises the real HTTP surface end
+to end and doubles as living documentation for how a developer would try the feature manually.
+
+`price-drop-alert.http` uses Tesla Model 3 (BER, `...000016`) — a vehicle with no pre-seeded
+`PriceHistory` row and not used as a dependency by any other `.http` file, so its price stays
+predictable across repeat runs. The flow: favorite → drop price → read the EMAIL alert via
+`getMyNotifications`/`getUnreadCount` → opt out → drop the price again → confirm no new alert →
+opt back in (cleanup) → confirm a non-favoriting customer sees nothing.
+
+Every one of the file's 10 requests was run against a real `cds-serve` instance with `curl`
+before being committed — not just read for plausibility — confirming the EMAIL channel, German
+content, unread-count delta, and opt-out behavior all work exactly as written.
+
+### Step-by-step
+
+#### 1. Create `tests/http/price-drop-alert.http`
+
+```http
+### ── PRICE-DROP ALERTS (EPIC18) ────────────────────────────────────────────
+### Environment: Ctrl+Shift+P → Rest Client: Switch Environment → dev
+### Flow: addFavorite → updatePrice (lower) → getMyNotifications shows an EMAIL alert
+### Uses Tesla Model 3 (BER) — not part of any other file's flow, so its price
+### history stays clean across repeat runs.
+
+### 1. Add to favorites — Customer Bauer, Tesla Model 3 (BER)
+POST {{baseUrl}}/favorites/addFavorite
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016"
+}
+
+### 2. Lower the price — Admin
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "newPrice": 35900.00,
+  "currency": "EUR"
+}
+
+### 3. Check notifications — Customer Bauer should see an EMAIL alert in German
+GET {{baseUrl}}/notifications/getMyNotifications()
+Authorization: {{customerBauerAuth}}
+
+### 4. Filter notifications by channel — EMAIL only
+GET {{baseUrl}}/notifications/getMyNotifications(channel='EMAIL')
+Authorization: {{customerBauerAuth}}
+
+### 5. Unread count — should include the new price-drop notification
+GET {{baseUrl}}/notifications/getUnreadCount()
+Authorization: {{customerBauerAuth}}
+
+### 6. Opt out of price-drop alerts — Customer Bauer
+POST {{baseUrl}}/identity/updateNotificationPreference
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "notifyOnPriceDrop": false
+}
+
+### 7. Lower the price again — opted-out user should get no new alert
+POST {{baseUrl}}/pricing/updatePrice
+Authorization: {{adminAuth}}
+Content-Type: application/json
+
+{
+  "vehicleId": "40000000-4000-4000-4000-400000000016",
+  "newPrice": 34900.00,
+  "currency": "EUR"
+}
+
+### 8. Unread count — unchanged from step 5 (opt-out respected)
+GET {{baseUrl}}/notifications/getUnreadCount()
+Authorization: {{customerBauerAuth}}
+
+### 9. Opt back in — cleanup so repeat runs of this file behave consistently
+POST {{baseUrl}}/identity/updateNotificationPreference
+Authorization: {{customerBauerAuth}}
+Content-Type: application/json
+
+{
+  "notifyOnPriceDrop": true
+}
+
+### 10. Another customer who never favorited this vehicle — sees no such alert
+GET {{baseUrl}}/notifications/getMyNotifications()
+Authorization: {{customerHoffmannAuth}}
+```
+
+#### 2. Modify `tests/http/README.md`
+
+In the **File Dependencies** table, add a row after `admin.http`:
+
+```
+| `price-drop-alert.http`| —, but exercises favorites/pricing/identity endpoints together        |
+```
+
+In the **Files** table, add a row after `admin.http`:
+
+```
+| `price-drop-alert.http`| NotificationService — EMAIL price-drop alert, opt-out (EPIC18) | 10 |
+```
+
+#### 3. Verify
+
+Start the server and run the file's 10 requests in order (via VS Code REST Client, or `curl -u
+email:password ...` against each endpoint). Confirm: step 3/4 return the German EMAIL
+notification, step 5's unread count is 1, step 8's unread count is still 1 after the opt-out, and
+step 10 returns an empty list for a customer who never favorited the vehicle.
+
+```sh
+npm test
+```
+
+Expected: `Test Suites: 10 passed, 10 total`, `Tests: 116 passed, 116 total` (unchanged — this
+ticket adds a manual `.http` file, not a jest suite).
 
 ---

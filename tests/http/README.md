@@ -126,21 +126,22 @@ so IDs from a previous session are no longer valid.
 
 Most files are independent. A few require prior steps in another file:
 
-| File                   | Depends on                                                            |
-| ---------------------- | --------------------------------------------------------------------- |
-| `identity.http`        | —                                                                     |
-| `vehicle.http`         | —                                                                     |
-| `customer-portal.http` | —                                                                     |
-| `reservation.http`     | —                                                                     |
-| `test-drive.http`      | —                                                                     |
-| `offer.http`           | —                                                                     |
-| `sales.http`           | —                                                                     |
-| `payment.http`         | `sales.http` — needs an `orderId` from `createOrder`                  |
-| `delivery.http`        | `sales.http` + `payment.http` — needs an order with completed payment |
-| `favorites.http`       | —                                                                     |
-| `pricing.http`         | —                                                                     |
-| `reporting.http`       | —                                                                     |
-| `admin.http`           | —                                                                     |
+| File                    | Depends on                                                            |
+| ----------------------- | --------------------------------------------------------------------- |
+| `identity.http`         | —                                                                     |
+| `vehicle.http`          | —                                                                     |
+| `customer-portal.http`  | —                                                                     |
+| `reservation.http`      | —                                                                     |
+| `test-drive.http`       | —                                                                     |
+| `offer.http`            | —                                                                     |
+| `sales.http`            | —                                                                     |
+| `payment.http`          | `sales.http` — needs an `orderId` from `createOrder`                  |
+| `delivery.http`         | `sales.http` + `payment.http` — needs an order with completed payment |
+| `favorites.http`        | —                                                                     |
+| `pricing.http`          | —                                                                     |
+| `reporting.http`        | —                                                                     |
+| `admin.http`            | —                                                                     |
+| `price-drop-alert.http` | —, but exercises favorites/pricing/identity endpoints together        |
 
 ---
 
@@ -207,21 +208,22 @@ Full list: `db/data/automarket.Vehicles.csv` (42 vehicles, IDs `...000001` → `
 
 ## Files
 
-| File                   | Service(s) covered                               | Requests |
-| ---------------------- | ------------------------------------------------ | -------- |
-| `identity.http`        | IdentityService — login, lockout, profile        | 13       |
-| `vehicle.http`         | VehicleService, OperatorPortalService            | 12       |
-| `customer-portal.http` | CustomerPortalService — browse, filter, sort     | 11       |
-| `reservation.http`     | ReservationService                               | 7        |
-| `test-drive.http`      | TestDriveService                                 | 7        |
-| `offer.http`           | OfferService                                     | 6        |
-| `sales.http`           | SalesService                                     | 6        |
-| `payment.http`         | PaymentService — initiate, capture, refund       | 9        |
-| `delivery.http`        | DeliveryService                                  | 6        |
-| `favorites.http`       | FavoritesService                                 | 8        |
-| `pricing.http`         | PricingService                                   | 6        |
-| `reporting.http`       | ReportingService — dashboard, branch performance | 10       |
-| `admin.http`           | AdminService — users, branches, audit logs       | 12       |
+| File                    | Service(s) covered                                             | Requests |
+| ----------------------- | -------------------------------------------------------------- | -------- |
+| `identity.http`         | IdentityService — login, lockout, profile                      | 13       |
+| `vehicle.http`          | VehicleService, OperatorPortalService                          | 12       |
+| `customer-portal.http`  | CustomerPortalService — browse, filter, sort                   | 11       |
+| `reservation.http`      | ReservationService                                             | 7        |
+| `test-drive.http`       | TestDriveService                                               | 7        |
+| `offer.http`            | OfferService                                                   | 6        |
+| `sales.http`            | SalesService                                                   | 6        |
+| `payment.http`          | PaymentService — initiate, capture, refund                     | 9        |
+| `delivery.http`         | DeliveryService                                                | 6        |
+| `favorites.http`        | FavoritesService                                               | 8        |
+| `pricing.http`          | PricingService                                                 | 6        |
+| `reporting.http`        | ReportingService — dashboard, branch performance               | 10       |
+| `admin.http`            | AdminService — users, branches, audit logs                     | 12       |
+| `price-drop-alert.http` | NotificationService — EMAIL price-drop alert, opt-out (EPIC18) | 10       |
 
 ---
 
