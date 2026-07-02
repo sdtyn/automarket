@@ -5,6 +5,38 @@ New entries go at the top (newest first).
 
 ---
 
+## [2026-07-02] `retryPayment` is unreachable after `failPayment` — Order is already CANCELLED
+
+**Status:** Open — documented, not fixed. Found while writing EPIC16-T5 integration tests
+(`tests/unit/services/payment-service.test.js`).
+
+**Symptom:** Calling `PaymentService.retryPayment` after any `failPayment` call always returns
+`409 Cannot retry payment for order in status CANCELLED`, even though the action's own doc
+comment says it exists specifically "to open a new payment attempt after a FAILED payment".
+
+**Root cause:** Two epics built contradictory assumptions about `Orders.status` around a failed
+payment:
+
+- EPIC08-T3 (`modules/sales/application/sales-service.js`, `PaymentFailed` subscriber) sets the
+  Order straight to `CANCELLED` and releases the Vehicle back to `FOR_SALE`/`RESERVED`.
+- EPIC09-T2 (`modules/payment/application/payment-service.js`, `retryPayment`) requires the Order
+  to still be `PENDING_PAYMENT` before it will open a new payment attempt.
+
+Since `failPayment` always drives the Order to `CANCELLED` before a caller can invoke
+`retryPayment`, the `PENDING_PAYMENT` guard in `retryPayment` can never be satisfied. The two
+behaviours were never reconciled because there was no automated test exercising the full
+initiate → fail → retry sequence — only manual `.http` requests with independent placeholder IDs.
+
+**Not fixed here** — this is a design decision (should a failed payment truly cancel the order,
+or leave it in a retryable state?), not a one-line bug. Left for a follow-up ticket.
+
+**Files involved:**
+- `modules/sales/application/sales-service.js` — `PaymentFailed` subscriber sets `CANCELLED`
+- `modules/payment/application/payment-service.js` — `retryPayment` requires `PENDING_PAYMENT`
+- `tests/unit/services/payment-service.test.js` — test documenting the actual 409 behaviour
+
+---
+
 ## [2026-07-01] All INSERT-based actions return 204 — `INSERT.into().entries()` does not expose the generated ID
 
 **Error message:**  

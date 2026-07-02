@@ -1,125 +1,3 @@
-# EPIC16 — Unit Tests
-
-**Goal:** Cover the highest-risk business logic with Jest unit tests and `cds.test()` integration tests,
-so regressions are caught automatically before they reach integration testing or production.
-
----
-
-## Sprint Overview
-
-### Ticket Table
-
-| Ticket | Description | Status |
-|--------|-------------|--------|
-| EPIC16-T1 | Test infrastructure — Jest config + folder structure | Done |
-| EPIC16-T2 | VehicleStateMachine unit tests | Done |
-| EPIC16-T3 | Identity domain unit tests | Done |
-| EPIC16-T4 | IdentityService integration tests | Done |
-| EPIC16-T5 | PaymentService integration tests | Done |
-| EPIC16-T6 | PricingService integration tests | Open |
-
-### Sprint Backlog DoD Mapping
-
-| DoD Item | Satisfied by |
-|----------|-------------|
-| All tests pass (`npm test`) | Every ticket |
-| CI pipeline stays green | Verified after each commit |
-| No test file contains Turkish comments | Pre-commit check (CLAUDE.md §5) |
-| Each test file covers both happy path and error/guard cases | Per ticket |
-
-### Sign-off
-
-_To be filled in at sprint end._
-
----
-
-## EPIC16-T1: Test infrastructure — Jest config + folder structure
-
-### What & Why
-
-Jest is already installed (`devDependencies`) and `npm test` runs with `--passWithNoTests`, but
-there is no `jest.config.js` and no `tests/unit/` folder. Without explicit config, Jest will
-pick up any `*.test.js` file anywhere in the project — including inside `node_modules` — and the
-`transform` / `testEnvironment` defaults may conflict with CAP's CommonJS modules.
-
-This ticket creates the Jest config and folder structure so subsequent tickets can add test files
-without worrying about runner configuration.
-
-### Step-by-step
-
-#### 1. Create `jest.config.js` in the project root
-
-Create file `jest.config.js`:
-
-```js
-'use strict';
-
-module.exports = {
-  // Only look for tests under tests/unit/ — keeps http files and seed scripts out of the runner.
-  testMatch: ['**/tests/unit/**/*.test.js'],
-  testEnvironment: 'node',
-  // CAP uses CommonJS; no transform needed.
-  transform: {},
-  // One suite at a time avoids port conflicts when multiple cds.test() servers start concurrently.
-  maxWorkers: 1,
-  // Print each test name so CI logs are readable without --verbose flag.
-  verbose: true,
-};
-```
-
-#### 2. Create `tests/unit/` folder with a `.gitkeep`
-
-```
-tests/
-  unit/
-    domain/       ← pure function tests (state machine, lockout, mfa, jwt)
-    services/     ← cds.test() integration tests
-```
-
-Run:
-```sh
-mkdir -p tests/unit/domain tests/unit/services
-touch tests/unit/domain/.gitkeep tests/unit/services/.gitkeep
-```
-
-#### 3. Verify
-
-```sh
-npm test
-```
-
-Expected output: `Test Suites: 0 skipped`, exit code 0.
-
----
-
-## EPIC16-T5: PaymentService integration tests
-
-### What & Why
-
-`PaymentService` owns the full payment lifecycle (`initiatePayment`, `capturePayment`,
-`failPayment`, `refundPayment`, `retryPayment`, `getPaymentStatus`) and cross-service
-choreography with `SalesService` (Order status) and `VehicleService` (Vehicle status). Until
-this ticket the only coverage was manual `.http` requests with placeholder IDs — no automated
-test exercised the full initiate → capture/fail → refund/retry sequence end to end.
-
-Each scenario in the test file uses its own seeded `FOR_SALE` vehicle (from
-`db/data/automarket.Vehicles.csv`) so that state changes made by one scenario (vehicle going to
-`PENDING_PAYMENT`, `SOLD`, etc.) never leak into another — the whole suite shares one in-memory
-SQLite instance for the file's lifetime.
-
-Writing the `retryPayment` tests surfaced a real design gap: `failPayment`'s `PaymentFailed`
-choreography (built in EPIC08-T3) moves the Order straight to `CANCELLED`, but `retryPayment`
-(built later, in EPIC09-T2) requires the Order to still be `PENDING_PAYMENT`. The two behaviours
-were never reconciled, so `retryPayment` can never succeed after a real failed payment. This is
-documented as a known issue in `docs/error-log.md` (`[2026-07-02] retryPayment is unreachable
-after failPayment`) rather than fixed here — deciding whether a failed payment should still
-allow retry is a product/design decision, out of scope for a test-writing ticket.
-
-### Step-by-step
-
-#### 1. Create `tests/unit/services/payment-service.test.js`
-
-```js
 'use strict';
 
 const path = require('path');
@@ -160,7 +38,7 @@ describe('PaymentService — integration', () => {
     const res = await POST(
       '/sales/createOrder',
       { vehicleId, deliveryType: 'CUSTOMER_PICKUP' },
-      { auth },
+      { auth }
     );
     return res.data.value ?? res.data;
   }
@@ -170,7 +48,7 @@ describe('PaymentService — integration', () => {
     const res = await POST(
       '/payments/initiatePayment',
       { orderId, provider: 'StripeDE', idempotencyKey, amount: 28990.0, currency: 'EUR' },
-      { auth },
+      { auth }
     );
     const session = res.data.value ?? res.data;
     return session.replace('PSP-SESSION-', '');
@@ -209,7 +87,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/initiatePayment',
         { orderId, provider: 'StripeDE', amount: 1, currency: 'EUR' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(400);
     });
@@ -218,7 +96,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/initiatePayment',
         { orderId: 'does-not-exist', idempotencyKey: 'pay-404', amount: 1, currency: 'EUR' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(404);
     });
@@ -228,7 +106,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/initiatePayment',
         { orderId, idempotencyKey: 'pay-403', amount: 1, currency: 'EUR' },
-        { auth: customerHoffmannAuth },
+        { auth: customerHoffmannAuth }
       ).catch((e) => e);
       expect(err.status).toBe(403);
     });
@@ -237,14 +115,12 @@ describe('PaymentService — integration', () => {
       // Reuses the order created in the idempotency test above — it already has
       // an INITIATED payment, so a different idempotencyKey must be rejected.
       const { Orders } = cds.entities('automarket');
-      const order = await SELECT.one
-        .from(Orders)
-        .where({ vehicle_ID: VEHICLE_ACTIVE_CONFLICT });
+      const order = await SELECT.one.from(Orders).where({ vehicle_ID: VEHICLE_ACTIVE_CONFLICT });
 
       const err = await POST(
         '/payments/initiatePayment',
         { orderId: order.ID, idempotencyKey: 'pay-conflict-002', amount: 1, currency: 'EUR' },
-        { auth: customerHoffmannAuth },
+        { auth: customerHoffmannAuth }
       ).catch((e) => e);
       expect(err.status).toBe(409);
     });
@@ -262,7 +138,7 @@ describe('PaymentService — integration', () => {
       const res = await POST(
         '/payments/capturePayment',
         { paymentId, transactionReference: 'TXN-001' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       );
       expect(res.data.value ?? res.data).toBe(true);
 
@@ -283,7 +159,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/capturePayment',
         { paymentId: 'irrelevant', transactionReference: 'TXN-x' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(403);
     });
@@ -292,7 +168,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/capturePayment',
         { paymentId: 'does-not-exist', transactionReference: 'TXN-x' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       ).catch((e) => e);
       expect(err.status).toBe(404);
     });
@@ -303,13 +179,13 @@ describe('PaymentService — integration', () => {
       await POST(
         '/payments/capturePayment',
         { paymentId, transactionReference: 'TXN-002' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       );
 
       const err = await POST(
         '/payments/capturePayment',
         { paymentId, transactionReference: 'TXN-003' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       ).catch((e) => e);
       expect(err.status).toBe(409);
     });
@@ -342,7 +218,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/failPayment',
         { paymentId: 'does-not-exist' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       ).catch((e) => e);
       expect(err.status).toBe(404);
     });
@@ -352,11 +228,9 @@ describe('PaymentService — integration', () => {
       const paymentId = await initiatePayment(orderId, 'pay-double-fail', customerHoffmannAuth);
       await POST('/payments/failPayment', { paymentId }, { auth: adminAuth });
 
-      const err = await POST(
-        '/payments/failPayment',
-        { paymentId },
-        { auth: adminAuth },
-      ).catch((e) => e);
+      const err = await POST('/payments/failPayment', { paymentId }, { auth: adminAuth }).catch(
+        (e) => e
+      );
       expect(err.status).toBe(409);
     });
   });
@@ -368,7 +242,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/retryPayment',
         { orderId: 'irrelevant' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(400);
     });
@@ -377,7 +251,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/retryPayment',
         { orderId: 'does-not-exist', idempotencyKey: 'pay-retry-404' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(404);
     });
@@ -387,7 +261,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/retryPayment',
         { orderId, idempotencyKey: 'pay-retry-403' },
-        { auth: customerHoffmannAuth },
+        { auth: customerHoffmannAuth }
       ).catch((e) => e);
       expect(err.status).toBe(403);
     });
@@ -406,7 +280,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/retryPayment',
         { orderId, idempotencyKey: 'pay-retry-gap-002' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(409);
     });
@@ -421,7 +295,7 @@ describe('PaymentService — integration', () => {
       await POST(
         '/payments/capturePayment',
         { paymentId, transactionReference: 'TXN-refund' },
-        { auth: adminAuth },
+        { auth: adminAuth }
       );
 
       const res = await POST('/payments/refundPayment', { paymentId }, { auth: managerAuth });
@@ -436,7 +310,7 @@ describe('PaymentService — integration', () => {
       const err = await POST(
         '/payments/refundPayment',
         { paymentId: 'irrelevant' },
-        { auth: customerBauerAuth },
+        { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(403);
     });
@@ -445,11 +319,9 @@ describe('PaymentService — integration', () => {
       const orderId = await createOrder('40000000-4000-4000-4000-400000000011', customerBauerAuth);
       const paymentId = await initiatePayment(orderId, 'pay-refund-guard');
 
-      const err = await POST(
-        '/payments/refundPayment',
-        { paymentId },
-        { auth: adminAuth },
-      ).catch((e) => e);
+      const err = await POST('/payments/refundPayment', { paymentId }, { auth: adminAuth }).catch(
+        (e) => e
+      );
       expect(err.status).toBe(409);
     });
   });
@@ -467,8 +339,11 @@ describe('PaymentService — integration', () => {
       expect(res.data.value ?? res.data).toBe('INITIATED');
     });
 
-    it('Admin can read any order\'s payment status', async () => {
-      const orderId = await createOrder('40000000-4000-4000-4000-400000000013', customerHoffmannAuth);
+    it("Admin can read any order's payment status", async () => {
+      const orderId = await createOrder(
+        '40000000-4000-4000-4000-400000000013',
+        customerHoffmannAuth
+      );
       await initiatePayment(orderId, 'pay-status-002', customerHoffmannAuth);
 
       const res = await GET(`/payments/getPaymentStatus(orderId='${orderId}')`, {
@@ -497,19 +372,3 @@ describe('PaymentService — integration', () => {
     });
   });
 });
-```
-
-#### 2. Add the known-issue entry to `docs/error-log.md`
-
-See `[2026-07-02] retryPayment is unreachable after failPayment — Order is already CANCELLED`
-at the top of the file — added alongside this ticket, not fixed.
-
-#### 3. Verify
-
-```sh
-npm test
-```
-
-Expected: `Test Suites: 8 passed, 8 total`, `Tests: 93 passed, 93 total`.
-
----
