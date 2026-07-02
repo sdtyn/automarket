@@ -5,10 +5,15 @@ const cds = require('@sap/cds');
 module.exports = cds.service.impl(async function (srv) {
   const { Notifications, Favorites, Users } = cds.entities('automarket');
 
-  // resolveUserId: maps a customer_ID string (JWT subject = email) to Users.ID (UUID).
+  // resolveUserId: confirms customerID (== req.user.id, already the Users.ID UUID
+  // everywhere it is written — see Favorites/Orders/Reservations.customer_ID)
+  // still refers to an existing user before it is used as a Notification's
+  // recipient_ID. EPIC17-T3 fix: this used to look up Users by `email` with a
+  // UUID input, which never matched — see docs/error-log.md
+  // "resolveUserId always returns null — looks up Users.email with a UUID".
   // Returns null if no matching user exists — callers must handle the null case.
   async function resolveUserId(customerID) {
-    const user = await SELECT.one.from(Users).columns('ID').where({ email: customerID });
+    const user = await SELECT.one.from(Users).columns('ID').where({ ID: customerID });
     return user?.ID ?? null;
   }
 
@@ -72,7 +77,7 @@ module.exports = cds.service.impl(async function (srv) {
   });
 
   // getMyNotifications: returns the caller's notifications ordered by newest first.
-  // Resolves req.user.id (email) to Users.ID (UUID) before querying.
+  // Confirms req.user.id still refers to an existing user before querying.
   srv.on('getMyNotifications', async (req) => {
     const { channel, status } = req.data;
     const recipientId = await resolveUserId(req.user.id);

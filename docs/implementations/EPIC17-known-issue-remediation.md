@@ -14,7 +14,7 @@ feature (price-drop alerts, UI, production readiness) on top of them.
 |--------|-------------|--------|
 | EPIC17-T1 | `retryPayment` / Order `CANCELLED` design fix | Done |
 | EPIC17-T2 | `NotificationService`: `VehiclePriceDropped` wired to the wrong service | Done |
-| EPIC17-T3 | `NotificationService`: `resolveUserId` email/UUID mismatch | Open |
+| EPIC17-T3 | `NotificationService`: `resolveUserId` email/UUID mismatch | Done |
 | EPIC17-T4 | Regression test | Open |
 
 ### Sprint Backlog DoD Mapping
@@ -167,5 +167,70 @@ npm test
 
 Expected: all 9 suites still green (this ticket has no dedicated test yet — EPIC17-T4 covers
 the full choreography for all three subscribers).
+
+---
+
+## EPIC17-T3: `NotificationService`: `resolveUserId` email/UUID mismatch
+
+### What & Why
+
+`docs/error-log.md` (`[2026-07-02] NotificationService.resolveUserId always returns null`)
+documents that `resolveUserId` looked up `Users` by `email` using an input that is actually
+`req.user.id` — the `Users.ID` UUID, as written everywhere `customer_ID` fields are set
+(`Favorites`, `Orders`, `Reservations`, ...). Verified directly with a throwaway test:
+`Favorites.customer_ID === Users.ID` is `true`, `=== Users.email` is `false`. Because of this,
+`resolveUserId` always returned `null`, and `createNotificationsForFavorites` — used by all three
+subscribers (`VehicleSold`, `VehiclePriceDropped`, `SimilarVehicleListed`) — silently inserted
+zero `Notification` rows for every caller. The same bug also broke `getMyNotifications` and
+`getUnreadCount`, which call `resolveUserId(req.user.id)` directly.
+
+The fix is a one-line lookup change: match on `ID` instead of `email`. `resolveUserId` keeps its
+purpose as a defensive existence check (customer_ID has no DB-level FK to Users in this schema),
+it just checks the right column now. The stale "JWT subject = email" comments on `resolveUserId`
+and `getMyNotifications` were also corrected — they were the reason the bug went unnoticed.
+
+### Step-by-step
+
+#### 1. Modify `modules/notification/application/notification-service.js`
+
+Replace the `resolveUserId` function (near the top of the `cds.service.impl` callback, right
+after the `const { Notifications, Favorites, Users } = ...` line) with:
+
+```js
+  // resolveUserId: confirms customerID (== req.user.id, already the Users.ID UUID
+  // everywhere it is written — see Favorites/Orders/Reservations.customer_ID)
+  // still refers to an existing user before it is used as a Notification's
+  // recipient_ID. EPIC17-T3 fix: this used to look up Users by `email` with a
+  // UUID input, which never matched — see docs/error-log.md
+  // "resolveUserId always returns null — looks up Users.email with a UUID".
+  // Returns null if no matching user exists — callers must handle the null case.
+  async function resolveUserId(customerID) {
+    const user = await SELECT.one.from(Users).columns('ID').where({ ID: customerID });
+    return user?.ID ?? null;
+  }
+```
+
+Further down, above the `srv.on('getMyNotifications', ...)` handler, replace the comment line
+`// Resolves req.user.id (email) to Users.ID (UUID) before querying.` with:
+
+```js
+  // getMyNotifications: returns the caller's notifications ordered by newest first.
+  // Confirms req.user.id still refers to an existing user before querying.
+```
+
+#### 2. Update `docs/error-log.md`
+
+Change the `resolveUserId` entry's `**Status:**` line from `Open — documented, not fixed` to
+`Fixed in EPIC17-T3`, and replace the `**Not fixed here**` paragraph with a `**Fix:**` paragraph
+describing the lookup change.
+
+#### 3. Verify
+
+```sh
+npm test
+```
+
+Expected: all 9 suites still green (EPIC17-T4 adds the dedicated regression test proving
+notifications are now actually created).
 
 ---

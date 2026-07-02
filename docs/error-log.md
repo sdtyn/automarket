@@ -7,7 +7,7 @@ New entries go at the top (newest first).
 
 ## [2026-07-02] `NotificationService.resolveUserId` always returns `null` — looks up `Users.email` with a UUID
 
-**Status:** Open — documented, not fixed. Found while auditing `NotificationService` before starting
+**Status:** Fixed in EPIC17-T3. Found while auditing `NotificationService` before starting
 EPIC17 (Price-Drop Alerts).
 
 **Symptom:** None of the three existing `NotificationService` subscribers (`VehicleSold`,
@@ -23,8 +23,11 @@ Verified directly: after `addFavorite`, `Favorites.customer_ID === Users.ID` is 
 `Favorites.customer_ID === Users.email` is `false`. Since `resolveUserId` always returns `null`,
 `createNotificationsForFavorites` silently inserts zero rows for every caller.
 
-**Not fixed here** — left for EPIC17-T3 (Known Issue Remediation), together with the related
-`VehiclePriceDropped` wiring bug below, since both block any notification-based feature.
+**Fix:** Changed the lookup to `SELECT.one.from(Users).where({ ID: customerID })` — `customerID`
+is already the `Users.ID` UUID, so no email translation was ever needed. The function now exists
+purely to confirm the referenced user still exists before it is used as a `recipient_ID`. Also
+corrected the misleading "JWT subject = email" comments on `resolveUserId` and
+`getMyNotifications`.
 
 **Files involved:**
 - `modules/notification/application/notification-service.js` — `resolveUserId`, all three subscribers
