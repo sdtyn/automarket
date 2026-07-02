@@ -58,7 +58,7 @@ listener attached to `VehicleService` can never receive it.
 
 ## [2026-07-02] `retryPayment` is unreachable after `failPayment` — Order is already CANCELLED
 
-**Status:** Open — documented, not fixed. Found while writing EPIC16-T5 integration tests
+**Status:** Fixed in EPIC17-T1. Found while writing EPIC16-T5 integration tests
 (`tests/unit/services/payment-service.test.js`).
 
 **Symptom:** Calling `PaymentService.retryPayment` after any `failPayment` call always returns
@@ -78,8 +78,12 @@ Since `failPayment` always drives the Order to `CANCELLED` before a caller can i
 behaviours were never reconciled because there was no automated test exercising the full
 initiate → fail → retry sequence — only manual `.http` requests with independent placeholder IDs.
 
-**Not fixed here** — this is a design decision (should a failed payment truly cancel the order,
-or leave it in a retryable state?), not a one-line bug. Left for a follow-up ticket.
+**Fix:** The original design intent (confirmed by `retryPayment` itself never touching
+`Orders`/`Vehicles`) was that a single failed attempt should not give up on the order — the
+vehicle should stay locked so the customer can retry. EPIC17-T1 removes the `PaymentFailed`
+subscriber's Order/Vehicle mutation entirely; `failPayment` now only marks the `Payment` row
+`FAILED`. `cancelOrder` remains the only path that actually releases the vehicle and cancels the
+order — the customer or an Admin/Manager must call it explicitly to give up.
 
 **Files involved:**
 - `modules/sales/application/sales-service.js` — `PaymentFailed` subscriber sets `CANCELLED`

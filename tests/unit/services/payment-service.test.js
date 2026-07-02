@@ -23,7 +23,7 @@ const VEHICLE_NOT_OWNER = '40000000-4000-4000-4000-400000000006';
 const VEHICLE_ACTIVE_CONFLICT = '40000000-4000-4000-4000-400000000007';
 const VEHICLE_RETRY_GUARDS = '40000000-4000-4000-4000-400000000008';
 const VEHICLE_STATUS_B = '40000000-4000-4000-4000-400000000009';
-const VEHICLE_RETRY_GAP = '40000000-4000-4000-4000-400000000010';
+const VEHICLE_RETRY_HAPPY = '40000000-4000-4000-4000-400000000010';
 
 describe('PaymentService — integration', () => {
   // CAP server startup takes time.
@@ -194,7 +194,12 @@ describe('PaymentService — integration', () => {
   // ── failPayment ──────────────────────────────────────────────────────────────
 
   describe('failPayment', () => {
-    it('fails the payment and cascades Order → CANCELLED, Vehicle → FOR_SALE', async () => {
+    // EPIC17-T1 fix: a single failed attempt must not release the vehicle or
+    // cancel the order — otherwise retryPayment could never run (see
+    // docs/error-log.md "retryPayment is unreachable after failPayment").
+    // Only the Payment row changes; Order and Vehicle stay PENDING_PAYMENT so
+    // the customer can retry, or explicitly call cancelOrder to give up.
+    it('fails the payment but leaves Order and Vehicle in PENDING_PAYMENT', async () => {
       const orderId = await createOrder(VEHICLE_FAIL, customerBauerAuth);
       const paymentId = await initiatePayment(orderId, 'pay-fail-001');
 
@@ -206,12 +211,12 @@ describe('PaymentService — integration', () => {
       expect(payment.status).toBe('FAILED');
 
       const order = await SELECT.one.from(Orders).where({ ID: orderId });
-      expect(order.status).toBe('CANCELLED');
+      expect(order.status).toBe('PENDING_PAYMENT');
 
       const vehicleSrv = await cds.connect.to('VehicleService');
       const { Vehicles } = vehicleSrv.entities;
       const vehicle = await SELECT.one.from(Vehicles).where({ ID: VEHICLE_FAIL });
-      expect(vehicle.status).toBe('FOR_SALE');
+      expect(vehicle.status).toBe('PENDING_PAYMENT');
     });
 
     it('returns 404 for a non-existent payment', async () => {
@@ -237,7 +242,36 @@ describe('PaymentService — integration', () => {
 
   // ── retryPayment ─────────────────────────────────────────────────────────────
 
-  describe('retryPayment — guards and the CANCELLED-order gap', () => {
+  describe('retryPayment', () => {
+    // Happy path — was blocked before EPIC17-T1 because failPayment used to cancel
+    // the order (see docs/error-log.md, entry now marked Fixed in EPIC17-T1).
+    it('opens a new payment attempt after a FAILED payment, copying provider/amount/currency', async () => {
+      const orderId = await createOrder(VEHICLE_RETRY_HAPPY, customerBauerAuth);
+      const failedPaymentId = await initiatePayment(orderId, 'pay-retry-happy-001');
+      await POST('/payments/failPayment', { paymentId: failedPaymentId }, { auth: adminAuth });
+
+      const res = await POST(
+        '/payments/retryPayment',
+        { orderId, idempotencyKey: 'pay-retry-happy-002' },
+        { auth: customerBauerAuth }
+      );
+      const session = res.data.value ?? res.data;
+      const newPaymentId = session.replace('PSP-SESSION-', '');
+      expect(newPaymentId).not.toBe(failedPaymentId);
+
+      const { Payments, Orders } = cds.entities('automarket');
+      const newPayment = await SELECT.one.from(Payments).where({ ID: newPaymentId });
+      expect(newPayment.status).toBe('INITIATED');
+      expect(newPayment.provider).toBe('StripeDE');
+      expect(Number(newPayment.amount)).toBe(28990);
+      expect(newPayment.currency).toBe('EUR');
+
+      const order = await SELECT.one.from(Orders).where({ ID: orderId });
+      expect(order.status).toBe('PENDING_PAYMENT');
+    });
+  });
+
+  describe('retryPayment — guards', () => {
     it('returns 400 when idempotencyKey is missing', async () => {
       const err = await POST(
         '/payments/retryPayment',
@@ -266,20 +300,15 @@ describe('PaymentService — integration', () => {
       expect(err.status).toBe(403);
     });
 
-    // KNOWN ISSUE — see docs/error-log.md "retryPayment is unreachable after failPayment".
-    // failPayment's PaymentFailed choreography (SalesService) moves the Order straight
-    // to CANCELLED, but retryPayment requires the Order to still be PENDING_PAYMENT.
-    // The two behaviours were built in separate epics (EPIC08-T3 and EPIC09-T2) and
-    // were never reconciled, so retry can never succeed. This test documents the
-    // actual (contradictory) behaviour rather than the originally intended one.
-    it('returns 409 (not a retried session) once the order has been cancelled by a failed payment', async () => {
-      const orderId = await createOrder(VEHICLE_RETRY_GAP, customerBauerAuth);
-      const paymentId = await initiatePayment(orderId, 'pay-retry-gap-001');
-      await POST('/payments/failPayment', { paymentId }, { auth: adminAuth });
+    it('returns 409 when no FAILED payment exists to retry', async () => {
+      // Order is PENDING_PAYMENT (passes the status guard) but its only payment
+      // is still INITIATED, not FAILED — retryPayment has nothing to retry from.
+      const orderId = await createOrder('40000000-4000-4000-4000-400000000017', customerBauerAuth);
+      await initiatePayment(orderId, 'pay-retry-no-failed-init');
 
       const err = await POST(
         '/payments/retryPayment',
-        { orderId, idempotencyKey: 'pay-retry-gap-002' },
+        { orderId, idempotencyKey: 'pay-retry-no-failed' },
         { auth: customerBauerAuth }
       ).catch((e) => e);
       expect(err.status).toBe(409);

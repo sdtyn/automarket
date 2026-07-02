@@ -33,34 +33,13 @@ module.exports = cds.service.impl(async function (srv) {
     await UPDATE(Orders).set({ status: 'PAID' }).where({ ID: orderId });
   });
 
-  // PaymentFailed: cancel order, return vehicle to FOR_SALE or RESERVED.
-  PaymentSrv.on('PaymentFailed', async (msg) => {
-    const { orderId, vehicleId } = msg.data;
-
-    const vehicle = await SELECT.one
-      .from(Vehicles)
-      .columns('ID', 'status')
-      .where({ ID: vehicleId });
-    if (vehicle && vehicle.status === 'PENDING_PAYMENT') {
-      const activeReservation = await SELECT.one
-        .from(Reservations)
-        .where({ vehicle_ID: vehicleId, status: { in: ['REQUESTED', 'APPROVED'] } });
-
-      let newVehicleStatus;
-      try {
-        newVehicleStatus = transition(vehicle, 'PaymentFailed', {
-          hasActiveReservation: !!activeReservation,
-        });
-      } catch (_) {
-        return;
-      }
-      await UPDATE(Vehicles).set({ status: newVehicleStatus }).where({ ID: vehicleId });
-      const vehicleSrv = await cds.connect.to('VehicleService');
-      await vehicleSrv.emit('VehicleReleased', { vehicleId });
-    }
-
-    await UPDATE(Orders).set({ status: 'CANCELLED' }).where({ ID: orderId });
-  });
+  // PaymentFailed: intentionally a no-op on Order/Vehicle state (EPIC17-T1 fix).
+  // A single failed attempt must not release the vehicle or cancel the order,
+  // otherwise retryPayment's PENDING_PAYMENT guard could never be satisfied —
+  // see docs/error-log.md "retryPayment is unreachable after failPayment".
+  // The customer (or Admin/Manager) must call cancelOrder explicitly to give up
+  // and release the vehicle; failPayment itself only marks the Payment FAILED
+  // (done in payment-service.js) so the customer can retry with a new attempt.
 
   const { Orders, Vehicles, Reservations } = cds.entities('automarket');
 
