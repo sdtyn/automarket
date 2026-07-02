@@ -15,6 +15,11 @@ service OperatorPortalService @(path: '/operator') {
     // query level. Manager READ is unrestricted. No WRITE on the projection —
     // creation goes through the explicit createVehicle action so status and
     // branch enforcement cannot be bypassed.
+    // images is included (unlike CustomerPortalService's list-performance
+    // exclusion — see customer-portal.cds) so the @UI.Facets image gallery on
+    // the Object Page (EPIC19-T2, operator-portal-ui.cds) has a composition to
+    // navigate to. This entity set is opened one record at a time in the
+    // Fiori app, not listed in bulk with images inlined, so the cost is fine.
     @restrict: [
         {
             grant: 'READ',
@@ -26,11 +31,7 @@ service OperatorPortalService @(path: '/operator') {
             to   : 'Manager'
         }
     ]
-    entity Vehicles     as
-        projection on automarket.Vehicles
-        excluding {
-            images
-        };
+    entity Vehicles     as projection on automarket.Vehicles;
 
     // createVehicle: registers a new DRAFT vehicle.
     // For Operators the branch is taken from the user attribute —
