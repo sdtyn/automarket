@@ -31,7 +31,16 @@ service OperatorPortalService @(path: '/operator') {
             to   : 'Manager'
         }
     ]
-    entity Vehicles     as projection on automarket.Vehicles;
+    // statusCriticality is a read-only calculated field (populated in
+    // operator-portal.js, srv.after('READ')) — not persisted. It maps
+    // VehicleStatus to an OData UI.CriticalityType so the Fiori status badge
+    // (EPIC19-T3, operator-portal-ui.cds) can color-code rows without the
+    // client needing its own copy of the status→color mapping.
+    entity Vehicles     as
+        projection on automarket.Vehicles {
+            *,
+            virtual null as statusCriticality : Integer
+        };
 
     // createVehicle: registers a new DRAFT vehicle.
     // For Operators the branch is taken from the user attribute —

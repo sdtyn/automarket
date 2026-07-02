@@ -1,22 +1,40 @@
 using {OperatorPortalService} from './operator-portal';
 using {automarket} from '../db/vehicle';
 
-// UI annotations for OperatorPortalService.Vehicles (EPIC19-T2). Kept in a
+// UI annotations for OperatorPortalService.Vehicles (EPIC19-T2/T3). Kept in a
 // separate file from the service definition (operator-portal.cds) so the API
 // contract (what data is exposed, to whom) stays independent of how Fiori
 // Elements renders it — a UI-only change here never touches the @restrict
 // authorization logic.
+//
+// EPIC19-T3 note on the create/edit form: OperatorPortalService.Vehicles has
+// no CREATE/UPDATE grant (see operator-portal.cds) — vehicle creation is
+// deliberately only reachable through the createVehicle action, so status and
+// branch enforcement cannot be bypassed via a raw PATCH/POST. createVehicle is
+// an *unbound* OData action (IsBound="false"), so it cannot be wired onto the
+// List Report toolbar via @UI.DataFieldForAction (that annotation targets
+// actions bound to the entity type). Wiring it in would require a manifest.json
+// custom-toolbar-action entry, which cannot be verified without a real browser
+// session — left as a follow-up rather than shipped unverified. This Object
+// Page is therefore view-only; creation still goes through the createVehicle
+// endpoint directly (see tests/http/vehicle.http).
 annotate OperatorPortalService.Vehicles with @(
-    // List Report columns. Status Criticality coloring and the create/edit
-    // form (@UI.SelectionFields, editable field annotations) are EPIC19-T3
-    // scope, not this ticket.
+    // List Report columns, with a status color badge (statusCriticality is
+    // populated per-row in operator-portal.js, srv.after('READ')).
     UI.LineItem                : [
         {Value: brand},
         {Value: model},
         {Value: year},
         {Value: price},
-        {Value: status},
+        {Value: status, Criticality: statusCriticality},
         {Value: branch.name, Label: 'Branch'}
+    ],
+
+    // Filter bar fields on the List Report.
+    UI.SelectionFields          : [
+        brand,
+        fuelType,
+        status
     ],
 
     // Object Page general-info section.

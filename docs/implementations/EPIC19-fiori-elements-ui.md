@@ -14,7 +14,7 @@ annotations at runtime.
 |--------|-------------|--------|
 | EPIC19-T1 | Fiori Elements setup | Done |
 | EPIC19-T2 | Vehicle list & detail annotations | Done |
-| EPIC19-T3 | Operator vehicle management UI | Open |
+| EPIC19-T3 | Operator vehicle management UI | Done |
 | EPIC19-T4 | Customer catalog UI | Open |
 | EPIC19-T5 | Admin UI — Users & Branches | Open |
 | EPIC19-T6 | Admin UI — Audit log viewer | Open |
@@ -286,5 +286,248 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: unchanged — `Test Suites: 10 passed, 10 total`, `Tests: 116 passed, 116 total`.
+
+---
+
+## EPIC19-T3: Operator vehicle management UI
+
+### What & Why — a real generated app, not just the preview
+
+EPIC19-T1/T2 relied entirely on CAP's built-in `/$fiori-preview/<Service>/<Entity>` — a
+dev-only, ephemeral rendering of the `@UI` annotations, with nothing written to disk. Partway
+through this ticket it came out that the repo already had empty `app/operator-portal`,
+`app/customer-portal`, `app/admin-portal`, `app/manager-portal` folders (scaffolded in EPIC01)
+and a separate `approuter/` folder — evidence that the original plan was **real, standalone,
+deployable Fiori Elements apps**, not just the preview. This ticket switches to that approach for
+`app/operator-portal`; T4/T5 will follow the same pattern for the other portals.
+`app/manager-portal` is left empty — no ticket targets it.
+
+**How the app was generated.** SAP's official generator (`@sap/generator-fiori`) is an
+interactive Yeoman wizard with no documented headless/CI mode — not runnable by an agent without
+a real terminal. Underneath it, though, is `@sap-ux/fiori-elements-writer`, a plain programmatic
+`generate(basePath, config)` API with no prompts. Two config modes exist: a CAP-linked mode
+(`service.capService`) that wires the UI app into a single `cds watch` + npm-workspaces dev loop,
+and a plain-OData-V4 mode (`service.metadata` + `service.url`) that treats the backend as any
+external OData service. The CAP-linked mode requires assembling several undocumented internal
+types (`CdsUi5PluginInfo` etc.) from `@sap-ux/project-access`/`@sap-ux/cap-config-writer` — too
+fragile to hand-assemble reliably. The plain-OData-V4 mode was used instead: fetch the real
+`$metadata` EDMX from a running `cds watch` instance and feed it straight to the writer. The
+resulting app is a fully standalone UI5 project (own `package.json`/`package-lock.json`, not an
+npm workspace member of the root project) — the tradeoff is no single "one command starts
+everything" dev loop; the CAP backend and this UI app are started separately.
+
+**What was verified, concretely, not just read for plausibility:**
+- `cds watch` (backend, port 4004) + `ui5 serve` (this app, port 8080) running together.
+- `GET localhost:8080/index.html`, `.../manifest.json`, `.../test/flpSandbox.html`,
+  `.../Component.js` → all `200`.
+- `GET localhost:8080/operator/$metadata` (proxied) contains the real `UI.LineItem`,
+  `UI.SelectionFields`, `UI.FieldGroup`, `UI.Facets` annotations — proxy genuinely forwards to
+  the live backend, not a stale copy.
+- `GET localhost:8080/operator/Vehicles` without auth → `401`; with Manager credentials → real
+  vehicle rows including the computed `statusCriticality` field.
+- `GET localhost:8080/resources/sap-ui-core.js` and
+  `.../resources/sap/fe/templates/library-preload.js` → `200` (UI5 runtime + the Fiori Elements
+  templates library that actually renders List Report/Object Page both load).
+- What could **not** be verified: pixel-level rendering. No browser is available in this
+  environment — every check above confirms the data/metadata/routing/auth plumbing a rendered
+  screen depends on, not the visual result itself.
+
+**Status Criticality.** `OperatorPortalService.Vehicles` gets a new `virtual` (non-persisted)
+`statusCriticality: Integer` field, populated per row by a new `srv.after('READ', 'Vehicles', ...)`
+handler in `operator-portal.js` using a `CRITICALITY` lookup table
+(`VehicleStatus → com.sap.vocabularies.UI.v1.CriticalityType`: `FOR_SALE`/`SOLD`/`DELIVERED` →
+Positive, `RESERVED`/`PENDING_PAYMENT` → Critical (amber — mid-flow, worth attention),
+`ARCHIVED` → Negative, `DRAFT` → Neutral). The `UI.LineItem`'s `status` `DataField` references it
+via `Criticality: statusCriticality`, which Fiori Elements renders as a colored status badge.
+Covered by a new `tests/unit/services/operator-portal.test.js` — one assertion per enum value via
+direct DB `UPDATE` + `GET`, not just the seeded happy-path status.
+
+**Filter bar.** `UI.SelectionFields: [brand, fuelType, status]` — straightforward, no surprises.
+
+**Create/edit form — deliberately not wired to a button.**
+`OperatorPortalService.Vehicles` has no `CREATE`/`UPDATE` grant (see the existing comment in
+`operator-portal.cds`: creation only goes through the `createVehicle` action, "so status and
+branch enforcement cannot be bypassed"). Fiori Elements' native create/edit form needs direct
+OData POST/PATCH, which would mean loosening that deliberate restriction. Presented to the user;
+the restriction stays, and `createVehicle` was meant to become a List Report toolbar button
+instead. Checking `$metadata` showed `createVehicle` is `IsBound="false"` (an `ActionImport`, not
+bound to the `Vehicles` entity type) — `@UI.DataFieldForAction` only targets actions bound to an
+entity type, so it cannot reference `createVehicle` at all. Wiring an unbound action onto the List
+Report toolbar declaratively is possible via a `manifest.json` `controlConfiguration` custom-action
+entry, but getting that exact schema right — and confirming it actually renders a button — cannot
+be done without a real browser. Rather than ship an unverified guess, this Object Page stays
+view-only for now; vehicle creation continues via the `createVehicle` endpoint directly (see
+`tests/http/vehicle.http`). Left as a known follow-up, not silently dropped.
+
+### Step-by-step
+
+#### 1. Install the writer
+
+```sh
+npm install --save-dev @sap-ux/fiori-elements-writer
+```
+
+Pulls in `@sap-ux/odata-service-writer`, `@sap-ux/ui5-application-writer`, `mem-fs`,
+`mem-fs-editor`, etc. as transitive deps. `npm audit --omit=dev` stays at 0 — all reported
+vulnerabilities are in this dev-only tooling's own transitive tree.
+
+#### 2. Generate the app
+
+With a `cds watch` instance running (any port), fetch the live metadata and run the writer. This
+was done with a throwaway script (not committed — a one-time generation step, not a repo script):
+
+```js
+const { generate, TemplateType, TableType } = require('@sap-ux/fiori-elements-writer');
+const { OdataVersion } = require('@sap-ux/odata-service-writer');
+
+const config = {
+  app: { id: 'automarket.operatorportal', title: 'Operator Vehicle Management', ... },
+  package: { name: 'operator-portal', description: 'Operator Vehicle Management' },
+  service: { url: 'http://localhost:4004', path: '/operator', version: OdataVersion.v4, metadata /* live $metadata EDMX string */ },
+  template: { type: TemplateType.ListReportObjectPage, settings: { tableType: TableType.RESPONSIVE, entityConfig: { mainEntityName: 'Vehicles' } } },
+  appOptions: { addAnnotations: true },
+};
+
+const editor = await generate('/workspaces/tutorials/automarket/app/operator-portal', config);
+editor.commit(() => {});
+```
+
+`basePath` is written to directly (no extra subfolder is created for the module name) — pass the
+final target folder itself.
+
+#### 3. Fix generator defaults by hand
+
+The writer does not add `start`/`build` npm scripts. Add to
+`app/operator-portal/package.json`'s `scripts`:
+
+```json
+"start": "fiori run --open \"test/flpSandbox.html\"",
+"start-noflp": "fiori run --open \"index.html\"",
+"build": "ui5 build --clean-dest --all",
+```
+
+The writer also bakes in whatever `service.url` was passed at generation time as the local dev
+proxy target. In `app/operator-portal/ui5.yaml` and `ui5-mock.yaml`, under
+`server.customMiddleware[fiori-tools-proxy].configuration.backend`, set the URL to the project's
+real default dev port:
+
+```yaml
+backend:
+  - path: /operator
+    url: http://localhost:4004
+```
+
+#### 4. Modify `modules/vehicle/api/operator-portal.cds`
+
+Add the virtual `statusCriticality` field to the `Vehicles` projection:
+
+```cds
+    // statusCriticality is a read-only calculated field (populated in
+    // operator-portal.js, srv.after('READ')) — not persisted. It maps
+    // VehicleStatus to an OData UI.CriticalityType so the Fiori status badge
+    // (EPIC19-T3, operator-portal-ui.cds) can color-code rows without the
+    // client needing its own copy of the status→color mapping.
+    entity Vehicles     as
+        projection on automarket.Vehicles {
+            *,
+            virtual null as statusCriticality : Integer
+        };
+```
+
+#### 5. Modify `modules/vehicle/application/operator-portal.js`
+
+Add a module-level `CRITICALITY` map and a `srv.after('READ')` handler, directly above the
+`module.exports = cds.service.impl(...)` line and inside its callback respectively:
+
+```js
+// CRITICALITY maps VehicleStatus to com.sap.vocabularies.UI.v1.CriticalityType
+// codes (Neutral=0, Negative=1, Critical=2, Positive=3) for the Fiori status
+// badge (EPIC19-T3). FOR_SALE/SOLD/DELIVERED are "good" outcomes; RESERVED and
+// PENDING_PAYMENT are mid-flow states worth an operator's attention; ARCHIVED
+// is the only genuinely negative state (no longer available at all).
+const CRITICALITY = {
+  DRAFT: 0,
+  FOR_SALE: 3,
+  RESERVED: 2,
+  PENDING_PAYMENT: 2,
+  SOLD: 3,
+  DELIVERED: 3,
+  ARCHIVED: 1,
+};
+
+module.exports = cds.service.impl(async function (srv) {
+  const { Vehicles, Reservations, TestDrives, Offers } = cds.entities('automarket');
+  const { transition } = require('../domain/vehicle-state-machine');
+
+  // Populates the virtual statusCriticality field (declared in
+  // operator-portal.cds) on every Vehicles row returned by READ.
+  srv.after('READ', 'Vehicles', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = CRITICALITY[row.status] ?? 0;
+    }
+  });
+
+  // createVehicle: ...
+```
+
+#### 6. Modify `modules/vehicle/api/operator-portal-ui.cds`
+
+Add `Criticality: statusCriticality` to the `status` `DataField` in `UI.LineItem`, add
+`UI.SelectionFields`, and add the header comment explaining the deliberately-not-wired create
+button (see What & Why above):
+
+```cds
+annotate OperatorPortalService.Vehicles with @(
+    UI.LineItem       : [
+        {Value: brand},
+        {Value: model},
+        {Value: year},
+        {Value: price},
+        {Value: status, Criticality: statusCriticality},
+        {Value: branch.name, Label: 'Branch'}
+    ],
+    UI.SelectionFields: [
+        brand,
+        fuelType,
+        status
+    ],
+    ...
+```
+
+#### 7. Modify `eslint.config.js` and `.prettierignore`
+
+`app/` holds standalone UI5 projects with their own tooling — Node's ESLint config flags
+`sap.ui.define`'s global `sap` as undefined, and Prettier reformats generator output that has its
+own conventions. Add `'app/'` to both `eslint.config.js`'s `ignores` array and
+`.prettierignore`.
+
+#### 8. Create `tests/unit/services/operator-portal.test.js`
+
+One test for the seeded happy path (`FOR_SALE` → `3`), one that cycles a vehicle through all
+seven `VehicleStatus` values via direct `UPDATE` and asserts `statusCriticality` for each —
+catching a wrong mapping for the states that never appear in seed data (`DRAFT`, `RESERVED`,
+`PENDING_PAYMENT`, `SOLD`, `DELIVERED`, `ARCHIVED`).
+
+#### 9. Verify
+
+```sh
+node_modules/.bin/cds watch                                    # backend, port 4004
+(cd app/operator-portal && npm install && node_modules/.bin/ui5 serve --port 8080)
+```
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/index.html
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/test/flpSandbox.html
+curl -s http://localhost:8080/operator/\$metadata | grep -c "UI.SelectionFields\|statusCriticality"
+curl -s -u "manager.schmidt@automarkt.de:Test@1234" "http://localhost:8080/operator/Vehicles?\$top=1&\$select=brand,status,statusCriticality"
+```
+
+Expected: `200`/`200`/`4`/a real row with a numeric `statusCriticality`.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+Expected: `Test Suites: 11 passed, 11 total`, `Tests: 118 passed, 118 total`.
 
 ---

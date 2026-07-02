@@ -2,9 +2,32 @@
 
 const cds = require('@sap/cds');
 
+// CRITICALITY maps VehicleStatus to com.sap.vocabularies.UI.v1.CriticalityType
+// codes (Neutral=0, Negative=1, Critical=2, Positive=3) for the Fiori status
+// badge (EPIC19-T3). FOR_SALE/SOLD/DELIVERED are "good" outcomes; RESERVED and
+// PENDING_PAYMENT are mid-flow states worth an operator's attention; ARCHIVED
+// is the only genuinely negative state (no longer available at all).
+const CRITICALITY = {
+  DRAFT: 0,
+  FOR_SALE: 3,
+  RESERVED: 2,
+  PENDING_PAYMENT: 2,
+  SOLD: 3,
+  DELIVERED: 3,
+  ARCHIVED: 1,
+};
+
 module.exports = cds.service.impl(async function (srv) {
   const { Vehicles, Reservations, TestDrives, Offers } = cds.entities('automarket');
   const { transition } = require('../domain/vehicle-state-machine');
+
+  // Populates the virtual statusCriticality field (declared in
+  // operator-portal.cds) on every Vehicles row returned by READ.
+  srv.after('READ', 'Vehicles', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = CRITICALITY[row.status] ?? 0;
+    }
+  });
 
   // createVehicle: inserts a DRAFT vehicle and enforces branch scoping.
   // Operators always get their branch from req.user.attr.branchId —
