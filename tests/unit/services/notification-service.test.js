@@ -82,9 +82,10 @@ describe('NotificationService — integration (EPIC17-T4 regression)', () => {
   // ── VehiclePriceDropped ──────────────────────────────────────────────────────
   // Real end-to-end flow: updatePrice (decrease) → PricingService emits
   // VehiclePriceDropped → NotificationService subscriber, now correctly connected
-  // to PricingService instead of VehicleService (EPIC17-T2).
+  // to PricingService instead of VehicleService (EPIC17-T2). Channel EMAIL and
+  // German content are EPIC18-T1 spec.
 
-  it('creates a Notification when a favorited vehicle drops in price', async () => {
+  it('creates an EMAIL Notification (German) when a favorited vehicle drops in price', async () => {
     await POST(
       '/favorites/addFavorite',
       { vehicleId: VEHICLE_PRICE_DROP },
@@ -97,8 +98,9 @@ describe('NotificationService — integration (EPIC17-T4 regression)', () => {
       { auth: adminAuth }
     );
 
-    const notification = await findNotification('Price drop');
+    const notification = await findNotification('Preissenkung');
     expect(notification).toBeDefined();
+    expect(notification.channel).toBe('EMAIL');
     expect(notification.content).toContain(VEHICLE_PRICE_DROP);
   });
 

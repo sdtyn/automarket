@@ -17,16 +17,17 @@ module.exports = cds.service.impl(async function (srv) {
     return user?.ID ?? null;
   }
 
-  // createNotificationsForFavorites: inserts a PENDING PUSH notification for every
-  // user who has favorited the given vehicle. Used by all three event subscribers.
-  async function createNotificationsForFavorites(vehicleId, subject, content) {
+  // createNotificationsForFavorites: inserts a PENDING notification for every user
+  // who has favorited the given vehicle. channel defaults to PUSH (VehicleSold,
+  // SimilarVehicleListed); VehiclePriceDropped overrides it to EMAIL (EPIC18-T1 spec).
+  async function createNotificationsForFavorites(vehicleId, subject, content, channel = 'PUSH') {
     const favorites = await SELECT.from(Favorites).where({ vehicle_ID: vehicleId });
     for (const fav of favorites) {
       const recipientId = await resolveUserId(fav.customer_ID);
       if (!recipientId) continue;
       await INSERT.into(Notifications).entries({
         recipient_ID: recipientId,
-        channel: 'PUSH',
+        channel,
         subject,
         content,
         status: 'PENDING',
@@ -49,19 +50,21 @@ module.exports = cds.service.impl(async function (srv) {
     );
   });
 
-  // VehiclePriceDropped: notify favoriting users of a price reduction.
+  // VehiclePriceDropped: notify favoriting users of a price reduction by EMAIL,
+  // in German (AutoMarket is a German-market product — EPIC18-T1 spec).
   // EPIC17-T2 fix: this event is declared and emitted only by PricingService
   // (modules/pricing/api/pricing-service.cds), never by VehicleService — a
   // listener attached to VehicleService could never receive it. See
   // docs/error-log.md "VehiclePriceDropped listener registered on the wrong
-  // service — never fires". Content/channel (EMAIL, German) is EPIC18-T1 scope.
+  // service — never fires".
   const PricingSrv = await cds.connect.to('PricingService');
   PricingSrv.on('VehiclePriceDropped', async (msg) => {
     const { vehicleId, newPrice } = msg.data;
     await createNotificationsForFavorites(
       vehicleId,
-      'Price drop on a vehicle you saved',
-      `The price of vehicle ${vehicleId} has dropped to ${newPrice}.`
+      'Preissenkung bei einem gespeicherten Fahrzeug',
+      `Der Preis des Fahrzeugs ${vehicleId} wurde auf ${newPrice} gesenkt.`,
+      'EMAIL'
     );
   });
 
