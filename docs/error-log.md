@@ -5,6 +5,57 @@ New entries go at the top (newest first).
 
 ---
 
+## [2026-07-02] `NotificationService.resolveUserId` always returns `null` — looks up `Users.email` with a UUID
+
+**Status:** Open — documented, not fixed. Found while auditing `NotificationService` before starting
+EPIC17 (Price-Drop Alerts).
+
+**Symptom:** None of the three existing `NotificationService` subscribers (`VehicleSold`,
+`VehiclePriceDropped`, `SimilarVehicleListed`) ever create a `Notification` row for a favoriting
+customer, even when the vehicle is genuinely in that customer's `Favorites`.
+
+**Root cause:** `resolveUserId(customerID)` (`modules/notification/application/notification-service.js`)
+does `SELECT.one.from(Users).where({ email: customerID })`, on the assumption that `customerID` is
+the JWT subject (an email address). But everywhere `customer_ID` is written in this codebase
+(`Favorites`, `Orders`, `Reservations`, ...) it is set to `req.user.id`, which under the current
+`mocked` auth (and presumably `xsuaa` in production) is the `Users.ID` UUID, not the email.
+Verified directly: after `addFavorite`, `Favorites.customer_ID === Users.ID` is `true` and
+`Favorites.customer_ID === Users.email` is `false`. Since `resolveUserId` always returns `null`,
+`createNotificationsForFavorites` silently inserts zero rows for every caller.
+
+**Not fixed here** — left for EPIC17-T3 (Known Issue Remediation), together with the related
+`VehiclePriceDropped` wiring bug below, since both block any notification-based feature.
+
+**Files involved:**
+- `modules/notification/application/notification-service.js` — `resolveUserId`, all three subscribers
+
+---
+
+## [2026-07-02] `VehiclePriceDropped` listener registered on the wrong service — never fires
+
+**Status:** Open — documented, not fixed. Found while auditing `NotificationService` before starting
+EPIC17 (Price-Drop Alerts).
+
+**Symptom:** `NotificationService`'s `VehiclePriceDropped` handler never runs, even when
+`PricingService.updatePrice` genuinely lowers a vehicle's price.
+
+**Root cause:** In `modules/notification/application/notification-service.js`, the subscription is
+registered as `VehicleSrv.on('VehiclePriceDropped', ...)`, where `VehicleSrv = await
+cds.connect.to('VehicleService')`. But `VehiclePriceDropped` is declared and emitted only by
+`PricingService` (`modules/pricing/api/pricing-service.cds` — `event VehiclePriceDropped`;
+`modules/pricing/application/pricing-service.js` — `await srv.emit('VehiclePriceDropped', ...)`
+where `srv` is `PricingService`). `VehicleService` never declares or emits this event, so a
+listener attached to `VehicleService` can never receive it.
+
+**Not fixed here** — left for EPIC17-T2 (Known Issue Remediation). The fix is to connect to
+`PricingService` instead of `VehicleService` for this one subscription.
+
+**Files involved:**
+- `modules/notification/application/notification-service.js` — `VehiclePriceDropped` subscription
+- `modules/pricing/application/pricing-service.js` — emits the event on `PricingService`
+
+---
+
 ## [2026-07-02] `retryPayment` is unreachable after `failPayment` — Order is already CANCELLED
 
 **Status:** Open — documented, not fixed. Found while writing EPIC16-T5 integration tests
