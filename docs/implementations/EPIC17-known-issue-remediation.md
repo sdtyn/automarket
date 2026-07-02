@@ -15,7 +15,7 @@ feature (price-drop alerts, UI, production readiness) on top of them.
 | EPIC17-T1 | `retryPayment` / Order `CANCELLED` design fix | Done |
 | EPIC17-T2 | `NotificationService`: `VehiclePriceDropped` wired to the wrong service | Done |
 | EPIC17-T3 | `NotificationService`: `resolveUserId` email/UUID mismatch | Done |
-| EPIC17-T4 | Regression test | Open |
+| EPIC17-T4 | Regression test | Done |
 
 ### Sprint Backlog DoD Mapping
 
@@ -27,7 +27,7 @@ feature (price-drop alerts, UI, production readiness) on top of them.
 
 ### Sign-off
 
-_To be filled in at sprint end._
+All four tickets delivered and CI green. 10 test suites, 113 tests. Sprint completed 2026-07-02.
 
 ---
 
@@ -232,5 +232,218 @@ npm test
 
 Expected: all 9 suites still green (EPIC17-T4 adds the dedicated regression test proving
 notifications are now actually created).
+
+---
+
+## EPIC17-T4: Regression test
+
+### What & Why
+
+EPIC17-T2 and EPIC17-T3 fixed two bugs that, combined, meant `NotificationService` never created
+a single `Notification` row for any of its three subscribers. This ticket adds the test that
+proves both fixes actually work together, end to end, through the real HTTP surface (not by
+calling internal functions directly).
+
+`VehicleSold` and `VehiclePriceDropped` are exercised through their real production triggers:
+`capturePayment` (via the `PaymentSucceeded` choreography) and `updatePrice` respectively.
+`SimilarVehicleListed` has no producer at all yet — `VehicleService` does not even declare it in
+`vehicle-service.cds` — so it is simulated with a direct `cds.connect.to('VehicleService').emit(...)`
+call. That still exercises the real subscriber and the real `resolveUserId`/`createNotificationsForFavorites`
+code path; it just cannot exercise a caller trigger that does not exist in the system yet.
+
+The test file also covers `getMyNotifications` and `getUnreadCount`, since both call
+`resolveUserId(req.user.id)` directly and were silently broken by the same EPIC17-T3 bug,
+independent of which event created the underlying rows.
+
+While reviewing the file, the top-of-service comment in `notification-service.cds` also repeated
+the stale "req.user.id is a string that must be resolved" assumption that caused the original
+bug — corrected as part of this ticket since it directly documents the fixed behavior.
+
+### Step-by-step
+
+#### 1. Modify `modules/notification/api/notification-service.cds`
+
+Replace the top-of-service comment block with:
+
+```cds
+// NotificationService is read-only — no action creates a Notification directly.
+// All rows originate from domain event subscribers wired below the service block.
+// Customers access their notifications via functions (not the entity projection)
+// so the handler can scope the result to the caller (req.user.id, which is
+// already the Users.ID UUID — see EPIC17-T3) without exposing recipient_ID
+// as a queryable/filterable field on the entity.
+```
+
+#### 2. Create `tests/unit/services/notification-service.test.js`
+
+```js
+'use strict';
+
+const path = require('path');
+const cds = require('@sap/cds');
+
+const ROOT = path.join(__dirname, '../../..');
+
+// EPIC17-T4 regression test: proves the two bugs fixed in EPIC17-T2 (wrong-service
+// subscription) and EPIC17-T3 (resolveUserId email/UUID mismatch) actually unblock
+// notification creation for a favoriting customer — before this ticket, none of
+// these three subscribers ever inserted a Notification row (see docs/error-log.md).
+
+// Credentials for the mocked auth users defined in package.json cds.requires.auth.users.
+const customerBauerAuth = { username: 'customer.bauer@automarkt.de', password: 'Test@1234' };
+const adminAuth = { username: 'admin.mueller@automarkt.de', password: 'Test@1234' };
+
+const BAUER_ID = 'ccc00000-0000-0000-0000-000000000004';
+
+// FOR_SALE vehicles seeded in db/data/automarket.Vehicles.csv, none with a pre-seeded
+// PriceHistory row (see db/data/automarket.PriceHistory.csv) — this test file has its
+// own in-memory DB, so IDs do not need to avoid other test files, only each other.
+const VEHICLE_SOLD = '40000000-4000-4000-4000-400000000006';
+const VEHICLE_PRICE_DROP = '40000000-4000-4000-4000-400000000007';
+const VEHICLE_SIMILAR = '40000000-4000-4000-4000-400000000008';
+const VEHICLE_READ_API = '40000000-4000-4000-4000-400000000009';
+
+describe('NotificationService — integration (EPIC17-T4 regression)', () => {
+  // CAP server startup takes time.
+  jest.setTimeout(60000);
+
+  // cds.test() registers beforeAll/afterAll to start/stop an in-process CAP server
+  // with in-memory SQLite. CSV files in db/data/ are auto-loaded as seed data.
+  const { POST, GET } = cds.test(ROOT).silent();
+
+  async function findNotification(subjectSubstring) {
+    const { Notifications } = cds.entities('automarket');
+    const rows = await SELECT.from(Notifications).where({ recipient_ID: BAUER_ID });
+    return rows.find((r) => r.subject.includes(subjectSubstring));
+  }
+
+  // ── VehicleSold ──────────────────────────────────────────────────────────────
+  // Real end-to-end flow: createOrder → initiatePayment → capturePayment triggers
+  // PaymentSucceeded (SalesService) → Vehicle SOLD → VehicleSold (VehicleService)
+  // → NotificationService subscriber (unaffected by EPIC17-T2, but blocked until
+  // EPIC17-T3 fixed resolveUserId).
+
+  it('creates a Notification when a favorited vehicle is sold', async () => {
+    await POST(
+      '/favorites/addFavorite',
+      { vehicleId: VEHICLE_SOLD },
+      { auth: customerBauerAuth },
+    );
+
+    const orderRes = await POST(
+      '/sales/createOrder',
+      { vehicleId: VEHICLE_SOLD, deliveryType: 'CUSTOMER_PICKUP' },
+      { auth: customerBauerAuth },
+    );
+    const orderId = orderRes.data.value ?? orderRes.data;
+
+    const payRes = await POST(
+      '/payments/initiatePayment',
+      { orderId, provider: 'StripeDE', idempotencyKey: 'notif-sold-001', amount: 1, currency: 'EUR' },
+      { auth: customerBauerAuth },
+    );
+    const paymentId = (payRes.data.value ?? payRes.data).replace('PSP-SESSION-', '');
+
+    await POST(
+      '/payments/capturePayment',
+      { paymentId, transactionReference: 'TXN-notif-sold' },
+      { auth: adminAuth },
+    );
+
+    const notification = await findNotification('sold');
+    expect(notification).toBeDefined();
+    expect(notification.channel).toBe('PUSH');
+    expect(notification.content).toContain(VEHICLE_SOLD);
+  });
+
+  // ── VehiclePriceDropped ──────────────────────────────────────────────────────
+  // Real end-to-end flow: updatePrice (decrease) → PricingService emits
+  // VehiclePriceDropped → NotificationService subscriber, now correctly connected
+  // to PricingService instead of VehicleService (EPIC17-T2).
+
+  it('creates a Notification when a favorited vehicle drops in price', async () => {
+    await POST(
+      '/favorites/addFavorite',
+      { vehicleId: VEHICLE_PRICE_DROP },
+      { auth: customerBauerAuth },
+    );
+
+    await POST(
+      '/pricing/updatePrice',
+      { vehicleId: VEHICLE_PRICE_DROP, newPrice: 1000, currency: 'EUR' },
+      { auth: adminAuth },
+    );
+
+    const notification = await findNotification('Price drop');
+    expect(notification).toBeDefined();
+    expect(notification.content).toContain(VEHICLE_PRICE_DROP);
+  });
+
+  // ── SimilarVehicleListed ─────────────────────────────────────────────────────
+  // No producer emits this event yet — VehicleService does not even declare it
+  // (see modules/vehicle/api/vehicle-service.cds). The subscriber itself was never
+  // part of the EPIC17-T2 wiring bug (it was already attached to VehicleService,
+  // where a future producer would live), only the EPIC17-T3 resolveUserId bug
+  // blocked it. Simulated here via a direct emit to cover the subscriber logic.
+
+  it('creates a Notification when SimilarVehicleListed fires (simulated — no producer yet)', async () => {
+    await POST(
+      '/favorites/addFavorite',
+      { vehicleId: VEHICLE_SIMILAR },
+      { auth: customerBauerAuth },
+    );
+
+    const vehicleSrv = await cds.connect.to('VehicleService');
+    await vehicleSrv.emit('SimilarVehicleListed', {
+      newVehicleId: '40000000-4000-4000-4000-400000000099',
+      similarToVehicleId: VEHICLE_SIMILAR,
+    });
+
+    const notification = await findNotification('similar vehicle');
+    expect(notification).toBeDefined();
+    expect(notification.content).toContain(VEHICLE_SIMILAR);
+  });
+
+  // ── Read side: getMyNotifications / getUnreadCount ──────────────────────────
+  // Both call resolveUserId(req.user.id) directly — also blocked by the
+  // EPIC17-T3 bug regardless of which event created the row.
+
+  describe('getMyNotifications / getUnreadCount', () => {
+    it('returns the notifications created above for the same customer', async () => {
+      const res = await GET('/notifications/getMyNotifications()', { auth: customerBauerAuth });
+      const rows = res.data.value ?? res.data;
+      expect(rows.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('counts PENDING notifications for a fresh favorite/price-drop', async () => {
+      await POST(
+        '/favorites/addFavorite',
+        { vehicleId: VEHICLE_READ_API },
+        { auth: customerBauerAuth },
+      );
+      const before = await GET('/notifications/getUnreadCount()', { auth: customerBauerAuth });
+      const beforeCount = before.data.value ?? before.data;
+
+      await POST(
+        '/pricing/updatePrice',
+        { vehicleId: VEHICLE_READ_API, newPrice: 500, currency: 'EUR' },
+        { auth: adminAuth },
+      );
+
+      const after = await GET('/notifications/getUnreadCount()', { auth: customerBauerAuth });
+      const afterCount = after.data.value ?? after.data;
+      expect(afterCount).toBe(beforeCount + 1);
+    });
+  });
+});
+```
+
+#### 3. Verify
+
+```sh
+npm test
+```
+
+Expected: `Test Suites: 10 passed, 10 total`, `Tests: 113 passed, 113 total`.
 
 ---

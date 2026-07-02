@@ -3,8 +3,9 @@ using {automarket} from '../db/notification';
 // NotificationService is read-only — no action creates a Notification directly.
 // All rows originate from domain event subscribers wired below the service block.
 // Customers access their notifications via functions (not the entity projection)
-// because the entity uses a UUID FK for recipient_ID while req.user.id is a
-// string — the functions resolve the mapping internally.
+// so the handler can scope the result to the caller (req.user.id, which is
+// already the Users.ID UUID — see EPIC17-T3) without exposing recipient_ID
+// as a queryable/filterable field on the entity.
 @impl: 'modules/notification/application/notification-service.js'
 service NotificationService @(path: '/notifications') {
 
