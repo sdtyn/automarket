@@ -112,6 +112,16 @@
           "pattern": "BranchesList/Branches({key}):?query:",
           "name": "BranchesObjectPage",
           "target": "BranchesObjectPage"
+        },
+        {
+          "pattern": "AuditLogsList:?query:",
+          "name": "AuditLogsList",
+          "target": "AuditLogsList"
+        },
+        {
+          "pattern": "AuditLogsList/AuditLogs({key}):?query:",
+          "name": "AuditLogsObjectPage",
+          "target": "AuditLogsObjectPage"
         }
       ],
       "targets": {
@@ -184,6 +194,42 @@
             "settings": {
               "editableHeaderContent": false,
               "entitySet": "Branches"
+            }
+          }
+        },
+        "AuditLogsList": {
+          "type": "Component",
+          "id": "AuditLogsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "AuditLogs",
+              "variantManagement": "Page",
+              "navigation": {
+                "AuditLogs": {
+                  "detail": {
+                    "route": "AuditLogsObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "AuditLogsObjectPage": {
+          "type": "Component",
+          "id": "AuditLogsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "AuditLogs"
             }
           }
         }

@@ -17,7 +17,7 @@ annotations at runtime.
 | EPIC19-T3 | Operator vehicle management UI | Done |
 | EPIC19-T4 | Customer catalog UI | Done |
 | EPIC19-T5 | Admin UI — Users & Branches | Done |
-| EPIC19-T6 | Admin UI — Audit log viewer | Open |
+| EPIC19-T6 | Admin UI — Audit log viewer | Done |
 
 ### Sprint Backlog DoD Mapping
 
@@ -29,7 +29,18 @@ annotations at runtime.
 
 ### Sign-off
 
-_To be filled in at sprint end._
+All six tickets delivered and CI green. Three real, generated Fiori Elements apps
+(`app/operator-portal`, `app/customer-portal`, `app/admin-portal`, the latter covering three
+entities across three List Report + Object Page pairs) plus the CAP built-in `$fiori-preview` for
+ad-hoc annotation checks. `app/manager-portal` stays empty — no ticket in this epic targets it.
+Known follow-up, not silently dropped: three unbound actions
+(`OperatorPortalService.createVehicle`, `AdminService.disableUser`/`assignRole`/`disableBranch`)
+are not wired onto any List Report toolbar — `@UI.DataFieldForAction` cannot target unbound
+actions, and a manifest.json custom-action entry could not be verified without a real browser.
+Every app was verified against a live backend + a live `ui5 serve` instance (proxying, auth,
+annotations, and the actual `sap.fe.templates` library all confirmed reachable) — pixel-level
+rendering was not, and cannot be, verified in this environment. 13 test suites, 125 tests.
+Sprint completed 2026-07-02.
 
 ---
 
@@ -899,5 +910,174 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: `Test Suites: 13 passed, 13 total`, `Tests: 124 passed, 124 total`.
+
+---
+
+## EPIC19-T6: Admin UI — Audit log viewer
+
+### What & Why
+
+`AuditLogs` becomes a **third** entity/tile in `app/admin-portal` (same hand-merge approach as
+T5's `Branches`), not a new app — the folder is singular, and this ticket is explicitly scoped as
+more `AdminService` UI. `@readonly` plus the absence of any `CREATE`/`UPDATE`/`DELETE` grant on
+the entity (already true in `admin-service.cds` before this ticket) means there was nothing to
+restrict at the UI layer — Fiori Elements naturally renders a read-only List Report/Object Page
+when the underlying OData capabilities don't advertise write support.
+
+`UI.SelectionFields: [entityType, userId, createdAt]` gives the filter bar entityType/userId
+filters plus a date-range filter on `createdAt` — Fiori Elements infers a range control
+automatically for a `Timestamp` property in `SelectionFields`, no extra annotation needed.
+Default newest-first ordering is `UI.PresentationVariant.SortOrder` (not just relying on client
+sort state), since an audit trail is read chronologically backwards by default.
+
+**Found while checking how to verify this against real data: nothing writes to `AuditLogs`.**
+Grepped the whole codebase — no handler, anywhere, ever inserts a row. The entity is fully
+modeled and exposed, but the actual audit-trail-writing mechanism (hooking into every mutating
+action across every service to record `entityType`/`entityId`/`action`/`oldValue`/`newValue`)
+was never implemented. Implementing that is its own undertaking — an epic in itself, not a
+UI-annotation ticket's job — so it's noted here and left alone. The practical consequence: the
+default sort could only be verified against fixture rows inserted directly in a jest test, not
+real usage data; a live `GET /admin/AuditLogs` against the actual dev backend will always return
+an empty array today.
+
+### Step-by-step
+
+#### 1. Extend `modules/admin/api/admin-service-ui.cds`
+
+Append after the `Branches` `annotate` block:
+
+```cds
+// AuditLogs (EPIC19-T6): read-only (@readonly and no WRITE grant already on
+// the entity in admin-service.cds — nothing to restrict at the UI layer).
+// Default sort newest-first via UI.PresentationVariant, since an audit trail
+// is read chronologically backwards by default. entityType/userId/createdAt
+// in SelectionFields gives the filter bar entityType and userId dropdown-style
+// filters plus a date-range filter on createdAt (Fiori Elements infers a range
+// filter automatically for a Timestamp field in SelectionFields).
+annotate AdminService.AuditLogs with @(
+    UI.LineItem              : [
+        {Value: createdAt, Label: 'Timestamp'},
+        {Value: entityType},
+        {Value: entityId},
+        {Value: action},
+        {Value: userId}
+    ],
+    UI.SelectionFields        : [
+        entityType,
+        userId,
+        createdAt
+    ],
+    UI.PresentationVariant    : {
+        SortOrder: [
+            {Property: createdAt, Descending: true}
+        ]
+    },
+    UI.FieldGroup #LogDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: createdAt, Label: 'Timestamp'},
+            {Value: entityType},
+            {Value: entityId},
+            {Value: action},
+            {Value: userId},
+            {Value: oldValue, Label: 'Old Value'},
+            {Value: newValue, Label: 'New Value'}
+        ]
+    },
+    UI.Facets                 : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Log Entry',
+            Target: '@UI.FieldGroup#LogDetails'
+        }
+    ]
+);
+```
+
+#### 2. Extend `tests/unit/services/admin-service.test.js`
+
+New nested `describe('AuditLogs — default sort (EPIC19-T6)', ...)` block, sibling to the existing
+`describe`/`it` blocks, directly before the file's closing `});`:
+
+```js
+  describe('AuditLogs — default sort (EPIC19-T6)', () => {
+    it('honors createdAt descending as the natural query order', async () => {
+      const { AuditLogs } = cds.entities('automarket');
+      const older = new Date(Date.now() - 60000).toISOString();
+      const newer = new Date().toISOString();
+      await INSERT.into(AuditLogs).entries([
+        { ID: cds.utils.uuid(), entityType: 'Vehicle', action: 'UPDATE', createdAt: older },
+        { ID: cds.utils.uuid(), entityType: 'Vehicle', action: 'UPDATE', createdAt: newer },
+      ]);
+
+      const res = await GET('/admin/AuditLogs?$orderby=createdAt desc&$top=2', { auth: adminAuth });
+      const rows = res.data.value ?? res.data;
+      expect(new Date(rows[0].createdAt).getTime()).toBeGreaterThan(
+        new Date(rows[1].createdAt).getTime()
+      );
+    });
+  });
+```
+
+#### 3. Extend `app/admin-portal/webapp/manifest.json` by hand
+
+Same approach as T5's `Branches` merge — add a third route pair (prefixed
+`AuditLogsList/...`) and a third target pair to `sap.ui5.routing`:
+
+```json
+{ "pattern": "AuditLogsList:?query:", "name": "AuditLogsList", "target": "AuditLogsList" },
+{ "pattern": "AuditLogsList/AuditLogs({key}):?query:", "name": "AuditLogsObjectPage", "target": "AuditLogsObjectPage" }
+```
+
+with matching `"AuditLogsList"`/`"AuditLogsObjectPage"` target entries (entitySet:
+`"AuditLogs"`, same shape as `Users`/`Branches`).
+
+#### 4. Extend `app/admin-portal/webapp/test/flpSandbox.html`
+
+Add a third tile to `sap-ushell-config.applications`:
+
+```js
+"automarketadminportalauditlogs-tile": {
+    title: "Audit Logs",
+    description: "View the audit trail",
+    additionalInformation: "SAPUI5.Component=automarket.adminportal",
+    applicationType: "URL",
+    url: "../#AuditLogsList"
+}
+```
+
+#### 5. Refresh the local metadata snapshot
+
+`webapp/localService/mainService/metadata.xml` was generated before the `AuditLogs` annotations
+existed. Overwrite it with the live `$metadata` (this file is independent of the hand-edited
+`manifest.json` routing, safe to replace on its own):
+
+```sh
+curl -s http://localhost:4004/admin/\$metadata -o app/admin-portal/webapp/localService/mainService/metadata.xml
+```
+
+#### 6. Verify
+
+```sh
+node_modules/.bin/cds watch                                 # backend, port 4004
+(cd app/admin-portal && node_modules/.bin/ui5 serve --port 8083)
+```
+
+```sh
+curl -s http://localhost:8083/manifest.json | python3 -c "import json,sys; print([r['name'] for r in json.load(sys.stdin)['sap.ui5']['routing']['routes']])"
+curl -s http://localhost:8083/admin/\$metadata | grep -c "AuditLogs\|PresentationVariant"
+curl -s -u "admin.mueller@automarkt.de:Test@1234" "http://localhost:8083/admin/AuditLogs?\$top=3&\$orderby=createdAt%20desc"
+```
+
+Expected: all six route names (`UsersList`, `UsersObjectPage`, `BranchesList`,
+`BranchesObjectPage`, `AuditLogsList`, `AuditLogsObjectPage`); a non-zero annotation count; an
+empty `value: []` array (real backend, no seed data, nothing writes `AuditLogs` — expected, not a
+bug, see What & Why).
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+Expected: `Test Suites: 13 passed, 13 total`, `Tests: 125 passed, 125 total`.
 
 ---

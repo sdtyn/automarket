@@ -1,7 +1,7 @@
 using {AdminService} from './admin-service';
 
-// UI annotations for AdminService.Users / .Branches (EPIC19-T5). Kept in a
-// separate file from the service definition, same pattern as
+// UI annotations for AdminService.Users / .Branches / .AuditLogs (EPIC19-T5/T6).
+// Kept in a separate file from the service definition, same pattern as
 // operator-portal-ui.cds / customer-portal-ui.cds.
 //
 // Note on action buttons: disableUser, assignRole, and disableBranch are all
@@ -69,6 +69,52 @@ annotate AdminService.Branches with @(
             $Type : 'UI.ReferenceFacet',
             Label : 'Branch Details',
             Target: '@UI.FieldGroup#BranchDetails'
+        }
+    ]
+);
+
+// AuditLogs (EPIC19-T6): read-only (@readonly and no WRITE grant already on
+// the entity in admin-service.cds — nothing to restrict at the UI layer).
+// Default sort newest-first via UI.PresentationVariant, since an audit trail
+// is read chronologically backwards by default. entityType/userId/createdAt
+// in SelectionFields gives the filter bar entityType and userId dropdown-style
+// filters plus a date-range filter on createdAt (Fiori Elements infers a range
+// filter automatically for a Timestamp field in SelectionFields).
+annotate AdminService.AuditLogs with @(
+    UI.LineItem              : [
+        {Value: createdAt, Label: 'Timestamp'},
+        {Value: entityType},
+        {Value: entityId},
+        {Value: action},
+        {Value: userId}
+    ],
+    UI.SelectionFields        : [
+        entityType,
+        userId,
+        createdAt
+    ],
+    UI.PresentationVariant    : {
+        SortOrder: [
+            {Property: createdAt, Descending: true}
+        ]
+    },
+    UI.FieldGroup #LogDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: createdAt, Label: 'Timestamp'},
+            {Value: entityType},
+            {Value: entityId},
+            {Value: action},
+            {Value: userId},
+            {Value: oldValue, Label: 'Old Value'},
+            {Value: newValue, Label: 'New Value'}
+        ]
+    },
+    UI.Facets                 : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Log Entry',
+            Target: '@UI.FieldGroup#LogDetails'
         }
     ]
 );

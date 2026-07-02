@@ -61,4 +61,27 @@ describe('AdminService — statusCriticality (EPIC19-T5)', () => {
     const [row] = res.data.value ?? res.data;
     expect(row.passwordHash).toBeUndefined();
   });
+
+  // EPIC19-T6: no handler anywhere in the codebase currently writes to
+  // AuditLogs — it is fully modeled and exposed, but nothing populates it yet
+  // (a pre-existing gap, out of scope for a UI-annotation ticket). The default
+  // sort (UI.PresentationVariant: createdAt descending) can therefore only be
+  // verified against fixture rows inserted directly here, not real usage data.
+  describe('AuditLogs — default sort (EPIC19-T6)', () => {
+    it('honors createdAt descending as the natural query order', async () => {
+      const { AuditLogs } = cds.entities('automarket');
+      const older = new Date(Date.now() - 60000).toISOString();
+      const newer = new Date().toISOString();
+      await INSERT.into(AuditLogs).entries([
+        { ID: cds.utils.uuid(), entityType: 'Vehicle', action: 'UPDATE', createdAt: older },
+        { ID: cds.utils.uuid(), entityType: 'Vehicle', action: 'UPDATE', createdAt: newer },
+      ]);
+
+      const res = await GET('/admin/AuditLogs?$orderby=createdAt desc&$top=2', { auth: adminAuth });
+      const rows = res.data.value ?? res.data;
+      expect(new Date(rows[0].createdAt).getTime()).toBeGreaterThan(
+        new Date(rows[1].createdAt).getTime()
+      );
+    });
+  });
 });
