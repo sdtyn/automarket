@@ -9,8 +9,15 @@ using {automarket as br}   from '../../branch/db/branch';
 @impl: 'modules/admin/application/admin-service.js'
 service AdminService @(path: '/admin') {
 
+    // statusCriticality is a read-only calculated field (populated in
+    // admin-service.js, srv.after('READ')) — not persisted. Maps UserStatus to
+    // an OData UI.CriticalityType for the Fiori status badge (EPIC19-T5).
     @requires: 'Admin'
-    entity Users       as projection on automarket.Users
+    entity Users       as
+        projection on automarket.Users {
+            *,
+            virtual null as statusCriticality : Integer
+        }
         excluding { passwordHash };
 
     @requires: 'Admin'
@@ -19,8 +26,13 @@ service AdminService @(path: '/admin') {
     @requires: 'Admin'
     entity UserRoles   as projection on automarket.UserRoles;
 
+    // statusCriticality: same pattern as Users above, maps BranchStatus.
     @requires: 'Admin'
-    entity Branches    as projection on br.Branches;
+    entity Branches    as
+        projection on br.Branches {
+            *,
+            virtual null as statusCriticality : Integer
+        };
 
     // AuditLogs: read-only for Admin. No create/update/delete exposed.
     @requires: 'Admin'

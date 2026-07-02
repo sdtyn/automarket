@@ -16,7 +16,7 @@ annotations at runtime.
 | EPIC19-T2 | Vehicle list & detail annotations | Done |
 | EPIC19-T3 | Operator vehicle management UI | Done |
 | EPIC19-T4 | Customer catalog UI | Done |
-| EPIC19-T5 | Admin UI — Users & Branches | Open |
+| EPIC19-T5 | Admin UI — Users & Branches | Done |
 | EPIC19-T6 | Admin UI — Audit log viewer | Open |
 
 ### Sprint Backlog DoD Mapping
@@ -736,5 +736,168 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: `Test Suites: 12 passed, 12 total`, `Tests: 121 passed, 121 total`.
+
+---
+
+## EPIC19-T5: Admin UI — Users & Branches
+
+### What & Why
+
+Same pattern as EPIC19-T3/T4, with one new wrinkle: this ticket covers **two** entities
+(`Users` and `Branches`) in **one** app (`app/admin-portal` — a single pre-scaffolded folder,
+not two). `@sap-ux/fiori-elements-writer`'s `generate()` is not incremental — calling it a second
+time against the same target folder with a different `entityConfig.mainEntityName` **overwrites**
+the first entity's routing entirely rather than merging (verified directly: generating for
+`Users` then `Branches` left only `BranchesList`/`BranchesObjectPage` in `manifest.json`, no
+trace of `Users`). So the app was generated once for `Users` (primary), and the second
+List Report + Object Page pair for `Branches` was added to `manifest.json` by hand, following the
+exact shape the writer produces (verified structurally valid JSON, and functionally by
+proxying to the real backend). A second FLP tile was added to `flpSandbox.html` pointing at the
+in-app route `../#BranchesList`, so both entities are reachable as separate tiles.
+
+**Unbound actions — same wall as T3, not re-litigated.** `disableUser`, `assignRole`, and
+`disableBranch` are all unbound `AdminService` actions (confirmed the same way as
+`createVehicle` in T3 — service-level, not bound to `Users`/`Branches`), so `@UI.DataFieldForAction`
+cannot target them. Both Object Pages are view-only; the precedent from T3 (documented, not
+silently dropped, wiring deferred to a manifest-level follow-up) applies here without asking
+again — same architectural pattern, same reasoning.
+
+**`passwordHash` stays excluded**; `statusCriticality` is added *alongside* the existing
+`excluding { passwordHash }` clause, which required the projection body and `excluding` to be
+combined in one statement (`projection on X { *, virtual ... } excluding { passwordHash };` — the
+CDS compiler rejects `excluding {...} { ... }` in that order, confirmed by a failed `cds compile`
+before finding the working order). `USER_CRITICALITY`/`BRANCH_CRITICALITY` maps mirror T3's
+pattern (`ACTIVE`/`Positive`, `LOCKED`/`Critical` — self-expiring, needs attention but not a dead
+end — `INACTIVE`/`Negative`). Both covered by
+`tests/unit/services/admin-service.test.js`: every `UserStatus` and `BranchStatus` enum value
+gets its own assertion (not just the seeded `ACTIVE` happy path), plus a regression check that
+`passwordHash` is still never exposed.
+
+**Verified the same way as T3/T4**, against the real backend (port 4004) + a real `ui5 serve`
+instance (port 8082): `index.html`/`flpSandbox.html` → `200`; the *served* `manifest.json`
+(through the dev server, not just the file on disk) parses with all four routes present; proxied
+`GET Users` and `GET Branches` both return real rows with resolved `statusCriticality`. Same
+caveat as T3/T4: pixel-level rendering, and specifically whether the second FLP tile actually
+navigates correctly in a real shell, could not be visually confirmed in this environment — the
+hand-edited manifest routing was verified structurally and via direct OData proxying only.
+
+### Step-by-step
+
+#### 1. Modify `modules/admin/api/admin-service.cds`
+
+Add `statusCriticality` to both `Users` (combined with the existing `excluding` clause — body
+first, `excluding` after) and `Branches`:
+
+```cds
+    @requires: 'Admin'
+    entity Users       as
+        projection on automarket.Users {
+            *,
+            virtual null as statusCriticality : Integer
+        }
+        excluding { passwordHash };
+```
+
+```cds
+    @requires: 'Admin'
+    entity Branches    as
+        projection on br.Branches {
+            *,
+            virtual null as statusCriticality : Integer
+        };
+```
+
+#### 2. Modify `modules/admin/application/admin-service.js`
+
+Add two module-level criticality maps and two `after('READ')` handlers:
+
+```js
+const USER_CRITICALITY = { ACTIVE: 3, LOCKED: 2, INACTIVE: 1 };
+const BRANCH_CRITICALITY = { ACTIVE: 3, INACTIVE: 1 };
+
+module.exports = cds.service.impl(async function (srv) {
+  const { Users, Roles, UserRoles, Branches } = cds.entities('automarket');
+
+  srv.after('READ', 'Users', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = USER_CRITICALITY[row.status] ?? 0;
+    }
+  });
+  srv.after('READ', 'Branches', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = BRANCH_CRITICALITY[row.status] ?? 0;
+    }
+  });
+```
+
+#### 3. Create `modules/admin/api/admin-service-ui.cds`
+
+`UI.LineItem`/`UI.FieldGroup`/`UI.Facets` for both `AdminService.Users` and
+`AdminService.Branches`, same shape as `operator-portal-ui.cds` — see the file for full content.
+
+#### 4. Modify `srv/index.cds`
+
+Add directly after the `using from '../modules/admin/api/admin-service';` line:
+
+```cds
+using from '../modules/admin/api/admin-service-ui';
+```
+
+#### 5. Create `tests/unit/services/admin-service.test.js`
+
+One test per entity cycling through every status enum value via direct `UPDATE` + `GET`, plus a
+`passwordHash`-never-exposed regression check.
+
+#### 6. Generate `app/admin-portal`, then add the second entity by hand
+
+Same procedure as T3/T4 (throwaway script, `mainEntityName: 'Users'`). Then, in
+`webapp/manifest.json`, add a second route pair + target pair for `Branches` (prefixed
+`BranchesList/...` so it does not collide with the default empty-hash route), copying the exact
+shape of the `Users` entries:
+
+```json
+{ "pattern": "BranchesList:?query:", "name": "BranchesList", "target": "BranchesList" },
+{ "pattern": "BranchesList/Branches({key}):?query:", "name": "BranchesObjectPage", "target": "BranchesObjectPage" }
+```
+
+with matching `"BranchesList"`/`"BranchesObjectPage"` entries under `targets` (entitySet:
+`"Branches"` instead of `"Users"`). In `webapp/test/flpSandbox.html`, add a second tile to
+`sap-ushell-config.applications`:
+
+```js
+"automarketadminportalbranches-tile": {
+    title: "Branches",
+    description: "Manage branches",
+    additionalInformation: "SAPUI5.Component=automarket.adminportal",
+    applicationType: "URL",
+    url: "../#BranchesList"
+}
+```
+
+Then the same by-hand fixes as T3/T4: `start`/`start-noflp`/`build` npm scripts;
+`ui5.yaml`/`ui5-mock.yaml` backend URL `http://localhost:4004`.
+
+#### 7. Verify
+
+```sh
+node_modules/.bin/cds watch                                 # backend, port 4004
+(cd app/admin-portal && npm install && node_modules/.bin/ui5 serve --port 8082)
+```
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8082/index.html
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8082/test/flpSandbox.html
+curl -s http://localhost:8082/manifest.json | python3 -c "import json,sys; print([r['name'] for r in json.load(sys.stdin)['sap.ui5']['routing']['routes']])"
+curl -s -u "admin.mueller@automarkt.de:Test@1234" "http://localhost:8082/admin/Users?\$top=1&\$select=email,status,statusCriticality"
+curl -s -u "admin.mueller@automarkt.de:Test@1234" "http://localhost:8082/admin/Branches?\$top=1&\$select=code,status,statusCriticality"
+```
+
+Expected: `200`/`200`/all four route names present/a real `Users` row/a real `Branches` row.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+Expected: `Test Suites: 13 passed, 13 total`, `Tests: 124 passed, 124 total`.
 
 ---

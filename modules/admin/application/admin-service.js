@@ -4,8 +4,29 @@ const cds = require('@sap/cds');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
+// USER_CRITICALITY / BRANCH_CRITICALITY map status enums to
+// com.sap.vocabularies.UI.v1.CriticalityType codes (Neutral=0, Negative=1,
+// Critical=2, Positive=3) for the Fiori status badge (EPIC19-T5). LOCKED is a
+// temporary, self-expiring state (see identity.cds) — Critical rather than
+// Negative, since it needs an operator's attention but isn't a dead end.
+const USER_CRITICALITY = { ACTIVE: 3, LOCKED: 2, INACTIVE: 1 };
+const BRANCH_CRITICALITY = { ACTIVE: 3, INACTIVE: 1 };
+
 module.exports = cds.service.impl(async function (srv) {
   const { Users, Roles, UserRoles, Branches } = cds.entities('automarket');
+
+  // Populates the virtual statusCriticality field (declared in admin-service.cds)
+  // on every Users/Branches row returned by READ.
+  srv.after('READ', 'Users', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = USER_CRITICALITY[row.status] ?? 0;
+    }
+  });
+  srv.after('READ', 'Branches', (rows) => {
+    for (const row of Array.isArray(rows) ? rows : [rows]) {
+      if (row) row.statusCriticality = BRANCH_CRITICALITY[row.status] ?? 0;
+    }
+  });
 
   // createBranch: inserts a new ACTIVE branch.
   srv.on('createBranch', async (req) => {
