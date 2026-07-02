@@ -176,4 +176,35 @@ describe('IdentityService — integration', () => {
       expect(err.status).toBe(403);
     });
   });
+
+  // ── updateNotificationPreference (EPIC18-T2) ────────────────────────────────
+
+  describe('updateNotificationPreference', () => {
+    const CUSTOMER_ID = 'ccc00000-0000-0000-0000-000000000004'; // customer.bauer
+
+    afterEach(async () => {
+      const { Users } = cds.entities('automarket');
+      await UPDATE(Users).set({ notifyOnPriceDrop: true }).where({ ID: CUSTOMER_ID });
+    });
+
+    it('flips notifyOnPriceDrop to false for the calling user only', async () => {
+      const res = await POST(
+        '/identity/updateNotificationPreference',
+        { notifyOnPriceDrop: false },
+        { auth: { username: 'customer.bauer@automarkt.de', password: 'Test@1234' } }
+      );
+      expect(res.data.value ?? res.data).toBe(true);
+
+      const { Users } = cds.entities('automarket');
+      const user = await SELECT.one.from(Users).where({ ID: CUSTOMER_ID });
+      expect(user.notifyOnPriceDrop).toBe(false);
+    });
+
+    it('rejects an unauthenticated caller', async () => {
+      const err = await POST('/identity/updateNotificationPreference', {
+        notifyOnPriceDrop: false,
+      }).catch((e) => e);
+      expect(err.status).toBe(401);
+    });
+  });
 });

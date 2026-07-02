@@ -33,6 +33,9 @@ entity Users : BaseEntity {
   // failures older than 15 minutes do not count toward the threshold.
   firstFailedAt    : Timestamp;
   lockedUntil      : Timestamp;
+  // Opt-out switch for VehiclePriceDropped EMAIL alerts (EPIC18-T2). Defaults to
+  // true so existing customers keep receiving alerts unless they turn them off.
+  notifyOnPriceDrop : Boolean default true;
 }
 
 // Roles is a reference table, not an enum, so new roles can be added at runtime

@@ -103,6 +103,14 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
+  // updateNotificationPreference: lets the caller opt in/out of VehiclePriceDropped
+  // EMAIL alerts. Same self-service pattern as updateProfile — scoped to req.user.id.
+  srv.on('updateNotificationPreference', async (req) => {
+    const { notifyOnPriceDrop } = req.data;
+    await UPDATE(Users).set({ notifyOnPriceDrop }).where({ ID: req.user.id });
+    return true;
+  });
+
   // changePassword: replaces the user's password after verifying the current one.
   // Old password verification is mandatory — a stolen session token alone must
   // not be enough to lock out the legitimate account owner.

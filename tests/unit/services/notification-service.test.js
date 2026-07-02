@@ -12,9 +12,11 @@ const ROOT = path.join(__dirname, '../../..');
 
 // Credentials for the mocked auth users defined in package.json cds.requires.auth.users.
 const customerBauerAuth = { username: 'customer.bauer@automarkt.de', password: 'Test@1234' };
+const customerHoffmannAuth = { username: 'customer.hoffmann@automarkt.de', password: 'Test@1234' };
 const adminAuth = { username: 'admin.mueller@automarkt.de', password: 'Test@1234' };
 
 const BAUER_ID = 'ccc00000-0000-0000-0000-000000000004';
+const HOFFMANN_ID = 'ccc00000-0000-0000-0000-000000000005';
 
 // FOR_SALE vehicles seeded in db/data/automarket.Vehicles.csv, none with a pre-seeded
 // PriceHistory row (see db/data/automarket.PriceHistory.csv) — this test file has its
@@ -23,6 +25,7 @@ const VEHICLE_SOLD = '40000000-4000-4000-4000-400000000006';
 const VEHICLE_PRICE_DROP = '40000000-4000-4000-4000-400000000007';
 const VEHICLE_SIMILAR = '40000000-4000-4000-4000-400000000008';
 const VEHICLE_READ_API = '40000000-4000-4000-4000-400000000009';
+const VEHICLE_PRICE_DROP_OPT_OUT = '40000000-4000-4000-4000-400000000018';
 
 describe('NotificationService — integration (EPIC17-T4 regression)', () => {
   // CAP server startup takes time.
@@ -102,6 +105,31 @@ describe('NotificationService — integration (EPIC17-T4 regression)', () => {
     expect(notification).toBeDefined();
     expect(notification.channel).toBe('EMAIL');
     expect(notification.content).toContain(VEHICLE_PRICE_DROP);
+  });
+
+  // EPIC18-T2: an opted-out user must not receive the alert, even though they
+  // favorited the vehicle and the price genuinely dropped.
+  it('does not notify a user who opted out via notifyOnPriceDrop=false', async () => {
+    await POST(
+      '/identity/updateNotificationPreference',
+      { notifyOnPriceDrop: false },
+      { auth: customerHoffmannAuth }
+    );
+    await POST(
+      '/favorites/addFavorite',
+      { vehicleId: VEHICLE_PRICE_DROP_OPT_OUT },
+      { auth: customerHoffmannAuth }
+    );
+
+    await POST(
+      '/pricing/updatePrice',
+      { vehicleId: VEHICLE_PRICE_DROP_OPT_OUT, newPrice: 1000, currency: 'EUR' },
+      { auth: adminAuth }
+    );
+
+    const { Notifications } = cds.entities('automarket');
+    const rows = await SELECT.from(Notifications).where({ recipient_ID: HOFFMANN_ID });
+    expect(rows.find((r) => r.subject.includes('Preissenkung'))).toBeUndefined();
   });
 
   // ── SimilarVehicleListed ─────────────────────────────────────────────────────

@@ -20,11 +20,20 @@ module.exports = cds.service.impl(async function (srv) {
   // createNotificationsForFavorites: inserts a PENDING notification for every user
   // who has favorited the given vehicle. channel defaults to PUSH (VehicleSold,
   // SimilarVehicleListed); VehiclePriceDropped overrides it to EMAIL (EPIC18-T1 spec).
-  async function createNotificationsForFavorites(vehicleId, subject, content, channel = 'PUSH') {
+  // filter is an optional async (userId) => boolean predicate — VehiclePriceDropped
+  // uses it to honor Users.notifyOnPriceDrop (EPIC18-T2); other subscribers pass none.
+  async function createNotificationsForFavorites(
+    vehicleId,
+    subject,
+    content,
+    channel = 'PUSH',
+    filter = null
+  ) {
     const favorites = await SELECT.from(Favorites).where({ vehicle_ID: vehicleId });
     for (const fav of favorites) {
       const recipientId = await resolveUserId(fav.customer_ID);
       if (!recipientId) continue;
+      if (filter && !(await filter(recipientId))) continue;
       await INSERT.into(Notifications).entries({
         recipient_ID: recipientId,
         channel,
@@ -33,6 +42,13 @@ module.exports = cds.service.impl(async function (srv) {
         status: 'PENDING',
       });
     }
+  }
+
+  // notifyOnPriceDropEnabled: Users.notifyOnPriceDrop defaults to true, so only an
+  // explicit false opts the user out — this treats a missing/undefined value as enabled.
+  async function notifyOnPriceDropEnabled(userId) {
+    const user = await SELECT.one.from(Users).columns('notifyOnPriceDrop').where({ ID: userId });
+    return user?.notifyOnPriceDrop !== false;
   }
 
   // Subscribe to VehicleService events that concern favorited vehicles.
@@ -51,7 +67,8 @@ module.exports = cds.service.impl(async function (srv) {
   });
 
   // VehiclePriceDropped: notify favoriting users of a price reduction by EMAIL,
-  // in German (AutoMarket is a German-market product — EPIC18-T1 spec).
+  // in German (AutoMarket is a German-market product — EPIC18-T1 spec), unless
+  // the user has opted out via Users.notifyOnPriceDrop (EPIC18-T2).
   // EPIC17-T2 fix: this event is declared and emitted only by PricingService
   // (modules/pricing/api/pricing-service.cds), never by VehicleService — a
   // listener attached to VehicleService could never receive it. See
@@ -64,7 +81,8 @@ module.exports = cds.service.impl(async function (srv) {
       vehicleId,
       'Preissenkung bei einem gespeicherten Fahrzeug',
       `Der Preis des Fahrzeugs ${vehicleId} wurde auf ${newPrice} gesenkt.`,
-      'EMAIL'
+      'EMAIL',
+      notifyOnPriceDropEnabled
     );
   });
 

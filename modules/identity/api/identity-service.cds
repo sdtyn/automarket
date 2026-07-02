@@ -35,6 +35,12 @@ service IdentityService @(path: '/identity') {
     @requires: 'authenticated-user'
     action   updateProfile(firstName: String, lastName: String, phoneNumber: String) returns Boolean;
 
+    // updateNotificationPreference: lets the authenticated user opt in/out of
+    // VehiclePriceDropped EMAIL alerts (EPIC18-T2). One field today; extend the
+    // signature rather than adding a new action if more preferences are added.
+    @requires: 'authenticated-user'
+    action   updateNotificationPreference(notifyOnPriceDrop: Boolean)                returns Boolean;
+
     // Admin-only user management operations.
     // @requires: 'Admin' ensures CAP rejects any request from a non-Admin role
     // before it reaches the handler — no role check needed inside the handler.
