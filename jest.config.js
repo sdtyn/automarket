@@ -10,4 +10,7 @@ module.exports = {
   maxWorkers: 1,
   // Print each test name so CI logs are readable without --verbose flag.
   verbose: true,
+  // cds.test() leaves open handles (server socket) after the suite finishes.
+  // forceExit terminates the process once all tests complete instead of waiting.
+  forceExit: true,
 };

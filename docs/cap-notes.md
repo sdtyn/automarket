@@ -198,6 +198,32 @@ CREATE UNIQUE INDEX orders_one_active_per_vehicle
 
 ---
 
+## 9. `req.error()` Rolls Back the Request Transaction — DB Updates Before It Are Lost
+
+**Context:** Discovered during EPIC16-T4 (IdentityService integration tests).
+In a CAP `on()` action handler, calling `req.error()` throws a `cds.error`, which
+propagates up the call stack. CAP's request middleware catches it, rolls back the
+current database transaction, and sends the HTTP error response. Any `INSERT`/`UPDATE`
+executed inside the same handler before `req.error()` is therefore rolled back too.
+
+**Impact:** The `login` handler updates `failedLoginCount` and potentially sets
+`status = 'LOCKED'` before returning `req.error(401)`. In production (HANA / PostgreSQL),
+an autonomous transaction (`cds.tx()`) can be used to commit these updates independently
+of the request transaction. In SQLite (local dev), `cds.tx()` causes a deadlock because
+SQLite's single-writer lock is already held by the request transaction — any new
+transaction waits indefinitely (60 s timeout).
+
+**Current state:** The `failedLoginCount` update is left in the main request transaction.
+It commits on successful login (tx succeeds) but is rolled back on wrong password (tx rolls
+back via `req.error()`). The lockout feature therefore does not accumulate failure counts
+in SQLite (local dev). It will work correctly once deployed with a multi-writer DB.
+
+**Workaround for production:** Replace the plain `UPDATE` with `cds.tx(async () => { ... })`
+before adding HANA/PG as the production database. The `shouldLock` domain logic is already
+tested at the unit level (`lockout.test.js`) independently of the transaction behaviour.
+
+---
+
 ## 8. Guest Rate Limiting Is an Approuter Concern, Not CAP
 
 **Context:** EPIC05-T4. The product backlog requires guest reservation writes to be

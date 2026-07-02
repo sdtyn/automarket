@@ -59,10 +59,12 @@ module.exports = cds.service.impl(async function (srv) {
     // the window start so the next failure sequence starts fresh.
     await UPDATE(Users).set({ failedLoginCount: 0, firstFailedAt: null }).where({ ID: user.ID });
 
-    // Read the first assigned role. Multi-role support is additive later —
-    // UserRoles is already a join entity, so no schema change will be needed.
+    // Read the first assigned role. Join to Roles to get the code string, not the UUID.
+    // role_ID is the Roles entity PK (UUID) — passing it directly to isMfaRequired
+    // would always return false and the JWT would carry an opaque ID instead of a code.
     const userRole = await SELECT.one.from(UserRoles).where({ user_ID: user.ID });
-    const role = userRole?.role_ID ?? 'Customer';
+    const roleRow = userRole ? await SELECT.one.from(Roles).where({ ID: userRole.role_ID }) : null;
+    const role = roleRow?.code ?? 'Customer';
 
     const token = authProvider.issueToken({ userId: user.ID, email: user.email, role });
     // mfaPending tells the client a second factor is required. The token is
@@ -148,7 +150,9 @@ module.exports = cds.service.impl(async function (srv) {
     if (!role) return req.error(400, `Unknown role: ${roleCode}`);
 
     const passwordHash = await hashPassword(password);
-    const newUser = await INSERT.into(Users).entries({
+    const id = cds.utils.uuid();
+    await INSERT.into(Users).entries({
+      ID: id,
       email,
       firstName,
       lastName,
@@ -159,8 +163,8 @@ module.exports = cds.service.impl(async function (srv) {
       failedLoginCount: 0,
     });
 
-    await INSERT.into(UserRoles).entries({ user_ID: newUser.ID, role_ID: role.ID });
-    return newUser.ID;
+    await INSERT.into(UserRoles).entries({ user_ID: id, role_ID: role.ID });
+    return id;
   });
 
   // assignRole: replaces the user's current role assignment with the given role.
