@@ -13,7 +13,7 @@ feature (price-drop alerts, UI, production readiness) on top of them.
 | Ticket | Description | Status |
 |--------|-------------|--------|
 | EPIC17-T1 | `retryPayment` / Order `CANCELLED` design fix | Done |
-| EPIC17-T2 | `NotificationService`: `VehiclePriceDropped` wired to the wrong service | Open |
+| EPIC17-T2 | `NotificationService`: `VehiclePriceDropped` wired to the wrong service | Done |
 | EPIC17-T3 | `NotificationService`: `resolveUserId` email/UUID mismatch | Open |
 | EPIC17-T4 | Regression test | Open |
 
@@ -94,5 +94,78 @@ npm test
 ```
 
 Expected: all suites still green, `retryPayment` happy-path test passes.
+
+---
+
+## EPIC17-T2: `NotificationService`: `VehiclePriceDropped` wired to the wrong service
+
+### What & Why
+
+`docs/error-log.md` (`[2026-07-02] VehiclePriceDropped listener registered on the wrong service`)
+documents that `notification-service.js` subscribed to `VehiclePriceDropped` via
+`cds.connect.to('VehicleService')`, but the event is declared and emitted only by
+`PricingService` (`modules/pricing/api/pricing-service.cds`, `modules/pricing/application/pricing-service.js`).
+`VehicleService` never emits it, so the listener could never fire — no price-drop notification
+was ever created, regardless of the `resolveUserId` bug fixed in EPIC17-T3.
+
+The fix is a one-line wiring change: connect to `PricingService` instead of `VehicleService` for
+this one subscription. `VehicleSold` and `SimilarVehicleListed` stay on `VehicleService`, since
+those events genuinely are declared there.
+
+The event payload only carries `{ vehicleId, oldPrice, newPrice }` (no `currency`), so the old
+handler's `currency ?? 'TRY'` fallback was already dead code — removed along with the fix.
+Rewriting the notification content to spec (EMAIL channel, German text) is EPIC18-T1's job, not
+this ticket's — this ticket only makes the handler reachable.
+
+### Step-by-step
+
+#### 1. Modify `modules/notification/application/notification-service.js`
+
+Replace the `VehiclePriceDropped` subscription block (the one currently registered on
+`VehicleSrv`, between the `VehicleSold` subscriber and the `SimilarVehicleListed` subscriber)
+with:
+
+```js
+  // VehiclePriceDropped: notify favoriting users of a price reduction.
+  // EPIC17-T2 fix: this event is declared and emitted only by PricingService
+  // (modules/pricing/api/pricing-service.cds), never by VehicleService — a
+  // listener attached to VehicleService could never receive it. See
+  // docs/error-log.md "VehiclePriceDropped listener registered on the wrong
+  // service — never fires". Content/channel (EMAIL, German) is EPIC18-T1 scope.
+  const PricingSrv = await cds.connect.to('PricingService');
+  PricingSrv.on('VehiclePriceDropped', async (msg) => {
+    const { vehicleId, newPrice } = msg.data;
+    await createNotificationsForFavorites(
+      vehicleId,
+      'Price drop on a vehicle you saved',
+      `The price of vehicle ${vehicleId} has dropped to ${newPrice}.`
+    );
+  });
+```
+
+Also update the comment directly above `const VehicleSrv = await cds.connect.to('VehicleService');`
+(a few lines earlier in the same file) — it previously said "VehiclePriceDropped and
+SimilarVehicleListed subscribers are registered now"; change it to:
+
+```js
+  // Subscribe to VehicleService events that concern favorited vehicles.
+  // SimilarVehicleListed subscriber is registered now; it will fire automatically
+  // once VehicleService adds that event.
+```
+
+#### 2. Update `docs/error-log.md`
+
+Change the `VehiclePriceDropped` entry's `**Status:**` line from `Open — documented, not fixed`
+to `Fixed in EPIC17-T2`, and replace the `**Not fixed here**` paragraph with a `**Fix:**`
+paragraph describing the wiring change.
+
+#### 3. Verify
+
+```sh
+npm test
+```
+
+Expected: all 9 suites still green (this ticket has no dedicated test yet — EPIC17-T4 covers
+the full choreography for all three subscribers).
 
 ---

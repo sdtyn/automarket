@@ -30,8 +30,8 @@ module.exports = cds.service.impl(async function (srv) {
   }
 
   // Subscribe to VehicleService events that concern favorited vehicles.
-  // VehiclePriceDropped and SimilarVehicleListed subscribers are registered now;
-  // they will fire automatically once the emitting services add those events.
+  // SimilarVehicleListed subscriber is registered now; it will fire automatically
+  // once VehicleService adds that event.
   const VehicleSrv = await cds.connect.to('VehicleService');
 
   // VehicleSold: notify users who favorited this vehicle that it is no longer available.
@@ -45,13 +45,18 @@ module.exports = cds.service.impl(async function (srv) {
   });
 
   // VehiclePriceDropped: notify favoriting users of a price reduction.
-  // Event is emitted by PricingService (wired in a future sprint).
-  VehicleSrv.on('VehiclePriceDropped', async (msg) => {
-    const { vehicleId, newPrice, currency } = msg.data;
+  // EPIC17-T2 fix: this event is declared and emitted only by PricingService
+  // (modules/pricing/api/pricing-service.cds), never by VehicleService — a
+  // listener attached to VehicleService could never receive it. See
+  // docs/error-log.md "VehiclePriceDropped listener registered on the wrong
+  // service — never fires". Content/channel (EMAIL, German) is EPIC18-T1 scope.
+  const PricingSrv = await cds.connect.to('PricingService');
+  PricingSrv.on('VehiclePriceDropped', async (msg) => {
+    const { vehicleId, newPrice } = msg.data;
     await createNotificationsForFavorites(
       vehicleId,
       'Price drop on a vehicle you saved',
-      `The price of vehicle ${vehicleId} has dropped to ${newPrice} ${currency ?? 'TRY'}.`
+      `The price of vehicle ${vehicleId} has dropped to ${newPrice}.`
     );
   });
 

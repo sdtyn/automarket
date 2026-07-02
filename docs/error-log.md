@@ -33,7 +33,7 @@ Verified directly: after `addFavorite`, `Favorites.customer_ID === Users.ID` is 
 
 ## [2026-07-02] `VehiclePriceDropped` listener registered on the wrong service — never fires
 
-**Status:** Open — documented, not fixed. Found while auditing `NotificationService` before starting
+**Status:** Fixed in EPIC17-T2. Found while auditing `NotificationService` before starting
 EPIC17 (Price-Drop Alerts).
 
 **Symptom:** `NotificationService`'s `VehiclePriceDropped` handler never runs, even when
@@ -47,8 +47,10 @@ cds.connect.to('VehicleService')`. But `VehiclePriceDropped` is declared and emi
 where `srv` is `PricingService`). `VehicleService` never declares or emits this event, so a
 listener attached to `VehicleService` can never receive it.
 
-**Not fixed here** — left for EPIC17-T2 (Known Issue Remediation). The fix is to connect to
-`PricingService` instead of `VehicleService` for this one subscription.
+**Fix:** Connected to `PricingService` (`cds.connect.to('PricingService')`) instead of
+`VehicleService` for this one subscription — no other change needed, since `msg.data` already
+carries `vehicleId`/`newPrice`. Content/channel (EMAIL, German per spec) is deferred to
+EPIC18-T1; this ticket only fixes the wiring so the handler is reachable at all.
 
 **Files involved:**
 - `modules/notification/application/notification-service.js` — `VehiclePriceDropped` subscription
