@@ -15,7 +15,7 @@ annotations at runtime.
 | EPIC19-T1 | Fiori Elements setup | Done |
 | EPIC19-T2 | Vehicle list & detail annotations | Done |
 | EPIC19-T3 | Operator vehicle management UI | Done |
-| EPIC19-T4 | Customer catalog UI | Open |
+| EPIC19-T4 | Customer catalog UI | Done |
 | EPIC19-T5 | Admin UI — Users & Branches | Open |
 | EPIC19-T6 | Admin UI — Audit log viewer | Open |
 
@@ -529,5 +529,212 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: `Test Suites: 11 passed, 11 total`, `Tests: 118 passed, 118 total`.
+
+---
+
+## EPIC19-T4: Customer catalog UI
+
+### What & Why
+
+Followed the same pattern as EPIC19-T3: real `app/customer-portal` app generated with
+`@sap-ux/fiori-elements-writer` in plain OData V4 mode against live `$metadata`, `@UI` annotations
+in a dedicated `customer-portal-ui.cds` file wired into `srv/index.cds`.
+
+**`images` exclusion reversed.** `CustomerPortalService.Vehicles` excluded the `images` composition
+outright, with a comment claiming this "keeps the list query lightweight." Verified directly
+before touching anything: a plain `GET .../Vehicles` (no `$expand`) never includes composition
+data regardless of whether the composition is present in the entity type — only an explicit
+`$expand=images` does. The exclusion bought nothing and blocked the one thing this ticket actually
+needs (a real `@UI.Facets` photo gallery on the Object Page, same mechanism as EPIC19-T3's
+operator gallery). Presented to the user before changing it, since it reverses a prior deliberate
+(if incorrect) decision; confirmed to remove the exclusion. The separate `VehicleImages` entity
+projection is untouched — still available, just redundant with the composition now.
+
+**`primaryImageUrl`.** Same `virtual` + `srv.after('READ')` pattern as EPIC19-T3's
+`statusCriticality`: a non-persisted field on `Vehicles`, populated by
+`customer-portal.js`'s new `after('READ')` handler with the first `VehicleImages` row by
+`sortOrder` for each vehicle in the result page — **one batched query for the whole page**, not
+N+1 per row. Annotated `@UI.IsImageURL: true` so the List Report renders it as a thumbnail
+column instead of a text/link column. Covered by
+`tests/unit/services/customer-portal.test.js`: ordering (a second, higher-`sortOrder` image must
+not override the seeded `sortOrder: 0` one), the no-image case (`null`, not an error), and a
+direct assertion that a plain list query still omits `images` entirely (the premise the reversed
+exclusion depended on).
+
+**Object Page fields.** `vin`, `plateNumber`, and `status` are deliberately left out of the
+customer-facing `FieldGroup` — operational/internal details a customer does not need — while
+`branch.name`/`branch.city` are included (where the vehicle can be seen/collected is useful to a
+buyer). No `@UI.SelectionFields` filter bar was added — unlike EPIC19-T3, this ticket's
+description does not ask for one.
+
+**Verified the same way as T3**, against the real backend (port 4004) + a real `ui5 serve`
+instance (port 8081): `index.html`/`flpSandbox.html` → `200`; proxied `$metadata` contains the
+new annotation terms; proxied `GET Vehicles` (no auth — `@requires: 'any'`) returns real rows with
+a resolved `primaryImageUrl`. Same caveat as T3: pixel-level rendering was not (and cannot be)
+visually confirmed in this environment.
+
+### Step-by-step
+
+#### 1. Modify `modules/vehicle/api/customer-portal.cds`
+
+Remove the `excluding { images }` clause and add the virtual `primaryImageUrl` field:
+
+```cds
+    // primaryImageUrl is a read-only calculated field (populated in
+    // customer-portal.js, srv.after('READ')) — the first VehicleImages row by
+    // sortOrder, or null. Annotated @UI.IsImageURL (customer-portal-ui.cds) so
+    // the List Report renders it as a thumbnail instead of a text column
+    // (EPIC19-T4).
+    @requires: 'any'
+    entity Vehicles      as
+        projection on automarket.Vehicles {
+            *,
+            virtual null as primaryImageUrl : String
+        };
+```
+
+(The `images` composition is included by omitting `excluding { images }` — the projection is now
+just `projection on automarket.Vehicles { ... }`, same shape used for the `statusCriticality`
+field.)
+
+#### 2. Modify `modules/vehicle/application/customer-portal.js`
+
+Add `VehicleImages` to the destructured entities and a batched `after('READ')` handler, directly
+below the existing `srv.before('READ', 'Vehicles', ...)` block:
+
+```js
+  const { Favorites, PriceHistory, VehicleImages } = cds.entities('automarket');
+
+  // Populates the virtual primaryImageUrl field (declared in customer-portal.cds)
+  // for every Vehicles row returned by READ — one batched query for the whole
+  // result page, not one query per row.
+  srv.after('READ', 'Vehicles', async (rows) => {
+    const list = Array.isArray(rows) ? rows : [rows];
+    const ids = list.filter(Boolean).map((r) => r.ID);
+    if (!ids.length) return;
+
+    const images = await SELECT.from(VehicleImages)
+      .columns('vehicle_ID', 'url')
+      .where({ vehicle_ID: { in: ids } })
+      .orderBy({ sortOrder: 'asc' });
+
+    const firstImageByVehicle = {};
+    for (const image of images) {
+      if (!(image.vehicle_ID in firstImageByVehicle)) {
+        firstImageByVehicle[image.vehicle_ID] = image.url;
+      }
+    }
+    for (const row of list) {
+      if (row) row.primaryImageUrl = firstImageByVehicle[row.ID] ?? null;
+    }
+  });
+```
+
+#### 3. Create `modules/vehicle/api/customer-portal-ui.cds`
+
+```cds
+using {CustomerPortalService} from './customer-portal';
+using {automarket} from '../db/vehicle';
+
+// UI annotations for CustomerPortalService.Vehicles (EPIC19-T4). Kept in a
+// separate file from the service definition, same pattern as
+// operator-portal-ui.cds — UI presentation stays independent of the API
+// contract (@requires, the FOR_SALE filter in customer-portal.js).
+annotate CustomerPortalService.Vehicles with @(
+    // Catalog list columns, with a thumbnail image column.
+    UI.LineItem                : [
+        {Value: primaryImageUrl, Label: 'Image'},
+        {Value: brand},
+        {Value: model},
+        {Value: year},
+        {Value: price}
+    ],
+
+    // Object Page: full specs (internal/operational fields — vin, plateNumber,
+    // status — are deliberately left out; a customer does not need them).
+    UI.FieldGroup #VehicleSpecs : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: brand},
+            {Value: model},
+            {Value: year},
+            {Value: mileage},
+            {Value: fuelType},
+            {Value: transmission},
+            {Value: color},
+            {Value: price},
+            {Value: currency},
+            {Value: branch.name, Label: 'Branch'},
+            {Value: branch.city, Label: 'City'}
+        ]
+    },
+
+    // Object Page facets: specs form + an inline photo gallery table driven by
+    // the images composition (VehicleImages' UI.LineItem is annotated once,
+    // shared with OperatorPortalService — see operator-portal-ui.cds).
+    UI.Facets                  : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Specifications',
+            Target: '@UI.FieldGroup#VehicleSpecs'
+        },
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Photos',
+            Target: 'images/@UI.LineItem'
+        }
+    ]
+);
+
+// Renders primaryImageUrl as a thumbnail in the List Report table instead of
+// a plain text/link column.
+annotate CustomerPortalService.Vehicles with {
+    primaryImageUrl @UI.IsImageURL: true;
+};
+```
+
+#### 4. Modify `srv/index.cds`
+
+Add directly after the `using from '../modules/vehicle/api/customer-portal';` line:
+
+```cds
+using from '../modules/vehicle/api/customer-portal-ui';
+```
+
+#### 5. Create `tests/unit/services/customer-portal.test.js`
+
+Three tests: sortOrder wins over a newly inserted higher-sortOrder image; `null` when a vehicle's
+images are deleted; a plain `$top=1` query's row has no `images` key at all (the premise the
+exclusion removal depended on).
+
+#### 6. Generate `app/customer-portal`
+
+Same procedure as EPIC19-T3 step 2 (throwaway script, live `$metadata`, `TemplateType.ListReportObjectPage`,
+`entityConfig.mainEntityName: 'Vehicles'`), then the same by-hand fixes as T3 step 3 (`start`/`start-noflp`/`build`
+npm scripts; confirm `ui5.yaml`/`ui5-mock.yaml` backend URL is `http://localhost:4004`, not a
+throwaway verification port).
+
+#### 7. Verify
+
+```sh
+node_modules/.bin/cds watch                                    # backend, port 4004
+(cd app/customer-portal && npm install && node_modules/.bin/ui5 serve --port 8081)
+```
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8081/index.html
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8081/test/flpSandbox.html
+curl -s http://localhost:8081/catalog/\$metadata | grep -c "UI.LineItem\|UI.FieldGroup\|UI.Facets\|IsImageURL"
+curl -s "http://localhost:8081/catalog/Vehicles?\$top=1&\$select=brand,price,primaryImageUrl"
+```
+
+Expected: `200`/`200`/`8`/a real row with a resolved `primaryImageUrl` (no auth needed —
+`@requires: 'any'`).
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+Expected: `Test Suites: 12 passed, 12 total`, `Tests: 121 passed, 121 total`.
 
 ---

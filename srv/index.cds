@@ -16,6 +16,8 @@ using from '../modules/vehicle/api/operator-portal-ui';
 
 using from '../modules/vehicle/api/customer-portal';
 
+using from '../modules/vehicle/api/customer-portal-ui';
+
 using from '../modules/pricing/api/pricing-service';
 
 using from '../modules/favorites/api/favorites-service';

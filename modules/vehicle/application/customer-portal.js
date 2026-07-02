@@ -10,7 +10,31 @@ module.exports = cds.service.impl(async function (srv) {
     req.query.where({ status: 'FOR_SALE' });
   });
 
-  const { Favorites, PriceHistory } = cds.entities('automarket');
+  const { Favorites, PriceHistory, VehicleImages } = cds.entities('automarket');
+
+  // Populates the virtual primaryImageUrl field (declared in customer-portal.cds)
+  // for every Vehicles row returned by READ — one batched query for the whole
+  // result page, not one query per row.
+  srv.after('READ', 'Vehicles', async (rows) => {
+    const list = Array.isArray(rows) ? rows : [rows];
+    const ids = list.filter(Boolean).map((r) => r.ID);
+    if (!ids.length) return;
+
+    const images = await SELECT.from(VehicleImages)
+      .columns('vehicle_ID', 'url')
+      .where({ vehicle_ID: { in: ids } })
+      .orderBy({ sortOrder: 'asc' });
+
+    const firstImageByVehicle = {};
+    for (const image of images) {
+      if (!(image.vehicle_ID in firstImageByVehicle)) {
+        firstImageByVehicle[image.vehicle_ID] = image.url;
+      }
+    }
+    for (const row of list) {
+      if (row) row.primaryImageUrl = firstImageByVehicle[row.ID] ?? null;
+    }
+  });
 
   // getFavoriteVehicles: joins the customer's Favorites against the Vehicles
   // entity and applies the same FOR_SALE filter that guards the entity projection.
