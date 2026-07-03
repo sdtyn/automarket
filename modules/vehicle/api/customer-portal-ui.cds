@@ -71,6 +71,16 @@ annotate CustomerPortalService.Vehicles with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.removeFromFavorites',
             Label : 'Remove from Favorites'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.submitOffer',
+            Label : 'Make an Offer'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.requestTestDrive',
+            Label : 'Request a Test Drive'
         }
     ]
 );
@@ -115,6 +125,78 @@ annotate CustomerPortalService.Reservations with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.cancel',
             Label : 'Cancel Reservation'
+        }
+    ]
+);
+
+// "My Offers" (EPIC20-T2) — third entity in app/customer-portal. resubmit is
+// bound to Offers (distinct overload from Reservations'/TestDrives' own
+// `cancel` — OData resolves same-named bound actions by their bound type).
+annotate CustomerPortalService.Offers with @(
+    UI.LineItem                 : [
+        {Value: vehicle_ID, Label: 'Vehicle'},
+        {Value: offeredPrice},
+        {Value: currency},
+        {Value: status},
+        {Value: desiredPickupDate}
+    ],
+    UI.FieldGroup #OfferDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: vehicle_ID, Label: 'Vehicle'},
+            {Value: offeredPrice},
+            {Value: currency},
+            {Value: desiredPickupDate},
+            {Value: status},
+            {Value: rejectionNotes}
+        ]
+    },
+    UI.Facets                   : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Offer Details',
+            Target: '@UI.FieldGroup#OfferDetails'
+        }
+    ],
+    UI.Identification            : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.resubmit',
+            Label : 'Resubmit Offer'
+        }
+    ]
+);
+
+// "My Test Drives" (EPIC20-T2) — fourth entity in app/customer-portal.
+annotate CustomerPortalService.TestDrives with @(
+    UI.LineItem                     : [
+        {Value: vehicle_ID, Label: 'Vehicle'},
+        {Value: scheduledAt},
+        {Value: durationMinutes, Label: 'Duration (min)'},
+        {Value: status}
+    ],
+    UI.FieldGroup #TestDriveDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: vehicle_ID, Label: 'Vehicle'},
+            {Value: scheduledAt},
+            {Value: durationMinutes, Label: 'Duration (min)'},
+            {Value: status},
+            {Value: notes}
+        ]
+    },
+    UI.Facets                       : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Test Drive Details',
+            Target: '@UI.FieldGroup#TestDriveDetails'
+        }
+    ],
+    UI.Identification                : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.cancel',
+            Label : 'Cancel Test Drive'
         }
     ]
 );

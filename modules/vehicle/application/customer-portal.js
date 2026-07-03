@@ -98,4 +98,57 @@ module.exports = cds.service.impl(async function (srv) {
     const resSrv = await cds.connect.to('ReservationService');
     return resSrv.send('cancelReservation', { reservationId });
   });
+
+  // submitOffer/requestTestDrive (EPIC20-T2), same bound-action delegation
+  // pattern as reserve/addToFavorites above.
+  srv.on('submitOffer', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const { offeredPrice, currency, desiredPickupDate, notes } = req.data;
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('submitOffer', {
+      vehicleId,
+      offeredPrice,
+      currency,
+      desiredPickupDate,
+      notes,
+    });
+  });
+
+  // requestTestDrive needs branchId, which TestDriveService.requestTestDrive
+  // takes as a plain parameter (unlike submitOffer, which derives branch_ID
+  // from the vehicle row itself internally). Read it here from the bound
+  // vehicle so the customer never has to type a branch ID they have no
+  // reason to know.
+  srv.on('requestTestDrive', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const { scheduledAt, notes } = req.data;
+    const { Vehicles } = cds.entities('automarket');
+    const vehicle = await SELECT.one.from(Vehicles).columns('branch_ID').where({ ID: vehicleId });
+    if (!vehicle) return req.error(404, 'Vehicle not found');
+
+    const tdSrv = await cds.connect.to('TestDriveService');
+    return tdSrv.send('requestTestDrive', {
+      vehicleId,
+      branchId: vehicle.branch_ID,
+      scheduledAt,
+      notes,
+    });
+  });
+
+  // resubmit (EPIC20-T2): bound to Offers, delegates to OfferService.resubmitOffer.
+  srv.on('resubmit', 'Offers', async (req) => {
+    const [{ ID: offerId }] = req.params;
+    const { offeredPrice, desiredPickupDate } = req.data;
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('resubmitOffer', { offerId, offeredPrice, desiredPickupDate });
+  });
+
+  // cancel (EPIC20-T2): bound to TestDrives, delegates to
+  // TestDriveService.cancelTestDrive, which already enforces ownership for
+  // the Customer role.
+  srv.on('cancel', 'TestDrives', async (req) => {
+    const [{ ID: testDriveId }] = req.params;
+    const tdSrv = await cds.connect.to('TestDriveService');
+    return tdSrv.send('cancelTestDrive', { testDriveId });
+  });
 });

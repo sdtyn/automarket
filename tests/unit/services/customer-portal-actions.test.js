@@ -22,6 +22,8 @@ const VEHICLE_RESERVE_HAPPY = '40000000-4000-4000-4000-400000000027';
 const VEHICLE_RESERVE_CONFLICT = '40000000-4000-4000-4000-400000000028';
 const VEHICLE_CANCEL_OWNERSHIP = '40000000-4000-4000-4000-400000000029';
 const VEHICLE_FAVORITE = '40000000-4000-4000-4000-400000000030';
+const VEHICLE_OFFER = '40000000-4000-4000-4000-400000000034'; // branch aaa...004
+const VEHICLE_TEST_DRIVE = '40000000-4000-4000-4000-400000000035'; // branch aaa...004
 
 describe('CustomerPortalService — bound actions (EPIC20-T1)', () => {
   jest.setTimeout(60000);
@@ -128,6 +130,96 @@ describe('CustomerPortalService — bound actions (EPIC20-T1)', () => {
         vehicle_ID: VEHICLE_FAVORITE,
       });
       expect(gone).toBeUndefined();
+    });
+  });
+
+  // EPIC20-T2
+  describe('submitOffer / resubmit', () => {
+    it('creates an offer owned by the caller with the vehicle branch, not a caller-supplied one', async () => {
+      const res = await POST(
+        `/catalog/Vehicles(${VEHICLE_OFFER})/submitOffer`,
+        { offeredPrice: 25000, currency: 'EUR', desiredPickupDate: '2026-08-01', notes: 'test' },
+        { auth: customerBauerAuth }
+      );
+      const offerId = res.data.value ?? res.data;
+      expect(offerId).toBeDefined();
+
+      const { Offers, Vehicles } = cds.entities('automarket');
+      const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+      const vehicle = await SELECT.one.from(Vehicles).where({ ID: VEHICLE_OFFER });
+      expect(offer.customer_ID).toBe('ccc00000-0000-0000-0000-000000000004');
+      expect(offer.branch_ID).toBe(vehicle.branch_ID);
+      expect(offer.status).toBe('SUBMITTED');
+    });
+
+    it('lets the owner resubmit only after the offer is REJECTED (409 otherwise)', async () => {
+      const submitRes = await POST(
+        `/catalog/Vehicles(${VEHICLE_OFFER})/submitOffer`,
+        { offeredPrice: 20000, currency: 'EUR', desiredPickupDate: '2026-08-01', notes: '' },
+        { auth: customerHoffmannAuth }
+      );
+      const offerId = submitRes.data.value ?? submitRes.data;
+
+      // Still SUBMITTED — resubmit must be rejected.
+      const tooEarly = await POST(
+        `/catalog/Offers(${offerId})/resubmit`,
+        { offeredPrice: 21000, desiredPickupDate: '2026-08-02' },
+        { auth: customerHoffmannAuth }
+      ).catch((e) => e);
+      expect(tooEarly.status).toBe(409);
+
+      const { Offers } = cds.entities('automarket');
+      await UPDATE(Offers).set({ status: 'REJECTED' }).where({ ID: offerId });
+
+      const res = await POST(
+        `/catalog/Offers(${offerId})/resubmit`,
+        { offeredPrice: 22000, desiredPickupDate: '2026-08-03' },
+        { auth: customerHoffmannAuth }
+      );
+      expect(res.data.value ?? res.data).toBe(true);
+
+      const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+      expect(offer.status).toBe('SUBMITTED');
+      expect(Number(offer.offeredPrice)).toBe(22000);
+    });
+  });
+
+  // EPIC20-T2
+  describe('requestTestDrive / cancel (TestDrives)', () => {
+    it('auto-derives branchId from the vehicle — the customer never supplies it', async () => {
+      const res = await POST(
+        `/catalog/Vehicles(${VEHICLE_TEST_DRIVE})/requestTestDrive`,
+        { scheduledAt: '2026-08-10T10:00:00Z', notes: 'weekend' },
+        { auth: customerBauerAuth }
+      );
+      const testDriveId = res.data.value ?? res.data;
+      expect(testDriveId).toBeDefined();
+
+      const { TestDrives, Vehicles } = cds.entities('automarket');
+      const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+      const vehicle = await SELECT.one.from(Vehicles).where({ ID: VEHICLE_TEST_DRIVE });
+      expect(testDrive.branch_ID).toBe(vehicle.branch_ID);
+      expect(testDrive.customer_ID).toBe('ccc00000-0000-0000-0000-000000000004');
+    });
+
+    it('cancel (bound to TestDrives) is a distinct overload from cancel (bound to Reservations)', async () => {
+      const res = await POST(
+        `/catalog/Vehicles(${VEHICLE_TEST_DRIVE})/requestTestDrive`,
+        { scheduledAt: '2026-09-01T09:00:00Z', notes: '' },
+        { auth: customerHoffmannAuth }
+      );
+      const testDriveId = res.data.value ?? res.data;
+
+      const cancelRes = await POST(
+        `/catalog/TestDrives(${testDriveId})/cancel`,
+        {},
+        { auth: customerHoffmannAuth }
+      );
+      expect(cancelRes.data.value ?? cancelRes.data).toBe(true);
+
+      const { TestDrives } = cds.entities('automarket');
+      const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
+      expect(testDrive.status).toBe('CANCELLED');
     });
   });
 });

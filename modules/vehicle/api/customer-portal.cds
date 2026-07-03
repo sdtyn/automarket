@@ -42,6 +42,21 @@ service CustomerPortalService @(path: '/catalog') {
 
             @requires: 'Customer'
             action removeFromFavorites()    returns Boolean;
+
+            // submitOffer/requestTestDrive (EPIC20-T2), same delegation
+            // pattern as reserve above. branchId is not a parameter here —
+            // it is auto-derived from the bound Vehicle's own branch_ID in
+            // the handler (customer-portal.js), sparing the customer a field
+            // they have no reason to type in themselves.
+            @requires: 'Customer'
+            action submitOffer(offeredPrice : Decimal,
+                               currency : String,
+                               desiredPickupDate : Date,
+                               notes : String)   returns String;
+
+            @requires: 'Customer'
+            action requestTestDrive(scheduledAt : Timestamp,
+                                    notes : String) returns String;
         };
 
     // VehicleImages is needed for the detail page image gallery.
@@ -73,6 +88,52 @@ service CustomerPortalService @(path: '/catalog') {
     ]
     entity Reservations  as
         projection on automarket.Reservations
+        actions {
+            @requires: 'Customer'
+            action cancel() returns Boolean;
+        };
+
+    // Offers (EPIC20-T2): customer-scoped "My Offers" view — same restrict
+    // shape as Reservations above. resubmit is only valid on a REJECTED offer
+    // (enforced in the delegated OfferService.resubmitOffer handler, not
+    // re-checked here).
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        },
+        {
+            grant: 'resubmit',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        }
+    ]
+    entity Offers        as
+        projection on automarket.Offers
+        actions {
+            @requires: 'Customer'
+            action resubmit(offeredPrice : Decimal, desiredPickupDate : Date) returns Boolean;
+        };
+
+    // TestDrives (EPIC20-T2): customer-scoped "My Test Drives" view. cancel
+    // here always means "cancel my own" — the Operator/Manager cancel path
+    // (any test drive, any customer) is EPIC20-T4's OperatorPortalService job,
+    // not this one.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        },
+        {
+            grant: 'cancel',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        }
+    ]
+    entity TestDrives    as
+        projection on automarket.TestDrives
         actions {
             @requires: 'Customer'
             action cancel() returns Boolean;
