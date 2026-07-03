@@ -132,6 +132,26 @@
           "pattern": "TestDrivesList/TestDrives({key}):?query:",
           "name": "TestDrivesObjectPage",
           "target": "TestDrivesObjectPage"
+        },
+        {
+          "pattern": "OrdersList:?query:",
+          "name": "OrdersList",
+          "target": "OrdersList"
+        },
+        {
+          "pattern": "OrdersList/Orders({key}):?query:",
+          "name": "OrdersObjectPage",
+          "target": "OrdersObjectPage"
+        },
+        {
+          "pattern": "PaymentsList:?query:",
+          "name": "PaymentsList",
+          "target": "PaymentsList"
+        },
+        {
+          "pattern": "PaymentsList/Payments({key}):?query:",
+          "name": "PaymentsObjectPage",
+          "target": "PaymentsObjectPage"
         }
       ],
       "targets": {
@@ -276,6 +296,78 @@
             "settings": {
               "editableHeaderContent": false,
               "entitySet": "TestDrives"
+            }
+          }
+        },
+        "OrdersList": {
+          "type": "Component",
+          "id": "OrdersList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Orders",
+              "variantManagement": "Page",
+              "navigation": {
+                "Orders": {
+                  "detail": {
+                    "route": "OrdersObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "OrdersObjectPage": {
+          "type": "Component",
+          "id": "OrdersObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "Orders"
+            }
+          }
+        },
+        "PaymentsList": {
+          "type": "Component",
+          "id": "PaymentsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Payments",
+              "variantManagement": "Page",
+              "navigation": {
+                "Payments": {
+                  "detail": {
+                    "route": "PaymentsObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "PaymentsObjectPage": {
+          "type": "Component",
+          "id": "PaymentsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "Payments"
             }
           }
         }

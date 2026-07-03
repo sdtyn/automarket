@@ -81,6 +81,11 @@ annotate CustomerPortalService.Vehicles with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.requestTestDrive',
             Label : 'Request a Test Drive'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.checkout',
+            Label : 'Buy This Vehicle'
         }
     ]
 );
@@ -197,6 +202,84 @@ annotate CustomerPortalService.TestDrives with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.cancel',
             Label : 'Cancel Test Drive'
+        }
+    ]
+);
+
+// "My Orders" (EPIC20-T3) — the critical browse → checkout → pay demo path.
+// pay/retryPay show up in the auto-generated dialog with only the fields the
+// action actually declares (pay: provider; retryPay: none) — amount,
+// currency, and idempotencyKey are never customer-facing (see
+// customer-portal.js: derived from the order's own vehicle price / generated
+// server-side).
+annotate CustomerPortalService.Orders with @(
+    UI.LineItem                  : [
+        {Value: vehicle_ID, Label: 'Vehicle'},
+        {Value: deliveryType},
+        {Value: status},
+        {Value: orderDate}
+    ],
+    UI.FieldGroup #OrderDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: vehicle_ID, Label: 'Vehicle'},
+            {Value: deliveryType},
+            {Value: status},
+            {Value: orderDate}
+        ]
+    },
+    UI.Facets                    : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Order Details',
+            Target: '@UI.FieldGroup#OrderDetails'
+        }
+    ],
+    UI.Identification             : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.pay',
+            Label : 'Pay Now'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.retryPay',
+            Label : 'Retry Payment'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.cancel',
+            Label : 'Cancel Order'
+        }
+    ]
+);
+
+// "Payments" (EPIC20-T3) — read-only payment history, no bound actions
+// (capture/fail/refund are Admin/Manager-only, EPIC20-T5's job).
+annotate CustomerPortalService.Payments with @(
+    UI.LineItem                   : [
+        {Value: order_ID, Label: 'Order'},
+        {Value: provider},
+        {Value: amount},
+        {Value: currency},
+        {Value: status}
+    ],
+    UI.FieldGroup #PaymentDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: order_ID, Label: 'Order'},
+            {Value: provider},
+            {Value: amount},
+            {Value: currency},
+            {Value: status},
+            {Value: transactionReference}
+        ]
+    },
+    UI.Facets                     : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Payment Details',
+            Target: '@UI.FieldGroup#PaymentDetails'
         }
     ]
 );

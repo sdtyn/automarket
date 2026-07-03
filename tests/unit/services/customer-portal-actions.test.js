@@ -15,6 +15,7 @@ const ROOT = path.join(__dirname, '../../..');
 
 const customerBauerAuth = { username: 'customer.bauer@automarkt.de', password: 'Test@1234' };
 const customerHoffmannAuth = { username: 'customer.hoffmann@automarkt.de', password: 'Test@1234' };
+const adminAuth = { username: 'admin.mueller@automarkt.de', password: 'Test@1234' };
 
 // FOR_SALE vehicles seeded in db/data/automarket.Vehicles.csv — each scenario
 // uses its own vehicle so reservation state in one test never leaks into another.
@@ -24,6 +25,10 @@ const VEHICLE_CANCEL_OWNERSHIP = '40000000-4000-4000-4000-400000000029';
 const VEHICLE_FAVORITE = '40000000-4000-4000-4000-400000000030';
 const VEHICLE_OFFER = '40000000-4000-4000-4000-400000000034'; // branch aaa...004
 const VEHICLE_TEST_DRIVE = '40000000-4000-4000-4000-400000000035'; // branch aaa...004
+const VEHICLE_CHECKOUT_HAPPY = '40000000-4000-4000-4000-400000000037'; // price 119900.00 EUR
+const VEHICLE_CHECKOUT_OWNERSHIP = '40000000-4000-4000-4000-400000000038';
+const VEHICLE_CHECKOUT_CANCEL = '40000000-4000-4000-4000-400000000040';
+const VEHICLE_CHECKOUT_RETRY = '40000000-4000-4000-4000-400000000039';
 
 describe('CustomerPortalService — bound actions (EPIC20-T1)', () => {
   jest.setTimeout(60000);
@@ -220,6 +225,113 @@ describe('CustomerPortalService — bound actions (EPIC20-T1)', () => {
       const { TestDrives } = cds.entities('automarket');
       const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
       expect(testDrive.status).toBe('CANCELLED');
+    });
+  });
+
+  // EPIC20-T3 — the critical browse → checkout → pay demo path.
+  describe('checkout / pay / retryPay / cancel (Orders)', () => {
+    it('checkout creates an order for the caller and pay auto-derives amount/currency from the vehicle price', async () => {
+      const orderRes = await POST(
+        `/catalog/Vehicles(${VEHICLE_CHECKOUT_HAPPY})/checkout`,
+        { deliveryType: 'CUSTOMER_PICKUP' },
+        { auth: customerBauerAuth }
+      );
+      const orderId = orderRes.data.value ?? orderRes.data;
+      expect(orderId).toBeDefined();
+
+      const { Orders } = cds.entities('automarket');
+      const order = await SELECT.one.from(Orders).where({ ID: orderId });
+      expect(order.customer_ID).toBe('ccc00000-0000-0000-0000-000000000004');
+      expect(order.deliveryType).toBe('CUSTOMER_PICKUP');
+
+      const payRes = await POST(
+        `/catalog/Orders(${orderId})/pay`,
+        { provider: 'StripeDE' },
+        { auth: customerBauerAuth }
+      );
+      const session = payRes.data.value ?? payRes.data;
+      const paymentId = session.replace('PSP-SESSION-', '');
+
+      const { Payments } = cds.entities('automarket');
+      const payment = await SELECT.one.from(Payments).where({ ID: paymentId });
+      // Vehicle 037's seeded price is 119900.00 EUR — not a value this test made up.
+      expect(Number(payment.amount)).toBe(119900);
+      expect(payment.currency).toBe('EUR');
+      expect(payment.idempotencyKey).toBeDefined();
+    });
+
+    it("hides another customer's order and rejects cancelling it (403)", async () => {
+      const orderRes = await POST(
+        `/catalog/Vehicles(${VEHICLE_CHECKOUT_OWNERSHIP})/checkout`,
+        { deliveryType: 'HOME_DELIVERY' },
+        { auth: customerBauerAuth }
+      );
+      const orderId = orderRes.data.value ?? orderRes.data;
+
+      const listRes = await GET(`/catalog/Orders?$filter=ID eq ${orderId}`, {
+        auth: customerHoffmannAuth,
+      });
+      expect(listRes.data.value ?? listRes.data).toEqual([]);
+
+      const err = await POST(
+        `/catalog/Orders(${orderId})/cancel`,
+        {},
+        { auth: customerHoffmannAuth }
+      ).catch((e) => e);
+      expect(err.status).toBe(403);
+    });
+
+    it('cancel transitions a CREATED order to CANCELLED', async () => {
+      const orderRes = await POST(
+        `/catalog/Vehicles(${VEHICLE_CHECKOUT_CANCEL})/checkout`,
+        { deliveryType: 'HOME_DELIVERY' },
+        { auth: customerHoffmannAuth }
+      );
+      const orderId = orderRes.data.value ?? orderRes.data;
+
+      const cancelRes = await POST(
+        `/catalog/Orders(${orderId})/cancel`,
+        {},
+        { auth: customerHoffmannAuth }
+      );
+      expect(cancelRes.data.value ?? cancelRes.data).toBe(true);
+
+      const { Orders } = cds.entities('automarket');
+      const order = await SELECT.one.from(Orders).where({ ID: orderId });
+      expect(order.status).toBe('CANCELLED');
+    });
+
+    it('retryPay opens a new payment attempt after failPayment, copying provider/amount/currency (EPIC17-T1 fix in action)', async () => {
+      const orderRes = await POST(
+        `/catalog/Vehicles(${VEHICLE_CHECKOUT_RETRY})/checkout`,
+        { deliveryType: 'CUSTOMER_PICKUP' },
+        { auth: customerBauerAuth }
+      );
+      const orderId = orderRes.data.value ?? orderRes.data;
+
+      const payRes = await POST(
+        `/catalog/Orders(${orderId})/pay`,
+        { provider: 'StripeDE' },
+        { auth: customerBauerAuth }
+      );
+      const failedPaymentId = (payRes.data.value ?? payRes.data).replace('PSP-SESSION-', '');
+      await POST('/payments/failPayment', { paymentId: failedPaymentId }, { auth: adminAuth });
+
+      const retryRes = await POST(
+        `/catalog/Orders(${orderId})/retryPay`,
+        {},
+        { auth: customerBauerAuth }
+      );
+      const retryPaymentId = (retryRes.data.value ?? retryRes.data).replace('PSP-SESSION-', '');
+      expect(retryPaymentId).not.toBe(failedPaymentId);
+
+      const { Payments, Orders } = cds.entities('automarket');
+      const retryPayment = await SELECT.one.from(Payments).where({ ID: retryPaymentId });
+      expect(retryPayment.status).toBe('INITIATED');
+      expect(retryPayment.provider).toBe('StripeDE');
+
+      const order = await SELECT.one.from(Orders).where({ ID: orderId });
+      expect(order.status).toBe('PENDING_PAYMENT');
     });
   });
 });

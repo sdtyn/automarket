@@ -1,4 +1,6 @@
 using {automarket} from '../db/vehicle';
+using {automarket.Orders as SalesOrders} from '../../sales/db/sales';
+using {automarket.Payments as SalesPayments} from '../../payment/db/payment';
 
 // CustomerPortalService is the public-facing vehicle catalog.
 // @requires: 'any' opens it to unauthenticated guests. The status = FOR_SALE
@@ -57,6 +59,13 @@ service CustomerPortalService @(path: '/catalog') {
             @requires: 'Customer'
             action requestTestDrive(scheduledAt : Timestamp,
                                     notes : String) returns String;
+
+            // checkout (EPIC20-T3): places a purchase order for this vehicle.
+            // Delegates to SalesService.createOrder — vehicleId comes from the
+            // bound entity, not a parameter. Returns the new orderId so the
+            // customer lands on "My Orders" to complete payment.
+            @requires: 'Customer'
+            action checkout(deliveryType : String) returns String;
         };
 
     // VehicleImages is needed for the detail page image gallery.
@@ -138,6 +147,51 @@ service CustomerPortalService @(path: '/catalog') {
             @requires: 'Customer'
             action cancel() returns Boolean;
         };
+
+    // Orders (EPIC20-T3): customer-scoped "My Orders" view — the critical
+    // browse→reserve/offer→buy→pay demo path lands here. pay/retryPay omit
+    // provider defaults and all PSP-plumbing parameters (amount, currency,
+    // idempotencyKey) that the customer has no reason to supply — the handler
+    // (customer-portal.js) derives amount/currency from the order's own
+    // vehicle price and auto-generates the idempotencyKey server-side.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        },
+        {
+            grant: [
+                'cancel',
+                'pay',
+                'retryPay'
+            ],
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        }
+    ]
+    entity Orders        as
+        projection on SalesOrders
+        actions {
+            @requires: 'Customer'
+            action cancel()                returns Boolean;
+
+            @requires: 'Customer'
+            action pay(provider : String)  returns String;
+
+            @requires: 'Customer'
+            action retryPay()              returns String;
+        };
+
+    // Payments (EPIC20-T3): read-only payment history for the customer's own
+    // orders. No bound actions — capture/fail/refund are Admin/Manager-only
+    // PSP-simulation actions, EPIC20-T5's job, not this one.
+    @restrict: [{
+        grant: 'READ',
+        to   : 'Customer',
+        where: 'order.customer_ID = $user'
+    }]
+    entity Payments      as projection on SalesPayments;
 
     // getFavoriteVehicles: returns the FOR_SALE vehicles the calling customer
     // has favorited. Authentication required — guests have no favorites.

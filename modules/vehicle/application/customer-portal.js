@@ -151,4 +151,56 @@ module.exports = cds.service.impl(async function (srv) {
     const tdSrv = await cds.connect.to('TestDriveService');
     return tdSrv.send('cancelTestDrive', { testDriveId });
   });
+
+  // checkout (EPIC20-T3): bound to Vehicles, delegates to SalesService.createOrder.
+  srv.on('checkout', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const { deliveryType } = req.data;
+    const salesSrv = await cds.connect.to('SalesService');
+    return salesSrv.send('createOrder', { vehicleId, deliveryType });
+  });
+
+  // cancel (EPIC20-T3): bound to Orders, delegates to SalesService.cancelOrder.
+  srv.on('cancel', 'Orders', async (req) => {
+    const [{ ID: orderId }] = req.params;
+    const salesSrv = await cds.connect.to('SalesService');
+    return salesSrv.send('cancelOrder', { orderId });
+  });
+
+  // pay (EPIC20-T3): bound to Orders. amount/currency are read from the
+  // order's own vehicle price — not a customer-supplied value, so there is
+  // no way to under/over-pay by editing a form field. idempotencyKey is
+  // generated here rather than exposed as a parameter: the customer has no
+  // reason to manage one, and PaymentService's own "one active payment per
+  // order" guard already protects against accidental double-submission.
+  srv.on('pay', 'Orders', async (req) => {
+    const [{ ID: orderId }] = req.params;
+    const { provider } = req.data;
+    const { Orders: OrdersEntity, Vehicles } = cds.entities('automarket');
+    const order = await SELECT.one.from(OrdersEntity).columns('vehicle_ID').where({ ID: orderId });
+    if (!order) return req.error(404, 'Order not found');
+    const vehicle = await SELECT.one
+      .from(Vehicles)
+      .columns('price', 'currency')
+      .where({ ID: order.vehicle_ID });
+
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('initiatePayment', {
+      orderId,
+      provider,
+      idempotencyKey: cds.utils.uuid(),
+      amount: vehicle.price,
+      currency: vehicle.currency,
+    });
+  });
+
+  // retryPay (EPIC20-T3): bound to Orders. No parameters at all — provider,
+  // amount, and currency are copied from the last FAILED payment by
+  // PaymentService.retryPayment itself; idempotencyKey is generated here for
+  // the same reason as pay above.
+  srv.on('retryPay', 'Orders', async (req) => {
+    const [{ ID: orderId }] = req.params;
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('retryPayment', { orderId, idempotencyKey: cds.utils.uuid() });
+  });
 });

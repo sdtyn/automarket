@@ -21,7 +21,7 @@ or "just the button."
 |--------|-------------|--------|
 | EPIC20-T1 | Customer — Reservations & Favorites | Done |
 | EPIC20-T2 | Customer — Offers & Test Drives | Done |
-| EPIC20-T3 | Customer — Checkout & Payment | Open |
+| EPIC20-T3 | Customer — Checkout & Payment | Done |
 | EPIC20-T4 | Operator — Vehicle & approval workflows | Open |
 | EPIC20-T5 | Manager & Admin — Offer approval and PSP simulation | Open |
 | EPIC20-T6 | Admin — User & Branch management actions | Open |
@@ -494,5 +494,163 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: `Test Suites: 14 passed, 14 total`, `Tests: 134 passed, 134 total`.
+
+---
+
+## EPIC20-T3: Customer — Checkout & Payment
+
+### What & Why
+
+The critical demo path: `checkout` (bound to `Vehicles`, delegates to `SalesService.createOrder`)
+lands the customer on a new "My Orders" view (`Orders` + `Payments`, both new customer-scoped
+projections in `CustomerPortalService`), with `pay`/`retryPay`/`cancel` bound to `Orders`. Same
+delegation pattern as T1/T2 throughout — no business logic reimplemented, just
+`cds.connect.to(...).send(...)` calls into `SalesService`/`PaymentService`.
+
+**Every PSP-plumbing parameter is deliberately kept off the customer-facing action signatures —
+not because Fiori Elements requires it, but because the customer has no reason to supply them
+and doing so would be a real UX/security downgrade:**
+- `pay(provider: String)` — that's the *only* parameter. `amount`/`currency` are read server-side
+  from the order's own vehicle (`SELECT ... Vehicles WHERE ID = order.vehicle_ID`), not typed
+  into a form. Verified directly: `Orders(id)/pay` for a vehicle seeded at `119900.00 EUR`
+  produces a `Payment` row with exactly `amount: 119900, currency: 'EUR'` — there was never a
+  code path where a client could submit a different number.
+- `retryPay()` — no parameters at all. `PaymentService.retryPayment` already copies
+  `provider`/`amount`/`currency` from the last `FAILED` payment; the bound action only needs to
+  supply `orderId` (from the bound key) and a fresh `idempotencyKey`.
+- `idempotencyKey` is never a parameter on either action — generated with `cds.utils.uuid()` in
+  the handler. The customer has no reason to manage one, and `PaymentService`'s own "one active
+  payment per order" guard is what actually protects against duplicate submission, not the key.
+
+**This ticket is also the first end-to-end proof that EPIC17-T1's fix (`PaymentFailed` no longer
+cancels the order — see `docs/error-log.md`) actually delivers what it was fixed for.** The
+`retryPay` test does the full cycle for real: `checkout` → `pay` → admin `failPayment` →
+`retryPay` → new `INITIATED` payment with the same `provider`, order back to `PENDING_PAYMENT`
+(not stuck `CANCELLED`). Before EPIC17-T1, this sequence was structurally impossible.
+
+**Verified end to end** against `cds-serve` (per T1's `cds watch` / `UI.Identification` finding —
+`docs/cap-notes.md` §10) + a live `ui5 serve` instance: full `checkout → pay` cycle through the
+proxy with a real vehicle price; ownership enforcement (another customer's order is invisible and
+un-cancellable, `403`); `cancel` transitions `CREATED` → `CANCELLED`. `app/customer-portal` now
+routes six entities (`Vehicles`, `Reservations`, `Offers`, `TestDrives`, `Orders`, `Payments`),
+each with its own FLP tile. Same caveat as every ticket: pixel-level rendering not verified.
+
+### Step-by-step
+
+#### 1. Modify `modules/vehicle/api/customer-portal.cds`
+
+Import `Orders`/`Payments` from their owning modules, add `checkout` to the `Vehicles`
+`actions {}` block, and add two new customer-scoped projections:
+
+```cds
+using {automarket} from '../db/vehicle';
+using {automarket.Orders as SalesOrders} from '../../sales/db/sales';
+using {automarket.Payments as SalesPayments} from '../../payment/db/payment';
+```
+
+```cds
+            // checkout (EPIC20-T3): places a purchase order for this vehicle.
+            // Delegates to SalesService.createOrder — vehicleId comes from the
+            // bound entity, not a parameter. Returns the new orderId so the
+            // customer lands on "My Orders" to complete payment.
+            @requires: 'Customer'
+            action checkout(deliveryType : String) returns String;
+```
+
+```cds
+    @restrict: [
+        { grant: 'READ', to: 'Customer', where: 'customer_ID = $user' },
+        { grant: ['cancel', 'pay', 'retryPay'], to: 'Customer', where: 'customer_ID = $user' }
+    ]
+    entity Orders as
+        projection on SalesOrders
+        actions {
+            @requires: 'Customer'
+            action cancel()                returns Boolean;
+            @requires: 'Customer'
+            action pay(provider : String)  returns String;
+            @requires: 'Customer'
+            action retryPay()              returns String;
+        };
+
+    @restrict: [{
+        grant: 'READ',
+        to   : 'Customer',
+        where: 'order.customer_ID = $user'
+    }]
+    entity Payments as projection on SalesPayments;
+```
+
+#### 2. Modify `modules/vehicle/application/customer-portal.js`
+
+Add four handlers — see the file for full content. `pay`'s key line, reading the price server-side
+instead of trusting a client-supplied amount:
+
+```js
+  srv.on('pay', 'Orders', async (req) => {
+    const [{ ID: orderId }] = req.params;
+    const { provider } = req.data;
+    const { Orders: OrdersEntity, Vehicles } = cds.entities('automarket');
+    const order = await SELECT.one.from(OrdersEntity).columns('vehicle_ID').where({ ID: orderId });
+    if (!order) return req.error(404, 'Order not found');
+    const vehicle = await SELECT.one.from(Vehicles).columns('price', 'currency').where({ ID: order.vehicle_ID });
+
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('initiatePayment', {
+      orderId, provider, idempotencyKey: cds.utils.uuid(),
+      amount: vehicle.price, currency: vehicle.currency,
+    });
+  });
+```
+
+#### 3. Modify `modules/vehicle/api/customer-portal-ui.cds`
+
+Add a `checkout` `UI.DataFieldForAction` to the existing `Vehicles` `UI.Identification`, and two
+new `annotate` blocks for `Orders` (`pay`/`retryPay`/`cancel` buttons) and `Payments` (read-only,
+no `UI.Identification`) — see the file for full content.
+
+#### 4. Extend `tests/unit/services/customer-portal-actions.test.js`
+
+Four new tests: `checkout` + `pay` with price auto-derivation asserted against the vehicle's real
+seeded price; ownership (403 + hidden from list); `cancel` happy path; `retryPay` full cycle
+(`checkout → pay → admin failPayment → retryPay`), proving EPIC17-T1's fix end to end.
+
+#### 5. Extend `app/customer-portal/webapp/manifest.json` by hand
+
+Two more route pairs + target pairs (`OrdersList/...`, `PaymentsList/...`).
+
+#### 6. Extend `app/customer-portal/webapp/test/flpSandbox.html`
+
+Two more tiles, `../#OrdersList` and `../#PaymentsList`.
+
+#### 7. Refresh the local metadata snapshot
+
+```sh
+node_modules/.bin/cds-serve &   # NOT cds watch
+curl -s http://localhost:4004/catalog/\$metadata -o app/customer-portal/webapp/localService/mainService/metadata.xml
+```
+
+#### 8. Verify
+
+```sh
+node_modules/.bin/cds-serve                                  # backend, port 4004 — NOT cds watch
+(cd app/customer-portal && node_modules/.bin/ui5 serve --port 8086)
+```
+
+```sh
+curl -s http://localhost:8086/manifest.json | python3 -c "import json,sys; print([r['name'] for r in json.load(sys.stdin)['sap.ui5']['routing']['routes']])"
+curl -s http://localhost:8086/catalog/\$metadata | grep -c "UI.Identification"
+curl -s -u "customer.bauer@automarkt.de:Test@1234" -X POST "http://localhost:8086/catalog/Vehicles(<id>)/checkout" -H "Content-Type: application/json" -d '{"deliveryType":"CUSTOMER_PICKUP"}'
+curl -s -u "customer.bauer@automarkt.de:Test@1234" -X POST "http://localhost:8086/catalog/Orders(<orderId>)/pay" -H "Content-Type: application/json" -d '{"provider":"StripeDE"}'
+```
+
+Expected: twelve route names; `UI.Identification` count `5`; a real `orderId`, then a real
+`PSP-SESSION-...` back.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+Expected: `Test Suites: 14 passed, 14 total`, `Tests: 138 passed, 138 total`.
 
 ---
