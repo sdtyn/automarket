@@ -48,6 +48,30 @@ annotate CustomerPortalService.Vehicles with @(
             Label : 'Photos',
             Target: 'images/@UI.LineItem'
         }
+    ],
+
+    // Object Page header buttons (EPIC20-T1). Unlike the unbound createVehicle
+    // action (EPIC19-T3, operator-portal-ui.cds), these are bound to Vehicles
+    // (see customer-portal.cds), so @UI.DataFieldForAction can target them
+    // directly — verified end to end against a live backend, including the
+    // 409/403 error propagation through the ReservationService/FavoritesService
+    // delegation in customer-portal.js.
+    UI.Identification          : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.reserve',
+            Label : 'Reserve This Vehicle'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.addToFavorites',
+            Label : 'Add to Favorites'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.removeFromFavorites',
+            Label : 'Remove from Favorites'
+        }
     ]
 );
 
@@ -56,3 +80,41 @@ annotate CustomerPortalService.Vehicles with @(
 annotate CustomerPortalService.Vehicles with {
     primaryImageUrl @UI.IsImageURL: true;
 };
+
+// "My Reservations" (EPIC20-T1) — a customer-scoped List Report + Object Page,
+// second entity in app/customer-portal (same manual-merge-into-one-app pattern
+// as EPIC19-T5's Users/Branches). cancel is bound to Reservations, so it needs
+// its own @UI.DataFieldForAction (Object Page header button) rather than
+// being reachable only via ReservationService directly.
+annotate CustomerPortalService.Reservations with @(
+    UI.LineItem                 : [
+        {Value: vehicle_ID, Label: 'Vehicle'},
+        {Value: status},
+        {Value: expiresAt},
+        {Value: createdAt, Label: 'Requested'}
+    ],
+    UI.FieldGroup #ReservationDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: vehicle_ID, Label: 'Vehicle'},
+            {Value: status},
+            {Value: expiresAt},
+            {Value: notes},
+            {Value: createdAt, Label: 'Requested'}
+        ]
+    },
+    UI.Facets                   : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Reservation Details',
+            Target: '@UI.FieldGroup#ReservationDetails'
+        }
+    ],
+    UI.Identification            : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.cancel',
+            Label : 'Cancel Reservation'
+        }
+    ]
+);

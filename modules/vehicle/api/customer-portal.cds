@@ -24,11 +24,59 @@ service CustomerPortalService @(path: '/catalog') {
         projection on automarket.Vehicles {
             *,
             virtual null as primaryImageUrl : String
+        }
+        actions {
+            // reserve/addToFavorites/removeFromFavorites (EPIC20-T1) are bound
+            // to Vehicles so Fiori Elements can wire them onto the Object Page
+            // via @UI.DataFieldForAction (see customer-portal-ui.cds) — unlike
+            // the unbound actions this same UI need hit a wall on in EPIC19-T3.
+            // Handlers delegate to ReservationService/FavoritesService (below)
+            // rather than reimplementing their validation/state-machine logic.
+            @requires: 'Customer'
+            action reserve(notes : String)  returns {
+                reservationId : String
+            };
+
+            @requires: 'Customer'
+            action addToFavorites()         returns String;
+
+            @requires: 'Customer'
+            action removeFromFavorites()    returns Boolean;
         };
 
     // VehicleImages is needed for the detail page image gallery.
     @requires: 'any'
     entity VehicleImages as projection on automarket.VehicleImages;
+
+    // Reservations (EPIC20-T1): customer-scoped "My Reservations" view, so a
+    // logged-in customer can see and cancel their own reservations without
+    // leaving the catalog app. Same row-level restriction as ReservationService
+    // itself — this is a second, UI-facing exposure of the same underlying
+    // entity, not a relaxation of who can see what.
+    // @restrict is a grant whitelist — unlike Vehicles' scalar @requires:'any',
+    // any operation not explicitly listed here is denied by default, including
+    // bound actions. cancel needs its own grant entry (same ownership
+    // predicate as READ) or every caller gets 403 regardless of the action's
+    // own @requires — verified directly: without this grant, cancel returned
+    // 403 even for Admin.
+    @restrict: [
+        {
+            grant: 'READ',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        },
+        {
+            grant: 'cancel',
+            to   : 'Customer',
+            where: 'customer_ID = $user'
+        }
+    ]
+    entity Reservations  as
+        projection on automarket.Reservations
+        actions {
+            @requires: 'Customer'
+            action cancel() returns Boolean;
+        };
 
     // getFavoriteVehicles: returns the FOR_SALE vehicles the calling customer
     // has favorited. Authentication required — guests have no favorites.

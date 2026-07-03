@@ -1,331 +1,512 @@
 <?xml version="1.0" encoding="utf-8"?>
 <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
-    <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml">
-        <edmx:Include Alias="Common" Namespace="com.sap.vocabularies.Common.v1"/>
-    </edmx:Reference>
-    <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.xml">
-        <edmx:Include Alias="Core" Namespace="Org.OData.Core.V1"/>
-    </edmx:Reference>
-    <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/UI.xml">
-        <edmx:Include Alias="UI" Namespace="com.sap.vocabularies.UI.v1"/>
-    </edmx:Reference>
-    <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Validation.V1.xml">
-        <edmx:Include Alias="Validation" Namespace="Org.OData.Validation.V1"/>
-    </edmx:Reference>
-    <edmx:DataServices>
-        <Schema Namespace="CustomerPortalService" xmlns="http://docs.oasis-open.org/odata/ns/edm">
-            <Annotation Term="Core.Links">
-                <Collection>
-                    <Record>
-                        <PropertyValue Property="rel" String="author"/>
-                        <PropertyValue Property="href" String="https://cap.cloud.sap"/>
-                    </Record>
-                </Collection>
-            </Annotation>
-            <EntityContainer Name="EntityContainer">
-                <EntitySet Name="Vehicles" EntityType="CustomerPortalService.Vehicles">
-                    <NavigationPropertyBinding Path="images" Target="VehicleImages"/>
-                </EntitySet>
-                <EntitySet Name="VehicleImages" EntityType="CustomerPortalService.VehicleImages">
-                    <NavigationPropertyBinding Path="vehicle" Target="Vehicles"/>
-                </EntitySet>
-                <FunctionImport Name="getFavoriteVehicles" Function="CustomerPortalService.getFavoriteVehicles" EntitySet="Vehicles"/>
-                <FunctionImport Name="getPriceHistory" Function="CustomerPortalService.getPriceHistory"/>
-            </EntityContainer>
-            <EntityType Name="Vehicles">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
-                <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
-                <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
-                <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
-                <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
-                <Property Name="vin" Type="Edm.String" MaxLength="17"/>
-                <Property Name="plateNumber" Type="Edm.String" MaxLength="20"/>
-                <Property Name="brand" Type="Edm.String" MaxLength="100"/>
-                <Property Name="model" Type="Edm.String" MaxLength="100"/>
-                <Property Name="year" Type="Edm.Int32"/>
-                <Property Name="mileage" Type="Edm.Int32"/>
-                <Property Name="fuelType" Type="Edm.String"/>
-                <Property Name="transmission" Type="Edm.String"/>
-                <Property Name="color" Type="Edm.String" MaxLength="50"/>
-                <Property Name="price" Type="Edm.Decimal" Precision="15" Scale="2"/>
-                <Property Name="currency" Type="Edm.String" MaxLength="3" DefaultValue="TRY"/>
-                <Property Name="status" Type="Edm.String" DefaultValue="DRAFT"/>
-                <Property Name="branch_ID" Type="Edm.Guid"/>
-                <NavigationProperty Name="images" Type="Collection(CustomerPortalService.VehicleImages)" Partner="vehicle">
-                    <OnDelete Action="Cascade"/>
-                </NavigationProperty>
-                <Property Name="primaryImageUrl" Type="Edm.String"/>
-            </EntityType>
-            <EntityType Name="VehicleImages">
-                <Key>
-                    <PropertyRef Name="ID"/>
-                </Key>
-                <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
-                <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
-                <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
-                <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
-                <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
-                <NavigationProperty Name="vehicle" Type="CustomerPortalService.Vehicles" Partner="images">
-                    <ReferentialConstraint Property="vehicle_ID" ReferencedProperty="ID"/>
-                </NavigationProperty>
-                <Property Name="vehicle_ID" Type="Edm.Guid"/>
-                <Property Name="url" Type="Edm.String" MaxLength="1000"/>
-                <Property Name="sortOrder" Type="Edm.Int32" DefaultValue="0"/>
-            </EntityType>
-            <ComplexType Name="return_CustomerPortalService_getPriceHistory">
-                <Property Name="newPrice" Type="Edm.Decimal" Scale="variable"/>
-                <Property Name="currency" Type="Edm.String"/>
-                <Property Name="changedAt" Type="Edm.DateTimeOffset" Precision="7"/>
-            </ComplexType>
-            <Function Name="getFavoriteVehicles" IsBound="false" IsComposable="false">
-                <ReturnType Type="Collection(CustomerPortalService.Vehicles)"/>
-            </Function>
-            <Function Name="getPriceHistory" IsBound="false" IsComposable="false">
-                <Parameter Name="vehicleId" Type="Edm.String"/>
-                <ReturnType Type="Collection(CustomerPortalService.return_CustomerPortalService_getPriceHistory)" Nullable="true"/>
-            </Function>
-            <Annotations Target="CustomerPortalService.Vehicles">
-                <Annotation Term="UI.LineItem">
-                    <Collection>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="primaryImageUrl"/>
-                            <PropertyValue Property="Label" String="Image"/>
-                        </Record>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="brand"/>
-                        </Record>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="model"/>
-                        </Record>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="year"/>
-                        </Record>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="price"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-                <Annotation Term="UI.FieldGroup" Qualifier="VehicleSpecs">
-                    <Record Type="UI.FieldGroupType">
-                        <PropertyValue Property="Data">
-                            <Collection>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="brand"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="model"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="year"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="mileage"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="fuelType"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="transmission"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="color"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="price"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="currency"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="branch/name"/>
-                                    <PropertyValue Property="Label" String="Branch"/>
-                                </Record>
-                                <Record Type="UI.DataField">
-                                    <PropertyValue Property="Value" Path="branch/city"/>
-                                    <PropertyValue Property="Label" String="City"/>
-                                </Record>
-                            </Collection>
-                        </PropertyValue>
-                    </Record>
-                </Annotation>
-                <Annotation Term="UI.Facets">
-                    <Collection>
-                        <Record Type="UI.ReferenceFacet">
-                            <PropertyValue Property="Label" String="Specifications"/>
-                            <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#VehicleSpecs"/>
-                        </Record>
-                        <Record Type="UI.ReferenceFacet">
-                            <PropertyValue Property="Label" String="Photos"/>
-                            <PropertyValue Property="Target" AnnotationPath="images/@UI.LineItem"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/ID">
-                <Annotation Term="Core.ComputedDefaultValue" Bool="true"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/createdAt">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Immutable" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Common.Label" String="Created On"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/createdBy">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Immutable" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Core.Description" String="User's unique ID"/>
-                <Annotation Term="Common.Label" String="Created By"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/modifiedAt">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Common.Label" String="Changed On"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/modifiedBy">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Core.Description" String="User's unique ID"/>
-                <Annotation Term="Common.Label" String="Changed By"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/fuelType">
-                <Annotation Term="Validation.AllowedValues">
-                    <Collection>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="PETROL"/>
-                            <PropertyValue Property="Value" String="PETROL"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="DIESEL"/>
-                            <PropertyValue Property="Value" String="DIESEL"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="ELECTRIC"/>
-                            <PropertyValue Property="Value" String="ELECTRIC"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="HYBRID"/>
-                            <PropertyValue Property="Value" String="HYBRID"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="LPG"/>
-                            <PropertyValue Property="Value" String="LPG"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/transmission">
-                <Annotation Term="Validation.AllowedValues">
-                    <Collection>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="MANUAL"/>
-                            <PropertyValue Property="Value" String="MANUAL"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="AUTOMATIC"/>
-                            <PropertyValue Property="Value" String="AUTOMATIC"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="SEMI_AUTOMATIC"/>
-                            <PropertyValue Property="Value" String="SEMI_AUTOMATIC"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/status">
-                <Annotation Term="Validation.AllowedValues">
-                    <Collection>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="DRAFT"/>
-                            <PropertyValue Property="Value" String="DRAFT"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="FOR_SALE"/>
-                            <PropertyValue Property="Value" String="FOR_SALE"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="RESERVED"/>
-                            <PropertyValue Property="Value" String="RESERVED"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="PENDING_PAYMENT"/>
-                            <PropertyValue Property="Value" String="PENDING_PAYMENT"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="SOLD"/>
-                            <PropertyValue Property="Value" String="SOLD"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="DELIVERED"/>
-                            <PropertyValue Property="Value" String="DELIVERED"/>
-                        </Record>
-                        <Record Type="Validation.AllowedValue">
-                            <Annotation Term="Core.SymbolicName" String="ARCHIVED"/>
-                            <PropertyValue Property="Value" String="ARCHIVED"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.Vehicles/primaryImageUrl">
-                <Annotation Term="UI.IsImageURL" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages">
-                <Annotation Term="UI.LineItem">
-                    <Collection>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="url"/>
-                        </Record>
-                        <Record Type="UI.DataField">
-                            <PropertyValue Property="Value" Path="sortOrder"/>
-                            <PropertyValue Property="Label" String="Order"/>
-                        </Record>
-                    </Collection>
-                </Annotation>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages/ID">
-                <Annotation Term="Core.ComputedDefaultValue" Bool="true"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages/createdAt">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Immutable" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Common.Label" String="Created On"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages/createdBy">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Immutable" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Core.Description" String="User's unique ID"/>
-                <Annotation Term="Common.Label" String="Created By"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages/modifiedAt">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Common.Label" String="Changed On"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.VehicleImages/modifiedBy">
-                <Annotation Term="UI.HiddenFilter" Bool="true"/>
-                <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
-                <Annotation Term="Core.Computed" Bool="true"/>
-                <Annotation Term="Core.Description" String="User's unique ID"/>
-                <Annotation Term="Common.Label" String="Changed By"/>
-            </Annotations>
-            <Annotations Target="CustomerPortalService.getPriceHistory(Edm.String)/vehicleId">
-                <Annotation Term="Core.OptionalParameter">
-                    <Record Type="Core.OptionalParameterType"/>
-                </Annotation>
-            </Annotations>
-        </Schema>
-    </edmx:DataServices>
+  <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml">
+    <edmx:Include Alias="Common" Namespace="com.sap.vocabularies.Common.v1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.xml">
+    <edmx:Include Alias="Core" Namespace="Org.OData.Core.V1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/UI.xml">
+    <edmx:Include Alias="UI" Namespace="com.sap.vocabularies.UI.v1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Validation.V1.xml">
+    <edmx:Include Alias="Validation" Namespace="Org.OData.Validation.V1"/>
+  </edmx:Reference>
+  <edmx:DataServices>
+    <Schema Namespace="CustomerPortalService" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <Annotation Term="Core.Links">
+        <Collection>
+          <Record>
+            <PropertyValue Property="rel" String="author"/>
+            <PropertyValue Property="href" String="https://cap.cloud.sap"/>
+          </Record>
+        </Collection>
+      </Annotation>
+      <EntityContainer Name="EntityContainer">
+        <EntitySet Name="Vehicles" EntityType="CustomerPortalService.Vehicles">
+          <NavigationPropertyBinding Path="images" Target="VehicleImages"/>
+        </EntitySet>
+        <EntitySet Name="VehicleImages" EntityType="CustomerPortalService.VehicleImages">
+          <NavigationPropertyBinding Path="vehicle" Target="Vehicles"/>
+        </EntitySet>
+        <EntitySet Name="Reservations" EntityType="CustomerPortalService.Reservations">
+          <NavigationPropertyBinding Path="vehicle" Target="Vehicles"/>
+        </EntitySet>
+        <FunctionImport Name="getFavoriteVehicles" Function="CustomerPortalService.getFavoriteVehicles" EntitySet="Vehicles"/>
+        <FunctionImport Name="getPriceHistory" Function="CustomerPortalService.getPriceHistory"/>
+      </EntityContainer>
+      <EntityType Name="Vehicles">
+        <Key>
+          <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+        <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="vin" Type="Edm.String" MaxLength="17"/>
+        <Property Name="plateNumber" Type="Edm.String" MaxLength="20"/>
+        <Property Name="brand" Type="Edm.String" MaxLength="100"/>
+        <Property Name="model" Type="Edm.String" MaxLength="100"/>
+        <Property Name="year" Type="Edm.Int32"/>
+        <Property Name="mileage" Type="Edm.Int32"/>
+        <Property Name="fuelType" Type="Edm.String"/>
+        <Property Name="transmission" Type="Edm.String"/>
+        <Property Name="color" Type="Edm.String" MaxLength="50"/>
+        <Property Name="price" Type="Edm.Decimal" Precision="15" Scale="2"/>
+        <Property Name="currency" Type="Edm.String" MaxLength="3" DefaultValue="TRY"/>
+        <Property Name="status" Type="Edm.String" DefaultValue="DRAFT"/>
+        <Property Name="branch_ID" Type="Edm.Guid"/>
+        <NavigationProperty Name="images" Type="Collection(CustomerPortalService.VehicleImages)" Partner="vehicle">
+          <OnDelete Action="Cascade"/>
+        </NavigationProperty>
+        <Property Name="primaryImageUrl" Type="Edm.String"/>
+      </EntityType>
+      <EntityType Name="VehicleImages">
+        <Key>
+          <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+        <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
+        <NavigationProperty Name="vehicle" Type="CustomerPortalService.Vehicles" Partner="images">
+          <ReferentialConstraint Property="vehicle_ID" ReferencedProperty="ID"/>
+        </NavigationProperty>
+        <Property Name="vehicle_ID" Type="Edm.Guid"/>
+        <Property Name="url" Type="Edm.String" MaxLength="1000"/>
+        <Property Name="sortOrder" Type="Edm.Int32" DefaultValue="0"/>
+      </EntityType>
+      <EntityType Name="Reservations">
+        <Key>
+          <PropertyRef Name="ID"/>
+        </Key>
+        <Property Name="ID" Type="Edm.Guid" Nullable="false"/>
+        <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
+        <NavigationProperty Name="vehicle" Type="CustomerPortalService.Vehicles">
+          <ReferentialConstraint Property="vehicle_ID" ReferencedProperty="ID"/>
+        </NavigationProperty>
+        <Property Name="vehicle_ID" Type="Edm.Guid"/>
+        <Property Name="branch_ID" Type="Edm.Guid"/>
+        <Property Name="customer_ID" Type="Edm.String" MaxLength="255"/>
+        <Property Name="guestToken" Type="Edm.String" MaxLength="2000"/>
+        <Property Name="status" Type="Edm.String" DefaultValue="REQUESTED"/>
+        <Property Name="expiresAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="notes" Type="Edm.String" MaxLength="1000"/>
+      </EntityType>
+      <ComplexType Name="return_CustomerPortalService_Vehicles_reserve">
+        <Property Name="reservationId" Type="Edm.String"/>
+      </ComplexType>
+      <ComplexType Name="return_CustomerPortalService_getPriceHistory">
+        <Property Name="newPrice" Type="Edm.Decimal" Scale="variable"/>
+        <Property Name="currency" Type="Edm.String"/>
+        <Property Name="changedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+      </ComplexType>
+      <Action Name="reserve" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <Parameter Name="notes" Type="Edm.String"/>
+        <ReturnType Type="CustomerPortalService.return_CustomerPortalService_Vehicles_reserve"/>
+      </Action>
+      <Action Name="addToFavorites" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <ReturnType Type="Edm.String"/>
+      </Action>
+      <Action Name="removeFromFavorites" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="cancel" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Reservations"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Function Name="getFavoriteVehicles" IsBound="false" IsComposable="false">
+        <ReturnType Type="Collection(CustomerPortalService.Vehicles)"/>
+      </Function>
+      <Function Name="getPriceHistory" IsBound="false" IsComposable="false">
+        <Parameter Name="vehicleId" Type="Edm.String"/>
+        <ReturnType Type="Collection(CustomerPortalService.return_CustomerPortalService_getPriceHistory)" Nullable="true"/>
+      </Function>
+      <Annotations Target="CustomerPortalService.Vehicles">
+        <Annotation Term="UI.LineItem">
+          <Collection>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="primaryImageUrl"/>
+              <PropertyValue Property="Label" String="Image"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="brand"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="model"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="year"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="price"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.FieldGroup" Qualifier="VehicleSpecs">
+          <Record Type="UI.FieldGroupType">
+            <PropertyValue Property="Data">
+              <Collection>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="brand"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="model"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="year"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="mileage"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="fuelType"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="transmission"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="color"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="price"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="currency"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="branch/name"/>
+                  <PropertyValue Property="Label" String="Branch"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="branch/city"/>
+                  <PropertyValue Property="Label" String="City"/>
+                </Record>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+        <Annotation Term="UI.Facets">
+          <Collection>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Label" String="Specifications"/>
+              <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#VehicleSpecs"/>
+            </Record>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Label" String="Photos"/>
+              <PropertyValue Property="Target" AnnotationPath="images/@UI.LineItem"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.Identification">
+          <Collection>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.reserve"/>
+              <PropertyValue Property="Label" String="Reserve This Vehicle"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.addToFavorites"/>
+              <PropertyValue Property="Label" String="Add to Favorites"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.removeFromFavorites"/>
+              <PropertyValue Property="Label" String="Remove from Favorites"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/ID">
+        <Annotation Term="Core.ComputedDefaultValue" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/createdAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Created On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/createdBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Created By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/modifiedAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Changed On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/modifiedBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Changed By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/fuelType">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="PETROL"/>
+              <PropertyValue Property="Value" String="PETROL"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="DIESEL"/>
+              <PropertyValue Property="Value" String="DIESEL"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="ELECTRIC"/>
+              <PropertyValue Property="Value" String="ELECTRIC"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="HYBRID"/>
+              <PropertyValue Property="Value" String="HYBRID"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="LPG"/>
+              <PropertyValue Property="Value" String="LPG"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/transmission">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="MANUAL"/>
+              <PropertyValue Property="Value" String="MANUAL"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="AUTOMATIC"/>
+              <PropertyValue Property="Value" String="AUTOMATIC"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="SEMI_AUTOMATIC"/>
+              <PropertyValue Property="Value" String="SEMI_AUTOMATIC"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/status">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="DRAFT"/>
+              <PropertyValue Property="Value" String="DRAFT"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="FOR_SALE"/>
+              <PropertyValue Property="Value" String="FOR_SALE"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="RESERVED"/>
+              <PropertyValue Property="Value" String="RESERVED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="PENDING_PAYMENT"/>
+              <PropertyValue Property="Value" String="PENDING_PAYMENT"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="SOLD"/>
+              <PropertyValue Property="Value" String="SOLD"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="DELIVERED"/>
+              <PropertyValue Property="Value" String="DELIVERED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="ARCHIVED"/>
+              <PropertyValue Property="Value" String="ARCHIVED"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/primaryImageUrl">
+        <Annotation Term="UI.IsImageURL" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages">
+        <Annotation Term="UI.LineItem">
+          <Collection>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="url"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="sortOrder"/>
+              <PropertyValue Property="Label" String="Order"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages/ID">
+        <Annotation Term="Core.ComputedDefaultValue" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages/createdAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Created On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages/createdBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Created By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages/modifiedAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Changed On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.VehicleImages/modifiedBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Changed By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations">
+        <Annotation Term="UI.LineItem">
+          <Collection>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="vehicle_ID"/>
+              <PropertyValue Property="Label" String="Vehicle"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="status"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="expiresAt"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="createdAt"/>
+              <PropertyValue Property="Label" String="Requested"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.FieldGroup" Qualifier="ReservationDetails">
+          <Record Type="UI.FieldGroupType">
+            <PropertyValue Property="Data">
+              <Collection>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="vehicle_ID"/>
+                  <PropertyValue Property="Label" String="Vehicle"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="status"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="expiresAt"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="notes"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="createdAt"/>
+                  <PropertyValue Property="Label" String="Requested"/>
+                </Record>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+        <Annotation Term="UI.Facets">
+          <Collection>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Label" String="Reservation Details"/>
+              <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#ReservationDetails"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.Identification">
+          <Collection>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.cancel"/>
+              <PropertyValue Property="Label" String="Cancel Reservation"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/ID">
+        <Annotation Term="Core.ComputedDefaultValue" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/createdAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Created On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/createdBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Created By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/modifiedAt">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Changed On"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/modifiedBy">
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+        <Annotation Term="UI.ExcludeFromNavigationContext" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="User's unique ID"/>
+        <Annotation Term="Common.Label" String="Changed By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Reservations/status">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="REQUESTED"/>
+              <PropertyValue Property="Value" String="REQUESTED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="APPROVED"/>
+              <PropertyValue Property="Value" String="APPROVED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="REJECTED"/>
+              <PropertyValue Property="Value" String="REJECTED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="CANCELLED"/>
+              <PropertyValue Property="Value" String="CANCELLED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="EXPIRED"/>
+              <PropertyValue Property="Value" String="EXPIRED"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="COMPLETED"/>
+              <PropertyValue Property="Value" String="COMPLETED"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.getPriceHistory(Edm.String)/vehicleId">
+        <Annotation Term="Core.OptionalParameter">
+          <Record Type="Core.OptionalParameterType"/>
+        </Annotation>
+      </Annotations>
+    </Schema>
+  </edmx:DataServices>
 </edmx:Edmx>

@@ -236,3 +236,40 @@ is the right place for network-level policies.
 
 **Local dev:** No rate limiting applies. The restriction only takes effect when the
 Approuter is deployed (EPIC01-T6 scope).
+
+---
+
+## 10. `cds watch` Silently Drops `UI.Identification` from Served `$metadata` — `cds-serve` Doesn't
+
+**Context:** EPIC20-T1. Added `@UI.Identification` (bound-action header buttons — `reserve`,
+`addToFavorites`, `removeFromFavorites`, `cancel`) to `customer-portal-ui.cds`. `cds compile
+srv/index.cds --to edmx` and a direct `cds.compile.to.edmx(await cds.load(...))` call both
+produced the annotation correctly in the EDMX. But `GET /catalog/$metadata` against a running
+`cds watch` instance never contained `UI.Identification` at all — zero occurrences, no compiler
+warning, no server error. Every other `UI.*` term used so far in this project (`LineItem`,
+`FieldGroup`, `Facets`, `SelectionFields`, `PresentationVariant`, `IsImageURL`, `Criticality`)
+served correctly through `cds watch` in EPIC19 — this is not a general "cds watch drops UI
+annotations" problem, just this one term.
+
+**Root cause (not fully traced):** Something in `cds watch`'s dev-mode model handling (likely
+related to `@sap/cds-fiori`'s Fiori-preview/launchpad plugin, which the CLI-only `cds compile`
+path never loads) strips `UI.Identification` specifically before serving `$metadata`. Not
+investigated further than isolating which layer causes it — see **Solution** below, which made
+further tracing unnecessary for this ticket.
+
+**Solution:** Verified against `node_modules/.bin/cds-serve` (the same binary `npm start` runs —
+no watch/reload wrapper, no dev-only Fiori-preview plugin) instead of `cds watch`.
+`UI.Identification` appears correctly there. **When verifying `UI.Identification` /
+`@UI.DataFieldForAction` header-button annotations, use `cds-serve` (or `npm start`), not `cds
+watch`.** All other annotation terms can still be checked with either — this quirk is narrow to
+this one term.
+
+```sh
+# Wrong verification path for this specific term — will show 0 matches even when the CDS is correct:
+node_modules/.bin/cds watch
+curl -s http://localhost:4004/catalog/\$metadata | grep -c "UI.Identification"   # → 0
+
+# Correct verification path:
+node_modules/.bin/cds-serve
+curl -s http://localhost:4004/catalog/\$metadata | grep -c "UI.Identification"   # → 2
+```
