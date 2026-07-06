@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.customerportal",
+    "id": "automarket.customerreservations",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -69,7 +69,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.customerportal.i18n.i18n"
+          "bundleName": "automarket.customerreservations.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +95,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "VehiclesList",
-          "target": "VehiclesList"
+          "name": "ReservationsList",
+          "target": "ReservationsList"
         },
         {
-          "pattern": "Vehicles({key}):?query:",
-          "name": "VehiclesObjectPage",
-          "target": "VehiclesObjectPage"
+          "pattern": "Reservations({key}):?query:",
+          "name": "ReservationsObjectPage",
+          "target": "ReservationsObjectPage"
         }
       ],
       "targets": {
-        "VehiclesList": {
+        "ReservationsList": {
           "type": "Component",
-          "id": "VehiclesList",
+          "id": "ReservationsList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Vehicles",
+              "entitySet": "Reservations",
               "variantManagement": "Page",
               "navigation": {
-                "Vehicles": {
+                "Reservations": {
                   "detail": {
-                    "route": "VehiclesObjectPage"
+                    "route": "ReservationsObjectPage"
                   }
                 }
               },
@@ -130,14 +130,14 @@
             }
           }
         },
-        "VehiclesObjectPage": {
+        "ReservationsObjectPage": {
           "type": "Component",
-          "id": "VehiclesObjectPage",
+          "id": "ReservationsObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Vehicles"
+              "entitySet": "Reservations"
             }
           }
         }

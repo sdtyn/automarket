@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.customerportal",
+    "id": "automarket.customeroffers",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -69,7 +69,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.customerportal.i18n.i18n"
+          "bundleName": "automarket.customeroffers.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +95,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "VehiclesList",
-          "target": "VehiclesList"
+          "name": "OffersList",
+          "target": "OffersList"
         },
         {
-          "pattern": "Vehicles({key}):?query:",
-          "name": "VehiclesObjectPage",
-          "target": "VehiclesObjectPage"
+          "pattern": "Offers({key}):?query:",
+          "name": "OffersObjectPage",
+          "target": "OffersObjectPage"
         }
       ],
       "targets": {
-        "VehiclesList": {
+        "OffersList": {
           "type": "Component",
-          "id": "VehiclesList",
+          "id": "OffersList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Vehicles",
+              "entitySet": "Offers",
               "variantManagement": "Page",
               "navigation": {
-                "Vehicles": {
+                "Offers": {
                   "detail": {
-                    "route": "VehiclesObjectPage"
+                    "route": "OffersObjectPage"
                   }
                 }
               },
@@ -130,14 +130,14 @@
             }
           }
         },
-        "VehiclesObjectPage": {
+        "OffersObjectPage": {
           "type": "Component",
-          "id": "VehiclesObjectPage",
+          "id": "OffersObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Vehicles"
+              "entitySet": "Offers"
             }
           }
         }
