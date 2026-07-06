@@ -388,3 +388,41 @@ node_modules/.bin/cds-serve &
 #   nav http://localhost:8080/index.html#ReservationsList
 #   nav http://localhost:8080/index.html?sap-ui-log-level=DEBUG#ReservationsList   # for the trace above
 ```
+
+---
+
+## 13. `@Capabilities.InsertRestrictions.Insertable: true` Does Not Make a Native "Create" Button Appear (CAP + `sap.fe.templates.ListReport`, Non-Draft Entity)
+
+**Context:** EPIC21-T4, chasing EPIC20-T4's original goal (a native Fiori Elements "Create" toolbar
+button on `OperatorPortalService.Vehicles`, which already has an unconditional `CREATE` `@restrict`
+grant and works via direct `POST` — curl-verified in EPIC20-T4). The button never renders. Confirmed
+via DOM inspection (not a visual miss): a `...LineItem::StandardAction::Delete` button element
+exists; no `StandardAction::Create` equivalent exists at all, with or without data loaded.
+
+**What was tried and ruled out:** added
+`@Capabilities.InsertRestrictions.Insertable: true` directly on the `Vehicles` projection in
+`modules/vehicle/api/operator-portal.cds`, on the hypothesis that CAP doesn't auto-emit the OData
+Capabilities vocabulary annotation Fiori Elements needs to decide whether to show Create, even
+though the entity is genuinely insertable per `@restrict`. Verified the annotation reaches the
+served `$metadata` correctly and unambiguously — a single `Capabilities.InsertRestrictions` record
+with `Insertable: true`, no conflicting second annotation elsewhere for the same target — confirmed
+both directly against `cds-serve` (`curl http://localhost:4004/operator/\$metadata`) and through the
+`ui5 serve` fiori-tools-proxy (`curl http://localhost:8080/operator/\$metadata`). Refreshed the
+app's local metadata snapshot to rule out a stale-cache false negative. **The Create button still
+does not appear.** This annotation is not sufficient on its own (and, based on this evidence, might
+not be a factor at all).
+
+**Unresolved — contradictory information found, not adjudicated:** some sources say CAP + Fiori
+Elements V4 requires draft mode (`@odata.draft.enabled`) for any native Create/Update UX on an
+entity; official CAP documentation says non-draft Create should work out of the box with a plain
+`@restrict` grant and no special annotation. Neither claim matches what's actually observed here.
+Root cause not identified. Enabling full draft mode on `Vehicles` to test the first theory was
+considered and explicitly not attempted — draft mode changes an entity's key/identity semantics
+(`IsActiveEntity`, `DraftAdministrativeData`, a save/discard lifecycle) and would touch every
+existing Vehicles read/write handler, a materially bigger and riskier change than confirming a
+button's visibility warrants without a firm diagnosis first.
+
+**Status:** `@Capabilities.InsertRestrictions.Insertable: true` left in place in
+`operator-portal.cds` — it is accurate metadata (Vehicles is genuinely insertable) and harmless even
+though it didn't solve the visibility problem. `POST /operator/Vehicles` is unaffected and still
+works. See `docs/implementations/EPIC21-fiori-multi-app-remediation.md`, EPIC21-T4, left **Open**.

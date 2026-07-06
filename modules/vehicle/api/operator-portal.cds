@@ -50,6 +50,14 @@ service OperatorPortalService @(path: '/operator') {
     // VehicleStatus to an OData UI.CriticalityType so the Fiori status badge
     // (EPIC19-T3, operator-portal-ui.cds) can color-code rows without the
     // client needing its own copy of the status→color mapping.
+    // @Capabilities.InsertRestrictions.Insertable (EPIC21-T4): CAP's @restrict
+    // CREATE grant above is a server-side authorization check only — it does
+    // NOT make CAP emit the OData Capabilities vocabulary annotation Fiori
+    // Elements reads to decide whether to render a native "Create" toolbar
+    // button. Without this, the button never appears even though POST
+    // already works (verified via curl in EPIC20-T4). This is the missing
+    // piece, not a UI annotation issue.
+    @Capabilities.InsertRestrictions.Insertable: true
     entity Vehicles     as
         projection on automarket.Vehicles {
             *,
