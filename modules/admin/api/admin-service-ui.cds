@@ -4,16 +4,11 @@ using {AdminService} from './admin-service';
 // Kept in a separate file from the service definition, same pattern as
 // operator-portal-ui.cds / customer-portal-ui.cds.
 //
-// Note on action buttons: disableUser, assignRole, and disableBranch are all
-// *unbound* OData actions (service-level, not bound to the Users/Branches
-// entity types — same shape as OperatorPortalService.createVehicle, see
-// operator-portal-ui.cds). @UI.DataFieldForAction only targets actions bound
-// to an entity type, so none of the three can be wired onto a List Report row
-// or Object Page header this way. Wiring them in would need a manifest.json
-// custom-action entry that cannot be verified without a real browser session
-// — same call as EPIC19-T3, left as a follow-up rather than shipped
-// unverified. Both Object Pages below are view-only; the three actions remain
-// reachable via their OData endpoints directly (see tests/http/admin.http).
+// EPIC20-T6 update: disable/assignRole (Users) and disable (Branches) are now
+// bound actions (see admin-service.cds) — the EPIC19-T5 "view-only, unbound"
+// note no longer applies. createBranch/updateBranch/createUser remain
+// unbound and out of this ticket's scope (not part of the Sprint Backlog DoD
+// item for T6 — see EPIC20 implementation log).
 annotate AdminService.Users with @(
     UI.LineItem               : [
         {Value: email},
@@ -54,7 +49,19 @@ annotate AdminService.Users with @(
         $Type : 'UI.ReferenceFacet',
         Label : 'User Details',
         Target: '@UI.FieldGroup#UserDetails'
-    }]
+    }],
+    UI.Identification         : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.disable',
+            Label : 'Disable User'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.assignRole',
+            Label : 'Assign Role'
+        }
+    ]
 );
 
 annotate AdminService.Branches with @(
@@ -84,7 +91,14 @@ annotate AdminService.Branches with @(
         $Type : 'UI.ReferenceFacet',
         Label : 'Branch Details',
         Target: '@UI.FieldGroup#BranchDetails'
-    }]
+    }],
+    UI.Identification           : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.disable',
+            Label : 'Disable Branch'
+        }
+    ]
 );
 
 // AuditLogs (EPIC19-T6): read-only (@readonly and no WRITE grant already on

@@ -38,10 +38,7 @@
         <EntitySet Name="Payments" EntityType="AdminService.Payments"/>
         <ActionImport Name="createBranch" Action="AdminService.createBranch"/>
         <ActionImport Name="updateBranch" Action="AdminService.updateBranch"/>
-        <ActionImport Name="disableBranch" Action="AdminService.disableBranch"/>
         <ActionImport Name="createUser" Action="AdminService.createUser"/>
-        <ActionImport Name="disableUser" Action="AdminService.disableUser"/>
-        <ActionImport Name="assignRole" Action="AdminService.assignRole"/>
       </EntityContainer>
       <EntityType Name="Users">
         <Key>
@@ -161,6 +158,19 @@
         <Property Name="idempotencyKey" Type="Edm.String" MaxLength="255"/>
         <Property Name="status" Type="Edm.String" DefaultValue="INITIATED"/>
       </EntityType>
+      <Action Name="disable" IsBound="true">
+        <Parameter Name="in" Type="AdminService.Users"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="disable" IsBound="true">
+        <Parameter Name="in" Type="AdminService.Branches"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="assignRole" IsBound="true">
+        <Parameter Name="in" Type="AdminService.Users"/>
+        <Parameter Name="roleCode" Type="Edm.String"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
       <Action Name="capture" IsBound="true">
         <Parameter Name="in" Type="AdminService.Payments"/>
         <Parameter Name="transactionReference" Type="Edm.String"/>
@@ -192,10 +202,6 @@
         <Parameter Name="region" Type="Edm.String"/>
         <ReturnType Type="Edm.Boolean"/>
       </Action>
-      <Action Name="disableBranch" IsBound="false">
-        <Parameter Name="branchId" Type="Edm.String"/>
-        <ReturnType Type="Edm.Boolean"/>
-      </Action>
       <Action Name="createUser" IsBound="false">
         <Parameter Name="email" Type="Edm.String"/>
         <Parameter Name="firstName" Type="Edm.String"/>
@@ -203,15 +209,6 @@
         <Parameter Name="phoneNumber" Type="Edm.String"/>
         <Parameter Name="roleCode" Type="Edm.String"/>
         <ReturnType Type="Edm.String"/>
-      </Action>
-      <Action Name="disableUser" IsBound="false">
-        <Parameter Name="userId" Type="Edm.String"/>
-        <ReturnType Type="Edm.Boolean"/>
-      </Action>
-      <Action Name="assignRole" IsBound="false">
-        <Parameter Name="userId" Type="Edm.String"/>
-        <Parameter Name="roleCode" Type="Edm.String"/>
-        <ReturnType Type="Edm.Boolean"/>
       </Action>
       <Annotations Target="AdminService.Users">
         <Annotation Term="UI.LineItem">
@@ -275,6 +272,18 @@
             <Record Type="UI.ReferenceFacet">
               <PropertyValue Property="Label" String="User Details"/>
               <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#UserDetails"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.Identification">
+          <Collection>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="AdminService.disable"/>
+              <PropertyValue Property="Label" String="Disable User"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="AdminService.assignRole"/>
+              <PropertyValue Property="Label" String="Assign Role"/>
             </Record>
           </Collection>
         </Annotation>
@@ -448,6 +457,14 @@
             <Record Type="UI.ReferenceFacet">
               <PropertyValue Property="Label" String="Branch Details"/>
               <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#BranchDetails"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.Identification">
+          <Collection>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="AdminService.disable"/>
+              <PropertyValue Property="Label" String="Disable Branch"/>
             </Record>
           </Collection>
         </Annotation>

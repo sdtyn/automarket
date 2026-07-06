@@ -69,9 +69,11 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // disableBranch: sets status to INACTIVE — soft delete, not data removal.
-  srv.on('disableBranch', async (req) => {
-    const { branchId } = req.data;
+  // disable (EPIC20-T6): bound to Branches — a distinct overload from Users'
+  // own `disable` below (OData resolves same-named bound actions by their
+  // bound type). Sets status to INACTIVE — soft delete, not data removal.
+  srv.on('disable', 'Branches', async (req) => {
+    const [{ ID: branchId }] = req.params;
 
     const branch = await SELECT.one.from(Branches).where({ ID: branchId });
     if (!branch) return req.error(404, 'Branch not found');
@@ -115,10 +117,11 @@ module.exports = cds.service.impl(async function (srv) {
     return id;
   });
 
-  // disableUser: sets status to INACTIVE — permanent admin-initiated disable,
-  // distinct from LOCKED which is temporary and time-based.
-  srv.on('disableUser', async (req) => {
-    const { userId } = req.data;
+  // disable (EPIC20-T6): bound to Users. Sets status to INACTIVE — permanent
+  // admin-initiated disable, distinct from LOCKED which is temporary and
+  // time-based.
+  srv.on('disable', 'Users', async (req) => {
+    const [{ ID: userId }] = req.params;
 
     const user = await SELECT.one.from(Users).where({ ID: userId });
     if (!user) return req.error(404, 'User not found');
@@ -128,9 +131,11 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // assignRole: idempotent — skips insert if the user already holds this role.
-  srv.on('assignRole', async (req) => {
-    const { userId, roleCode } = req.data;
+  // assignRole (EPIC20-T6): bound to Users. Idempotent — skips insert if the
+  // user already holds this role.
+  srv.on('assignRole', 'Users', async (req) => {
+    const [{ ID: userId }] = req.params;
+    const { roleCode } = req.data;
 
     const user = await SELECT.one.from(Users).where({ ID: userId });
     if (!user) return req.error(404, 'User not found');

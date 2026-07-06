@@ -44,14 +44,12 @@ Content-Type: application/json
   "region": "Baden-Wuerttemberg"
 }
 
-### 6. Disable branch
-POST {{baseUrl}}/admin/disableBranch
+### 6. Disable branch (EPIC20-T6: native bound action, was POST /admin/disableBranch)
+POST {{baseUrl}}/admin/Branches(fa2f6315-6576-404b-ae58-47c9e1769657)/AdminService.disable
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
-{
-  "branchId": "fa2f6315-6576-404b-ae58-47c9e1769657"
-}
+{}
 
 ### 7. Create new user
 # @name createUser
@@ -67,25 +65,23 @@ Content-Type: application/json
   "roleCode": "Operator"
 }
 
-### 8. Assign role — add Manager role to new user
+### 8. Assign role — add Manager role to new user (EPIC20-T6: native bound
+### action, was POST /admin/assignRole)
 ### userId: replace with ID returned from step 7
-POST {{baseUrl}}/admin/assignRole
+POST {{baseUrl}}/admin/Users(a842f2f6-042b-45c3-ac78-8c2cdbae87ed)/AdminService.assignRole
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
 {
-  "userId": "a842f2f6-042b-45c3-ac78-8c2cdbae87ed",
   "roleCode": "Manager"
 }
 
-### 9. Disable user
-POST {{baseUrl}}/admin/disableUser
+### 9. Disable user (EPIC20-T6: native bound action, was POST /admin/disableUser)
+POST {{baseUrl}}/admin/Users(a842f2f6-042b-45c3-ac78-8c2cdbae87ed)/AdminService.disable
 Authorization: {{adminAuth}}
 Content-Type: application/json
 
-{
-  "userId": "a842f2f6-042b-45c3-ac78-8c2cdbae87ed"
-}
+{}
 
 ### 10. List audit logs
 GET {{baseUrl}}/admin/AuditLogs

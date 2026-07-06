@@ -24,7 +24,7 @@ or "just the button."
 | EPIC20-T3 | Customer — Checkout & Payment | Done |
 | EPIC20-T4 | Operator — Vehicle & approval workflows | Done |
 | EPIC20-T5 | Manager & Admin — Offer approval and PSP simulation | Done |
-| EPIC20-T6 | Admin — User & Branch management actions | Open |
+| EPIC20-T6 | Admin — User & Branch management actions | Done |
 
 ### Sprint Backlog DoD Mapping
 
@@ -38,7 +38,26 @@ or "just the button."
 
 ### Sign-off
 
-_To be filled in at sprint end._
+All six tickets delivered and CI green. ~19 previously-unbound service actions across
+`CustomerPortalService`, `OperatorPortalService`, and `AdminService` converted to bound actions and
+wired onto native Fiori Elements toolbar/header buttons via `@UI.DataFieldForAction` — every
+business workflow named in the epic goal (reserve, favorite, offer, test-drive, checkout, pay,
+approve/reject, PSP-simulate, disable/assign-role) is now clickable end to end in
+`app/customer-portal` (6 entities), `app/operator-portal` (4 entities), and `app/admin-portal`
+(4 entities), no `.http` file required for the demo path. Two real bugs and one genuine CAP quirk
+found and fixed while verifying, not guessed at: `req.params` shape for bound actions (T1),
+`@restrict` needing its own grant entry per bound action (T1), and `cds watch` silently dropping
+`UI.Identification` from served `$metadata` — verify against `cds-serve` instead (logged in
+`docs/cap-notes.md` #10). T5 additionally surfaced a cross-cutting CAP constraint (`docs/cap-notes.md`
+#11: `srv.emit(...)` only reaches subscribers bound to that exact connected service instance — a
+wrapper action delegating a state transition another service's `.on(...)` handler depends on must
+use `cds.connect.to(...).send(...)`, not reimplement-and-emit-locally) and one test-data gap
+(`manager.schmidt` mock user missing `attr.branchId`, silently blocking the Manager offer-approval
+DoD item — both flagged to the user before fixing, per the project's "ask before fixing discovered
+gaps" rule). Every button verified against a live `cds-serve` backend + a live `ui5 serve` instance
+per ticket (routes, proxy, auth, `UI.Identification` counts, and real end-to-end data mutations —
+including cross-service event propagation for the PSP-capture → `SalesService` → vehicle-`SOLD`
+chain). 14 test suites, 138 tests, 0 lint errors. Sprint completed 2026-07-06.
 
 ---
 
@@ -945,6 +964,91 @@ Manager `approve`/`reject` on a fresh offer both returned `true`; Admin `capture
 returned `true` **and** the underlying vehicle flipped to `SOLD` (confirming `SalesService`'s
 `PaymentSucceeded` subscription fired from the delegated call); `fail` and `refund` also verified
 against separate fresh payments.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+---
+
+## EPIC20-T6: Admin — User & Branch management actions
+
+### What & Why
+
+`AdminService`'s `disableUser`/`assignRole` (on `Users`) and `disableBranch` (on `Branches`) become
+bound actions — the same mechanical conversion as every previous T4/T5 ticket, and the exact three
+actions the EPIC19-T5 UI file already flagged as a named follow-up (see the note removed from
+`admin-service-ui.cds` below). `createBranch`, `updateBranch`, and `createUser` are untouched and
+stay unbound — the Sprint Backlog DoD item for this ticket is specifically "Admin can disable a
+user, assign a role, and disable a branch from the UI," and neither the DoD nor the EPIC19-T5 note
+named the other three as in scope.
+
+Unlike every other T4/T5 ticket, `Users` and `Branches` already have List Report/Object Pages in
+`app/admin-portal` (EPIC19-T5) — no new entity, no `manifest.json`/`flpSandbox.html` changes needed
+this time. This ticket is CDS + JS + UI-annotation only.
+
+`Users.disable` and `Branches.disable` are two distinct bound-action overloads sharing the name
+`disable` (OData resolves them by bound type — same pattern as `Reservations.approve` vs.
+`TestDrives.approve` in EPIC20-T4).
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/admin/api/admin-service.cds`
+
+Convert `Users` and `Branches` from plain projections into ones with `actions {}` blocks:
+`Users` gets `disable()` and `assignRole(roleCode: String)`, both `@requires: 'Admin'`; `Branches`
+gets `disable()`, also `@requires: 'Admin'`. Delete the old unbound `disableUser`, `assignRole`,
+`disableBranch` action declarations. `createBranch`/`updateBranch`/`createUser` are untouched.
+
+#### 2. Modify `modules/admin/application/admin-service.js`
+
+Replace `srv.on('disableBranch', ...)` with `srv.on('disable', 'Branches', ...)`, and
+`srv.on('disableUser', ...)` / `srv.on('assignRole', ...)` with `srv.on('disable', 'Users', ...)` /
+`srv.on('assignRole', 'Users', ...)` — same handler bodies, just destructuring the bound key from
+`req.params` instead of `req.data`.
+
+#### 3. Modify `modules/admin/api/admin-service-ui.cds`
+
+Remove the EPIC19-T5 "view-only, unbound" note on `Users`/`Branches` (no longer accurate) and add
+`UI.Identification` to both existing `annotate` blocks: `Users` gets `disable`/`assignRole`
+buttons, `Branches` gets `disable`.
+
+#### 4. Modify `tests/http/admin.http`
+
+`POST /admin/disableBranch` → `POST /admin/Branches(<id>)/AdminService.disable`;
+`POST /admin/assignRole` → `POST /admin/Users(<id>)/AdminService.assignRole` (drop `userId` from
+the body, now a path key); `POST /admin/disableUser` → `POST /admin/Users(<id>)/AdminService.disable`.
+
+#### 5. Refresh the local metadata snapshot
+
+```sh
+node_modules/.bin/cds-serve &   # NOT cds watch
+curl -s http://localhost:4004/admin/\$metadata -o app/admin-portal/webapp/localService/mainService/metadata.xml
+```
+
+#### 6. Verify
+
+```sh
+node_modules/.bin/cds-serve                                  # backend, port 4004 — NOT cds watch
+(cd app/admin-portal && node_modules/.bin/ui5 serve --port 8082)
+```
+
+```sh
+curl -s http://localhost:8082/admin/\$metadata | grep -c "UI.Identification"
+
+# Admin creates a user, assigns it a second role, then disables it — all through the new bound actions
+curl -s -u "admin.mueller@automarkt.de:Test@1234" -X POST http://localhost:4004/admin/createUser -d '{"email":"...", "roleCode":"Operator", ...}'
+curl -s -u "admin.mueller@automarkt.de:Test@1234" -X POST "http://localhost:4004/admin/Users(<id>)/AdminService.assignRole" -d '{"roleCode":"Manager"}'
+curl -s -u "admin.mueller@automarkt.de:Test@1234" -X POST "http://localhost:4004/admin/Users(<id>)/AdminService.disable" -d '{}'
+
+# Manager attempting the same bound action must still 403 — AdminService stays Admin-only
+curl -s -u "manager.schmidt@automarkt.de:Test@1234" -X POST "http://localhost:4004/admin/Users(<id>)/AdminService.disable" -d '{}'
+```
+
+**Verified end to end** against `cds-serve`: `index.html`/`flpSandbox.html` unchanged and still
+`200` (no route changes this ticket); `UI.Identification` count `3` (Users, Branches, Payments);
+`assignRole` and `disable` on a freshly created user both returned `true`; `disable` on a freshly
+created branch returned `true`; the same `Users.disable` call as Manager correctly `403`'d.
 
 ```sh
 npm run lint && npm run format:check && npm test

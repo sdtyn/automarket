@@ -21,6 +21,19 @@ service AdminService @(path: '/admin') {
         }
         excluding {
             passwordHash
+        }
+        actions {
+            // disable (EPIC20-T6): permanently deactivates an account (INACTIVE,
+            // not LOCKED). Re-enabling requires a separate Admin action (not yet
+            // implemented). Bound to Users — replaces the old unbound disableUser.
+            @requires: 'Admin'
+            action disable()                    returns Boolean;
+
+            // assignRole (EPIC20-T6): adds a role to a user. Idempotent — safe
+            // to call twice. Bound to Users — replaces the old unbound
+            // assignRole action.
+            @requires: 'Admin'
+            action assignRole(roleCode: String) returns Boolean;
         };
 
     @requires: 'Admin'
@@ -35,6 +48,14 @@ service AdminService @(path: '/admin') {
         projection on br.Branches {
             *,
             virtual null as statusCriticality : Integer
+        }
+        actions {
+            // disable (EPIC20-T6): soft-deletes a branch by setting status to
+            // INACTIVE. Bound to Branches — a distinct overload from Users'
+            // own `disable` above (OData resolves same-named bound actions by
+            // their bound type) — replaces the old unbound disableBranch.
+            @requires: 'Admin'
+            action disable() returns Boolean;
         };
 
     // AuditLogs: read-only for Admin. No create/update/delete exposed.
@@ -54,7 +75,7 @@ service AdminService @(path: '/admin') {
                         address: String,
                         city: String,
                         country: String,
-                        region: String)                 returns String;
+                        region: String) returns String;
 
     // updateBranch: updates mutable branch fields. All parameters are optional
     // except branchId — omitted fields are left unchanged.
@@ -64,11 +85,7 @@ service AdminService @(path: '/admin') {
                         address: String,
                         city: String,
                         country: String,
-                        region: String)                 returns Boolean;
-
-    // disableBranch: soft-deletes a branch by setting status to INACTIVE.
-    @requires: 'Admin'
-    action disableBranch(branchId: String)              returns Boolean;
+                        region: String) returns Boolean;
 
     // createUser: creates an account with a temporary random password.
     // In production, a password-reset email is sent immediately after creation.
@@ -77,16 +94,7 @@ service AdminService @(path: '/admin') {
                       firstName: String,
                       lastName: String,
                       phoneNumber: String,
-                      roleCode: String)                 returns String;
-
-    // disableUser: permanently deactivates an account (INACTIVE, not LOCKED).
-    // Re-enabling requires a separate Admin action (not yet implemented).
-    @requires: 'Admin'
-    action disableUser(userId: String)                  returns Boolean;
-
-    // assignRole: adds a role to a user. Idempotent — safe to call twice.
-    @requires: 'Admin'
-    action assignRole(userId: String, roleCode: String) returns Boolean;
+                      roleCode: String) returns String;
 
     // Payments (EPIC20-T5): PSP-webhook simulation surface for Admin.
     // capture/fail/refund are bound actions delegating to PaymentService via
