@@ -15,14 +15,20 @@ using {AdminService} from './admin-service';
 // unverified. Both Object Pages below are view-only; the three actions remain
 // reachable via their OData endpoints directly (see tests/http/admin.http).
 annotate AdminService.Users with @(
-    UI.LineItem                : [
+    UI.LineItem               : [
         {Value: email},
         {Value: firstName},
         {Value: lastName},
-        {Value: status, Criticality: statusCriticality},
-        {Value: mfaRequired, Label: 'MFA Required'}
+        {
+            Value      : status,
+            Criticality: statusCriticality
+        },
+        {
+            Value: mfaRequired,
+            Label: 'MFA Required'
+        }
     ],
-    UI.FieldGroup #UserDetails : {
+    UI.FieldGroup #UserDetails: {
         $Type: 'UI.FieldGroupType',
         Data : [
             {Value: email},
@@ -30,29 +36,39 @@ annotate AdminService.Users with @(
             {Value: lastName},
             {Value: phoneNumber},
             {Value: status},
-            {Value: mfaRequired, Label: 'MFA Required'},
-            {Value: failedLoginCount, Label: 'Failed Logins'},
-            {Value: lockedUntil, Label: 'Locked Until'}
+            {
+                Value: mfaRequired,
+                Label: 'MFA Required'
+            },
+            {
+                Value: failedLoginCount,
+                Label: 'Failed Logins'
+            },
+            {
+                Value: lockedUntil,
+                Label: 'Locked Until'
+            }
         ]
     },
-    UI.Facets                  : [
-        {
-            $Type : 'UI.ReferenceFacet',
-            Label : 'User Details',
-            Target: '@UI.FieldGroup#UserDetails'
-        }
-    ]
+    UI.Facets                 : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'User Details',
+        Target: '@UI.FieldGroup#UserDetails'
+    }]
 );
 
 annotate AdminService.Branches with @(
-    UI.LineItem                  : [
+    UI.LineItem                 : [
         {Value: code},
         {Value: name},
         {Value: city},
         {Value: region},
-        {Value: status, Criticality: statusCriticality}
+        {
+            Value      : status,
+            Criticality: statusCriticality
+        }
     ],
-    UI.FieldGroup #BranchDetails : {
+    UI.FieldGroup #BranchDetails: {
         $Type: 'UI.FieldGroupType',
         Data : [
             {Value: code},
@@ -64,13 +80,11 @@ annotate AdminService.Branches with @(
             {Value: status}
         ]
     },
-    UI.Facets                    : [
-        {
-            $Type : 'UI.ReferenceFacet',
-            Label : 'Branch Details',
-            Target: '@UI.FieldGroup#BranchDetails'
-        }
-    ]
+    UI.Facets                   : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Branch Details',
+        Target: '@UI.FieldGroup#BranchDetails'
+    }]
 );
 
 // AuditLogs (EPIC19-T6): read-only (@readonly and no WRITE grant already on
@@ -82,39 +96,109 @@ annotate AdminService.Branches with @(
 // filter automatically for a Timestamp field in SelectionFields).
 annotate AdminService.AuditLogs with @(
     UI.LineItem              : [
-        {Value: createdAt, Label: 'Timestamp'},
+        {
+            Value: createdAt,
+            Label: 'Timestamp'
+        },
         {Value: entityType},
         {Value: entityId},
         {Value: action},
         {Value: userId}
     ],
-    UI.SelectionFields        : [
+    UI.SelectionFields       : [
         entityType,
         userId,
         createdAt
     ],
-    UI.PresentationVariant    : {
-        SortOrder: [
-            {Property: createdAt, Descending: true}
-        ]
-    },
-    UI.FieldGroup #LogDetails : {
+    UI.PresentationVariant   : {SortOrder: [{
+        Property  : createdAt,
+        Descending: true
+    }]},
+    UI.FieldGroup #LogDetails: {
         $Type: 'UI.FieldGroupType',
         Data : [
-            {Value: createdAt, Label: 'Timestamp'},
+            {
+                Value: createdAt,
+                Label: 'Timestamp'
+            },
             {Value: entityType},
             {Value: entityId},
             {Value: action},
             {Value: userId},
-            {Value: oldValue, Label: 'Old Value'},
-            {Value: newValue, Label: 'New Value'}
+            {
+                Value: oldValue,
+                Label: 'Old Value'
+            },
+            {
+                Value: newValue,
+                Label: 'New Value'
+            }
         ]
     },
-    UI.Facets                 : [
+    UI.Facets                : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Log Entry',
+        Target: '@UI.FieldGroup#LogDetails'
+    }]
+);
+
+// "Payments" (EPIC20-T5) — fourth entity in app/admin-portal. capture/fail/
+// refund are bound actions delegating to the real PaymentService (see the
+// @requires comment on Payments in admin-service.cds) — read-only fields
+// here, no editable form needed since these are PSP-webhook simulations,
+// not manual data entry.
+annotate AdminService.Payments with @(
+    UI.LineItem                  : [
         {
-            $Type : 'UI.ReferenceFacet',
-            Label : 'Log Entry',
-            Target: '@UI.FieldGroup#LogDetails'
+            Value: order_ID,
+            Label: 'Order'
+        },
+        {Value: provider},
+        {Value: amount},
+        {Value: currency},
+        {Value: status}
+    ],
+    UI.FieldGroup #PaymentDetails: {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {
+                Value: order_ID,
+                Label: 'Order'
+            },
+            {Value: provider},
+            {Value: amount},
+            {Value: currency},
+            {Value: status},
+            {
+                Value: transactionReference,
+                Label: 'Transaction Reference'
+            },
+            {
+                Value: idempotencyKey,
+                Label: 'Idempotency Key'
+            }
+        ]
+    },
+    UI.Facets                    : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Payment Details',
+        Target: '@UI.FieldGroup#PaymentDetails'
+    }],
+    UI.Identification            : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.capture',
+            Label : 'Capture Payment'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.fail',
+            Label : 'Fail Payment'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'AdminService.refund',
+            Label : 'Refund Payment'
         }
     ]
 );

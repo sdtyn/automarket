@@ -122,6 +122,16 @@
           "pattern": "TestDrivesList/TestDrives({key}):?query:",
           "name": "TestDrivesObjectPage",
           "target": "TestDrivesObjectPage"
+        },
+        {
+          "pattern": "OffersList:?query:",
+          "name": "OffersList",
+          "target": "OffersList"
+        },
+        {
+          "pattern": "OffersList/Offers({key}):?query:",
+          "name": "OffersObjectPage",
+          "target": "OffersObjectPage"
         }
       ],
       "targets": {
@@ -230,6 +240,42 @@
             "settings": {
               "editableHeaderContent": false,
               "entitySet": "TestDrives"
+            }
+          }
+        },
+        "OffersList": {
+          "type": "Component",
+          "id": "OffersList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Offers",
+              "variantManagement": "Page",
+              "navigation": {
+                "Offers": {
+                  "detail": {
+                    "route": "OffersObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "OffersObjectPage": {
+          "type": "Component",
+          "id": "OffersObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "Offers"
             }
           }
         }

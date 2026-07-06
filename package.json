@@ -46,7 +46,10 @@
             "id": "ccc00000-0000-0000-0000-000000000002",
             "roles": [
               "Manager"
-            ]
+            ],
+            "attr": {
+              "branchId": "aaa00000-0000-0000-0000-000000000001"
+            }
           },
           "operator.weber@automarkt.de": {
             "password": "Test@1234",

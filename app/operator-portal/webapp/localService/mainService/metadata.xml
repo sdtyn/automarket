@@ -38,8 +38,6 @@
         <EntitySet Name="Offers" EntityType="OperatorPortalService.Offers">
           <NavigationPropertyBinding Path="vehicle" Target="Vehicles"/>
         </EntitySet>
-        <ActionImport Name="approveOffer" Action="OperatorPortalService.approveOffer"/>
-        <ActionImport Name="rejectOffer" Action="OperatorPortalService.rejectOffer"/>
       </EntityContainer>
       <EntityType Name="Vehicles">
         <Key>
@@ -156,9 +154,18 @@
         <Parameter Name="durationMinutes" Type="Edm.Int32"/>
         <ReturnType Type="Edm.Boolean"/>
       </Action>
+      <Action Name="approve" IsBound="true">
+        <Parameter Name="in" Type="OperatorPortalService.Offers"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
       <Action Name="reject" IsBound="true">
         <Parameter Name="in" Type="OperatorPortalService.Reservations"/>
         <Parameter Name="notes" Type="Edm.String"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="reject" IsBound="true">
+        <Parameter Name="in" Type="OperatorPortalService.Offers"/>
+        <Parameter Name="rejectionNotes" Type="Edm.String"/>
         <ReturnType Type="Edm.Boolean"/>
       </Action>
       <Action Name="cancel" IsBound="true">
@@ -167,15 +174,6 @@
       </Action>
       <Action Name="complete" IsBound="true">
         <Parameter Name="in" Type="OperatorPortalService.TestDrives"/>
-        <ReturnType Type="Edm.Boolean"/>
-      </Action>
-      <Action Name="approveOffer" IsBound="false">
-        <Parameter Name="offerId" Type="Edm.String"/>
-        <ReturnType Type="Edm.Boolean"/>
-      </Action>
-      <Action Name="rejectOffer" IsBound="false">
-        <Parameter Name="offerId" Type="Edm.String"/>
-        <Parameter Name="rejectionNotes" Type="Edm.String"/>
         <ReturnType Type="Edm.Boolean"/>
       </Action>
       <Annotations Target="OperatorPortalService.Vehicles">
@@ -693,6 +691,83 @@
             <Record Type="Validation.AllowedValue">
               <Annotation Term="Core.SymbolicName" String="CANCELLED"/>
               <PropertyValue Property="Value" String="CANCELLED"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="OperatorPortalService.Offers">
+        <Annotation Term="UI.LineItem">
+          <Collection>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="vehicle_ID"/>
+              <PropertyValue Property="Label" String="Vehicle"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="customer_ID"/>
+              <PropertyValue Property="Label" String="Customer"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="offeredPrice"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="currency"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="status"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="desiredPickupDate"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.FieldGroup" Qualifier="OfferDetails">
+          <Record Type="UI.FieldGroupType">
+            <PropertyValue Property="Data">
+              <Collection>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="vehicle_ID"/>
+                  <PropertyValue Property="Label" String="Vehicle"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="customer_ID"/>
+                  <PropertyValue Property="Label" String="Customer"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="offeredPrice"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="currency"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="desiredPickupDate"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="status"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="rejectionNotes"/>
+                </Record>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+        <Annotation Term="UI.Facets">
+          <Collection>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Label" String="Offer Details"/>
+              <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#OfferDetails"/>
+            </Record>
+          </Collection>
+        </Annotation>
+        <Annotation Term="UI.Identification">
+          <Collection>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="OperatorPortalService.approve"/>
+              <PropertyValue Property="Label" String="Approve Offer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="OperatorPortalService.reject"/>
+              <PropertyValue Property="Label" String="Reject Offer"/>
             </Record>
           </Collection>
         </Annotation>

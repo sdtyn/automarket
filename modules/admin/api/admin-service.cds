@@ -1,6 +1,7 @@
-using {automarket}         from '../../identity/db/identity';
-using {automarket as aud}  from '../../audit/db/audit';
-using {automarket as br}   from '../../branch/db/branch';
+using {automarket} from '../../identity/db/identity';
+using {automarket as aud} from '../../audit/db/audit';
+using {automarket as br} from '../../branch/db/branch';
+using {automarket as pay} from '../../payment/db/payment';
 
 // AdminService is the system administration surface — Admin role only.
 // No other role may call any action or read any entity here.
@@ -18,7 +19,9 @@ service AdminService @(path: '/admin') {
             *,
             virtual null as statusCriticality : Integer
         }
-        excluding { passwordHash };
+        excluding {
+            passwordHash
+        };
 
     @requires: 'Admin'
     entity Roles       as projection on automarket.Roles;
@@ -46,48 +49,58 @@ service AdminService @(path: '/admin') {
 
     // createBranch: registers a new branch and sets it ACTIVE.
     @requires: 'Admin'
-    action createBranch(
-        code    : String,
-        name    : String,
-        address : String,
-        city    : String,
-        country : String,
-        region  : String
-    ) returns String;
+    action createBranch(code: String,
+                        name: String,
+                        address: String,
+                        city: String,
+                        country: String,
+                        region: String)                 returns String;
 
     // updateBranch: updates mutable branch fields. All parameters are optional
     // except branchId — omitted fields are left unchanged.
     @requires: 'Admin'
-    action updateBranch(
-        branchId : String,
-        name     : String,
-        address  : String,
-        city     : String,
-        country  : String,
-        region   : String
-    ) returns Boolean;
+    action updateBranch(branchId: String,
+                        name: String,
+                        address: String,
+                        city: String,
+                        country: String,
+                        region: String)                 returns Boolean;
 
     // disableBranch: soft-deletes a branch by setting status to INACTIVE.
     @requires: 'Admin'
-    action disableBranch(branchId : String) returns Boolean;
+    action disableBranch(branchId: String)              returns Boolean;
 
     // createUser: creates an account with a temporary random password.
     // In production, a password-reset email is sent immediately after creation.
     @requires: 'Admin'
-    action createUser(
-        email       : String,
-        firstName   : String,
-        lastName    : String,
-        phoneNumber : String,
-        roleCode    : String
-    ) returns String;
+    action createUser(email: String,
+                      firstName: String,
+                      lastName: String,
+                      phoneNumber: String,
+                      roleCode: String)                 returns String;
 
     // disableUser: permanently deactivates an account (INACTIVE, not LOCKED).
     // Re-enabling requires a separate Admin action (not yet implemented).
     @requires: 'Admin'
-    action disableUser(userId : String) returns Boolean;
+    action disableUser(userId: String)                  returns Boolean;
 
     // assignRole: adds a role to a user. Idempotent — safe to call twice.
     @requires: 'Admin'
-    action assignRole(userId : String, roleCode : String) returns Boolean;
+    action assignRole(userId: String, roleCode: String) returns Boolean;
+
+    // Payments (EPIC20-T5): PSP-webhook simulation surface for Admin.
+    // capture/fail/refund are bound actions delegating to PaymentService via
+    // cds.connect.to('PaymentService').send(...) in admin-service.js — NOT
+    // reimplemented here. PaymentService.emit('PaymentSucceeded'/'PaymentFailed'/
+    // 'PaymentRefunded') must originate from the real PaymentService instance,
+    // since SalesService subscribes with cds.connect.to('PaymentService').on(...);
+    // reimplementing the status update here and emitting from AdminService's own
+    // srv would silently break that downstream Order/Vehicle status flow.
+    @requires: 'Admin'
+    entity Payments    as projection on pay.Payments
+        actions {
+            action capture(transactionReference: String) returns Boolean;
+            action fail()                                returns Boolean;
+            action refund()                              returns Boolean;
+        };
 }

@@ -23,7 +23,7 @@ or "just the button."
 | EPIC20-T2 | Customer — Offers & Test Drives | Done |
 | EPIC20-T3 | Customer — Checkout & Payment | Done |
 | EPIC20-T4 | Operator — Vehicle & approval workflows | Done |
-| EPIC20-T5 | Manager & Admin — Offer approval and PSP simulation | Open |
+| EPIC20-T5 | Manager & Admin — Offer approval and PSP simulation | Done |
 | EPIC20-T6 | Admin — User & Branch management actions | Open |
 
 ### Sprint Backlog DoD Mapping
@@ -800,6 +800,151 @@ curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:400
 native create with a smuggled `branch_ID`/`status` came back `DRAFT` in the Operator's own branch;
 `approve`/`reject` (Reservations) and `approve`/`complete`/`cancel` (TestDrives) all returned `true`
 against reservations/test drives created fresh through `CustomerPortalService`.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+---
+
+## EPIC20-T5: Manager & Admin — Offer approval and PSP simulation
+
+### What & Why
+
+Two independent halves, wired into two different apps:
+
+1. **Offer approval** (`OperatorPortalService.approveOffer`/`rejectOffer` → bound `Offers.approve`/
+   `reject`), the same mechanical conversion as EPIC20-T4's Reservations/TestDrives — the existing
+   reimplement-then-emit handler body in `operator-portal.js` is untouched, only the binding and
+   parameter source (`req.params` instead of `req.data`) change. Wired as a fourth entity in
+   `app/operator-portal`, visible only to Manager/Admin per the existing `@restrict` (Operators have
+   no offer authority).
+
+2. **PSP simulation** (`PaymentService.capturePayment`/`failPayment`/`refundPayment`) is a genuinely
+   different shape from every conversion so far: these actions already live on `PaymentService`
+   directly (not behind a portal wrapper), Admin-only per the system's "AdminService is Admin-only"
+   invariant (`admin-service.cds`). Rather than adding bound actions to `PaymentService` itself
+   (which would need a brand-new dedicated app), a new `AdminService.Payments` projection with
+   `capture`/`fail`/`refund` bound actions was added, wired as a fourth entity into the existing
+   `app/admin-portal`.
+
+   **Critical constraint, unlike every other T4/T5 wrapper action**: `AdminService`'s handlers for
+   `capture`/`fail`/`refund` must delegate to `PaymentService` via
+   `cds.connect.to('PaymentService').send(...)` rather than reimplementing the status update and
+   calling `srv.emit(...)` on `AdminService`'s own instance. `SalesService` subscribes with
+   `cds.connect.to('PaymentService').on('PaymentSucceeded', ...)` — an event emitted from any other
+   service instance never reaches that handler. Reimplementing here (the pattern every other
+   wrapper in this codebase uses) would silently break the Order → PAID / Vehicle → SOLD transition
+   with no error at all. Verified below by checking the vehicle's status actually flips after a
+   `capture` call through `AdminService`, not just that the call returns `true`.
+
+**A real bug found and fixed while verifying, not guessed at:** `manager.schmidt`'s mock user
+(`package.json`, `cds.requires.auth.users`) had no `attr.branchId` — unlike `operator.weber`.
+`Offers`' `@restrict` branch-scopes Manager's `READ` with `where: 'branch_ID = $user.branchId'`
+(unlike Reservations/TestDrives, where Manager's grant has no `where` — Managers see all branches
+there). With `attr.branchId` undefined, `GET /operator/Offers` returned empty for Manager and
+`approve`/`reject` 403'd unconditionally (`offer.branch_ID !== undefined` is always true) — this
+ticket's own DoD item ("Manager can approve/reject an offer from the UI") was undemonstrable. This
+predates T5 — the old unbound `approveOffer`/`rejectOffer` had the same `req.user.attr.branchId`
+check, but no unit test ever called it and `tests/http/offer.http` calls it with `operatorAuth`
+(itself wrong — `OfferService.approveOffer` requires `Manager`/`Admin`, not `Operator`), so it was
+never exercised end-to-end. Fixed by adding `attr: { branchId: "aaa...001" }` (München, matching
+`operator.weber` and all the seeded test vehicles) to `manager.schmidt` in `package.json`.
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/vehicle/api/operator-portal.cds`
+
+Convert `Offers` from a plain projection into one with an `actions {}` block declaring `approve()`/
+`reject(rejectionNotes: String)`, both `@requires: ['Manager', 'Admin']`. Add a grant entry
+`{ grant: ['approve', 'reject'], to: ['Manager', 'Admin'] }` to the existing `@restrict`. Delete the
+old unbound `approveOffer`/`rejectOffer` action declarations.
+
+#### 2. Modify `modules/vehicle/application/operator-portal.js`
+
+Replace `srv.on('approveOffer', ...)` / `srv.on('rejectOffer', ...)` with `srv.on('approve', 'Offers', ...)`
+/ `srv.on('reject', 'Offers', ...)` — same handler bodies (still reimplement-then-emit via
+`OfferService.emit(...)`, not `.send()` — this file's established pattern, untouched), just
+destructuring `offerId` from `req.params` instead of `req.data`.
+
+#### 3. Modify `modules/vehicle/api/operator-portal-ui.cds`
+
+Add a fourth `annotate` block, `OperatorPortalService.Offers` (`UI.LineItem`, `UI.FieldGroup`,
+`UI.Facets`, `UI.Identification` with `approve`/`reject`) — same shape as Reservations/TestDrives.
+
+#### 4. Extend `app/operator-portal/webapp/manifest.json` and `test/flpSandbox.html` by hand
+
+One more route pair + target pair (`OffersList/...`, `entitySet: "Offers"`) and one more Launchpad
+tile (`../#OffersList`).
+
+#### 5. Modify `modules/admin/api/admin-service.cds`
+
+Add `using {automarket as pay} from '../../payment/db/payment';`, then a new
+`@requires: 'Admin' entity Payments as projection on pay.Payments actions { capture(transactionReference: String); fail(); refund(); }`
+(all returning `Boolean`) at the end of the service, after `assignRole`.
+
+#### 6. Modify `modules/admin/application/admin-service.js`
+
+Add three new handlers, `srv.on('capture', 'Payments', ...)` / `srv.on('fail', 'Payments', ...)` /
+`srv.on('refund', 'Payments', ...)`, each destructuring `paymentId` from `req.params` and
+delegating: `return (await cds.connect.to('PaymentService')).send('capturePayment', { paymentId, transactionReference })`
+(and the `fail`/`refund` equivalents). No direct `SELECT`/`UPDATE` on `Payments` here — validation
+and state transition stay in `PaymentService`, per the event-subscription constraint above.
+
+#### 7. Modify `modules/admin/api/admin-service-ui.cds`
+
+Add a fourth `annotate` block, `AdminService.Payments` (`UI.LineItem`, `UI.FieldGroup`, `UI.Facets`,
+`UI.Identification` with `capture`/`fail`/`refund`) — read-only field layout, no create/edit form
+since these are PSP-webhook simulations, not manual data entry.
+
+#### 8. Extend `app/admin-portal/webapp/manifest.json` and `test/flpSandbox.html` by hand
+
+One more route pair + target pair (`PaymentsList/...`, `entitySet: "Payments"`) and one more
+Launchpad tile (`../#PaymentsList`).
+
+#### 9. Modify `package.json`
+
+Add `"attr": { "branchId": "aaa00000-0000-0000-0000-000000000001" }` to the `manager.schmidt`
+mock user entry under `cds.requires.auth.users` — see the bug finding above.
+
+#### 10. Refresh local metadata snapshots
+
+```sh
+node_modules/.bin/cds-serve &   # NOT cds watch
+curl -s http://localhost:4004/operator/\$metadata -o app/operator-portal/webapp/localService/mainService/metadata.xml
+curl -s http://localhost:4004/admin/\$metadata -o app/admin-portal/webapp/localService/mainService/metadata.xml
+```
+
+#### 11. Verify
+
+```sh
+node_modules/.bin/cds-serve                                  # backend, port 4004 — NOT cds watch
+(cd app/operator-portal && node_modules/.bin/ui5 serve --port 8080)
+(cd app/admin-portal && node_modules/.bin/ui5 serve --port 8082)
+```
+
+```sh
+curl -s http://localhost:8080/manifest.json | python3 -c "import json,sys; print([r['name'] for r in json.load(sys.stdin)['sap.ui5']['routing']['routes']])"
+curl -s http://localhost:8080/operator/\$metadata | grep -c "UI.Identification"
+curl -s http://localhost:8082/manifest.json | python3 -c "import json,sys; print([r['name'] for r in json.load(sys.stdin)['sap.ui5']['routing']['routes']])"
+curl -s http://localhost:8082/admin/\$metadata | grep -c "UI.Identification"
+
+# Manager approves/rejects an offer created via CustomerPortalService.submitOffer
+curl -s -u "manager.schmidt@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/Offers(<id>)/OperatorPortalService.approve" -d '{}'
+
+# Admin captures a payment created via CustomerPortalService.checkout + pay,
+# then checks the vehicle actually flipped to SOLD — proving the delegation
+# to the real PaymentService instance, not just that the call returned true.
+curl -s -u "admin.mueller@automarkt.de:Test@1234" -X POST "http://localhost:4004/admin/Payments(<id>)/AdminService.capture" -d '{"transactionReference":"TXN-TEST-001"}'
+curl -s -u "admin.mueller@automarkt.de:Test@1234" "http://localhost:4004/vehicle/Vehicles?\$filter=ID eq <vehicleId>&\$select=status"
+```
+
+**Verified end to end** against `cds-serve`: eight route names in each app; `UI.Identification`
+count `3` (operator-portal: Reservations/TestDrives/Offers) and `1` (admin-portal: Payments);
+Manager `approve`/`reject` on a fresh offer both returned `true`; Admin `capture` on a fresh payment
+returned `true` **and** the underlying vehicle flipped to `SOLD` (confirming `SalesService`'s
+`PaymentSucceeded` subscription fired from the delegated call); `fail` and `refund` also verified
+against separate fresh payments.
 
 ```sh
 npm run lint && npm run format:check && npm test

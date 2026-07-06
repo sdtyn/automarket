@@ -273,3 +273,48 @@ curl -s http://localhost:4004/catalog/\$metadata | grep -c "UI.Identification"  
 node_modules/.bin/cds-serve
 curl -s http://localhost:4004/catalog/\$metadata | grep -c "UI.Identification"   # → 2
 ```
+
+---
+
+## 11. `srv.emit(...)` Only Reaches Subscribers Bound to That Exact Service Instance
+
+**Context:** EPIC20-T5. `AdminService` needed new bound actions (`capture`/`fail`/`refund` on a new
+`Payments` projection) to PSP-simulate `PaymentService.capturePayment`/`failPayment`/`refundPayment`.
+Every other "portal wraps a domain service" action written so far in this project (EPIC03's
+`OperatorPortalService.approve*`/`reject*`, EPIC20-T1–T4) reimplements the domain logic directly in
+the wrapper's own handler and calls `<DomainService>.emit(...)` on a `cds.connect.to(...)` handle —
+that pattern works fine for those, because nothing downstream actually depends on *which* service
+instance emitted the event, only that `<DomainService>.emit('SomeEvent', ...)` fires eventually.
+
+**The difference here:** `SalesService` subscribes with
+`cds.connect.to('PaymentService').on('PaymentSucceeded', async (msg) => { ... })` — a subscription
+bound to that specific connected service instance. `srv.emit(...)` called from inside
+`AdminService`'s own handler emits on *`AdminService`'s* instance, not `PaymentService`'s, even
+though the event name (`PaymentSucceeded`) and payload shape are identical. `SalesService`'s
+handler never fires — no error, no warning, the bound action itself still returns `true`, and the
+only symptom is that `Orders.status`/`Vehicles.status` silently never transition.
+
+**Solution:** When a wrapper action's *sole purpose* is to trigger a state transition that another
+service's `.on(eventName, ...)` subscriber depends on, delegate with
+`(await cds.connect.to('TargetService')).send('originalActionName', { ...params })` instead of
+reimplementing the body and emitting locally. This is the same delegation pattern EPIC20-T1–T3's
+`customer-portal.js` already uses for its own reasons (avoiding validation/state-machine
+duplication) — the PSP-simulation case makes it a hard requirement, not just a style preference.
+
+```js
+// Wrong — event fires on AdminService's own instance, SalesService's
+// cds.connect.to('PaymentService').on('PaymentSucceeded', ...) never sees it:
+srv.on('capture', 'Payments', async (req) => {
+  const [{ ID: paymentId }] = req.params;
+  await UPDATE(Payments).set({ status: 'CAPTURED' }).where({ ID: paymentId });
+  await srv.emit('PaymentSucceeded', { orderId, vehicleId });   // wrong srv
+});
+
+// Correct — delegates to the real PaymentService instance, which emits from itself:
+srv.on('capture', 'Payments', async (req) => {
+  const [{ ID: paymentId }] = req.params;
+  const { transactionReference } = req.data;
+  const paymentSrv = await cds.connect.to('PaymentService');
+  return paymentSrv.send('capturePayment', { paymentId, transactionReference });
+});
+```

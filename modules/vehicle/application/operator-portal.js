@@ -160,10 +160,12 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // approveOffer: branch guard for Managers; delegates to OfferService for the
-  // Reservation creation and event emission.
-  srv.on('approveOffer', async (req) => {
-    const { offerId } = req.data;
+  // approve (EPIC20-T5): bound to Offers. Branch guard for Managers; delegates
+  // to OfferService for the Reservation creation and event emission. Same
+  // logic as the old unbound approveOffer action, just reading the bound key
+  // from req.params.
+  srv.on('approve', 'Offers', async (req) => {
+    const [{ ID: offerId }] = req.params;
     const offer = await SELECT.one.from(Offers).where({ ID: offerId });
     if (!offer) return req.error(404, 'Offer not found');
 
@@ -192,10 +194,12 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // rejectOffer: branch guard for Managers; stores rejection notes and emits
-  // via OfferService so the customer's notification subscriber fires correctly.
-  srv.on('rejectOffer', async (req) => {
-    const { offerId, rejectionNotes } = req.data;
+  // reject (EPIC20-T5): bound to Offers, same branch-scoped guard; stores
+  // rejection notes and emits via OfferService so the customer's notification
+  // subscriber fires correctly.
+  srv.on('reject', 'Offers', async (req) => {
+    const [{ ID: offerId }] = req.params;
+    const { rejectionNotes } = req.data;
     const offer = await SELECT.one.from(Offers).where({ ID: offerId });
     if (!offer) return req.error(404, 'Offer not found');
 

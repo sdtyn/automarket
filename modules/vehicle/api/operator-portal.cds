@@ -82,8 +82,7 @@ service OperatorPortalService @(path: '/operator') {
             ]
         }
     ]
-    entity Reservations as
-        projection on automarket.Reservations
+    entity Reservations as projection on automarket.Reservations
         actions {
             @requires: [
                 'Operator',
@@ -95,7 +94,7 @@ service OperatorPortalService @(path: '/operator') {
                 'Operator',
                 'Manager'
             ]
-            action reject(notes : String) returns Boolean;
+            action reject(notes: String) returns Boolean;
         };
 
     // TestDrives: branch-scoped read for Operators; Managers see all branches.
@@ -123,30 +122,31 @@ service OperatorPortalService @(path: '/operator') {
             ]
         }
     ]
-    entity TestDrives   as
-        projection on automarket.TestDrives
+    entity TestDrives   as projection on automarket.TestDrives
         actions {
             @requires: [
                 'Operator',
                 'Manager'
             ]
-            action approve(durationMinutes : Integer) returns Boolean;
+            action approve(durationMinutes: Integer) returns Boolean;
 
             @requires: [
                 'Operator',
                 'Manager'
             ]
-            action cancel()                           returns Boolean;
+            action cancel()                          returns Boolean;
 
             @requires: [
                 'Operator',
                 'Manager'
             ]
-            action complete()                         returns Boolean;
+            action complete()                        returns Boolean;
         };
 
-    // Offers: branch-scoped read for Managers and Admins only.
-    // Operators do not have offer approval authority.
+    // Offers: branch-scoped read for Managers and Admins only. approve/reject
+    // are bound actions (EPIC20-T5) — same branch-guard logic as before,
+    // moved from unbound-action parameters to req.params (same conversion as
+    // Reservations/TestDrives in EPIC20-T4).
     @restrict: [
         {
             grant: 'READ',
@@ -156,23 +156,30 @@ service OperatorPortalService @(path: '/operator') {
         {
             grant: 'READ',
             to   : 'Admin'
+        },
+        {
+            grant: [
+                'approve',
+                'reject'
+            ],
+            to   : [
+                'Manager',
+                'Admin'
+            ]
         }
     ]
-    entity Offers       as projection on automarket.Offers;
+    entity Offers       as projection on automarket.Offers
+        actions {
+            @requires: [
+                'Manager',
+                'Admin'
+            ]
+            action approve()                      returns Boolean;
 
-    // approveOffer: branch-scoped wrapper — Managers may only approve offers
-    // belonging to their branch. Creates a Reservation via OfferService.
-    @requires: [
-        'Manager',
-        'Admin'
-    ]
-    action approveOffer(offerId: String)                           returns Boolean;
-
-    // rejectOffer: branch-scoped wrapper with the same guard.
-    @requires: [
-        'Manager',
-        'Admin'
-    ]
-    action rejectOffer(offerId: String,
-                       rejectionNotes: String)                     returns Boolean;
+            @requires: [
+                'Manager',
+                'Admin'
+            ]
+            action reject(rejectionNotes: String) returns Boolean;
+        };
 }

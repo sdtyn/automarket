@@ -144,4 +144,31 @@ module.exports = cds.service.impl(async function (srv) {
     await INSERT.into(UserRoles).entries({ user_ID: userId, role_ID: role.ID });
     return true;
   });
+
+  // capture (EPIC20-T5): bound to Payments. Delegates to PaymentService's own
+  // capturePayment — see the @requires comment on Payments in admin-service.cds
+  // for why this cannot be reimplemented here (PaymentSucceeded must be
+  // emitted by the real PaymentService instance for SalesService to react).
+  srv.on('capture', 'Payments', async (req) => {
+    const [{ ID: paymentId }] = req.params;
+    const { transactionReference } = req.data;
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('capturePayment', { paymentId, transactionReference });
+  });
+
+  // fail (EPIC20-T5): bound to Payments. Delegates to PaymentService's own
+  // failPayment, same reasoning as capture above.
+  srv.on('fail', 'Payments', async (req) => {
+    const [{ ID: paymentId }] = req.params;
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('failPayment', { paymentId });
+  });
+
+  // refund (EPIC20-T5): bound to Payments. Delegates to PaymentService's own
+  // refundPayment, same reasoning as capture above.
+  srv.on('refund', 'Payments', async (req) => {
+    const [{ ID: paymentId }] = req.params;
+    const paymentSrv = await cds.connect.to('PaymentService');
+    return paymentSrv.send('refundPayment', { paymentId });
+  });
 });

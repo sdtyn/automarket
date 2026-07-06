@@ -92,6 +92,63 @@ annotate automarket.VehicleImages with @(UI.LineItem: [
     }
 ]);
 
+// "Offers" (EPIC20-T5) — fourth entity in app/operator-portal, visible only
+// to Manager/Admin per the @restrict on Offers (operator-portal.cds) —
+// Operators do not have offer approval authority. approve/reject are bound
+// to Offers — a distinct overload from Reservations' own `approve`/`reject`
+// above (OData resolves same-named bound actions by their bound type).
+annotate OperatorPortalService.Offers with @(
+    UI.LineItem                : [
+        {
+            Value: vehicle_ID,
+            Label: 'Vehicle'
+        },
+        {
+            Value: customer_ID,
+            Label: 'Customer'
+        },
+        {Value: offeredPrice},
+        {Value: currency},
+        {Value: status},
+        {Value: desiredPickupDate}
+    ],
+    UI.FieldGroup #OfferDetails: {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {
+                Value: vehicle_ID,
+                Label: 'Vehicle'
+            },
+            {
+                Value: customer_ID,
+                Label: 'Customer'
+            },
+            {Value: offeredPrice},
+            {Value: currency},
+            {Value: desiredPickupDate},
+            {Value: status},
+            {Value: rejectionNotes}
+        ]
+    },
+    UI.Facets                  : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Offer Details',
+        Target: '@UI.FieldGroup#OfferDetails'
+    }],
+    UI.Identification          : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.approve',
+            Label : 'Approve Offer'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.reject',
+            Label : 'Reject Offer'
+        }
+    ]
+);
+
 
 // "Reservations" (EPIC20-T4) — branch-scoped List Report + Object Page,
 // second entity in app/operator-portal (same manual-merge-into-one-app

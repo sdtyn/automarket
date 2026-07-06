@@ -122,6 +122,16 @@
           "pattern": "AuditLogsList/AuditLogs({key}):?query:",
           "name": "AuditLogsObjectPage",
           "target": "AuditLogsObjectPage"
+        },
+        {
+          "pattern": "PaymentsList:?query:",
+          "name": "PaymentsList",
+          "target": "PaymentsList"
+        },
+        {
+          "pattern": "PaymentsList/Payments({key}):?query:",
+          "name": "PaymentsObjectPage",
+          "target": "PaymentsObjectPage"
         }
       ],
       "targets": {
@@ -230,6 +240,42 @@
             "settings": {
               "editableHeaderContent": false,
               "entitySet": "AuditLogs"
+            }
+          }
+        },
+        "PaymentsList": {
+          "type": "Component",
+          "id": "PaymentsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Payments",
+              "variantManagement": "Page",
+              "navigation": {
+                "Payments": {
+                  "detail": {
+                    "route": "PaymentsObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "PaymentsObjectPage": {
+          "type": "Component",
+          "id": "PaymentsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "Payments"
             }
           }
         }
