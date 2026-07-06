@@ -12,10 +12,14 @@ module.exports = cds.service.impl(async function (srv) {
 
   const { Favorites, PriceHistory, VehicleImages } = cds.entities('automarket');
 
-  // Populates the virtual primaryImageUrl field (declared in customer-portal.cds)
-  // for every Vehicles row returned by READ — one batched query for the whole
-  // result page, not one query per row.
-  srv.after('READ', 'Vehicles', async (rows) => {
+  // Populates the virtual primaryImageUrl/isFavorited/isNotFavorited fields
+  // (declared in customer-portal.cds) for every Vehicles row returned by
+  // READ — one batched query per concern for the whole result page, not one
+  // query per row. isFavorited/isNotFavorited stay false/true (never
+  // favorited) for guests — Favorites has no concept of a guest, and
+  // addToFavorites/removeFromFavorites already require 'Customer' regardless
+  // of what these two fields say.
+  srv.after('READ', 'Vehicles', async (rows, req) => {
     const list = Array.isArray(rows) ? rows : [rows];
     const ids = list.filter(Boolean).map((r) => r.ID);
     if (!ids.length) return;
@@ -31,8 +35,21 @@ module.exports = cds.service.impl(async function (srv) {
         firstImageByVehicle[image.vehicle_ID] = image.url;
       }
     }
+
+    let favoritedIds = new Set();
+    if (req.user.is('Customer')) {
+      const favorites = await SELECT.from(Favorites)
+        .columns('vehicle_ID')
+        .where({ customer_ID: req.user.id, vehicle_ID: { in: ids } });
+      favoritedIds = new Set(favorites.map((f) => f.vehicle_ID));
+    }
+
     for (const row of list) {
-      if (row) row.primaryImageUrl = firstImageByVehicle[row.ID] ?? null;
+      if (row) {
+        row.primaryImageUrl = firstImageByVehicle[row.ID] ?? null;
+        row.isFavorited = favoritedIds.has(row.ID);
+        row.isNotFavorited = !favoritedIds.has(row.ID);
+      }
     }
   });
 

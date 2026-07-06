@@ -6,10 +6,17 @@ module.exports = cds.service.impl(async function (srv) {
   const { Favorites } = cds.entities('automarket');
 
   // addFavorite: inserts a Favorites row keyed by the caller's user ID.
-  // The @assert.unique constraint on the entity rejects duplicates at the DB level.
+  // Idempotent — checks for an existing row first and returns its ID instead
+  // of relying on the @assert.unique constraint to reject the duplicate,
+  // which used to leak a raw SQLite UNIQUE-constraint error to the client
+  // (same idempotent-check pattern as removeFavorite below).
   srv.on('addFavorite', async (req) => {
     const { vehicleId } = req.data;
     const customer_ID = req.user.id;
+
+    const existing = await SELECT.one.from(Favorites).where({ customer_ID, vehicle_ID: vehicleId });
+    if (existing) return existing.ID;
+
     const id = cds.utils.uuid();
     await INSERT.into(Favorites).entries({ ID: id, customer_ID, vehicle_ID: vehicleId });
     return id;

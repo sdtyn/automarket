@@ -73,6 +73,8 @@
           <OnDelete Action="Cascade"/>
         </NavigationProperty>
         <Property Name="primaryImageUrl" Type="Edm.String"/>
+        <Property Name="isFavorited" Type="Edm.Boolean"/>
+        <Property Name="isNotFavorited" Type="Edm.Boolean"/>
       </EntityType>
       <EntityType Name="VehicleImages">
         <Key>
@@ -351,10 +353,12 @@
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.addToFavorites"/>
               <PropertyValue Property="Label" String="Add to Favorites"/>
+              <PropertyValue Property="Hidden" Path="isFavorited"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.removeFromFavorites"/>
               <PropertyValue Property="Label" String="Remove from Favorites"/>
+              <PropertyValue Property="Hidden" Path="isNotFavorited"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.submitOffer"/>
@@ -482,6 +486,12 @@
       </Annotations>
       <Annotations Target="CustomerPortalService.Vehicles/primaryImageUrl">
         <Annotation Term="UI.IsImageURL" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/isFavorited">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/isNotFavorited">
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
       <Annotations Target="CustomerPortalService.VehicleImages">

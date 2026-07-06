@@ -426,3 +426,52 @@ button's visibility warrants without a firm diagnosis first.
 `operator-portal.cds` — it is accurate metadata (Vehicles is genuinely insertable) and harmless even
 though it didn't solve the visibility problem. `POST /operator/Vehicles` is unaffected and still
 works. See `docs/implementations/EPIC21-fiori-multi-app-remediation.md`, EPIC21-T4, left **Open**.
+
+---
+
+## 14. `Hidden` Path Binding on `UI.DataFieldForAction` Does Not Hide Object Page Header Buttons
+
+**Context:** A user reported clicking "Add to Favorites" on an already-favorited vehicle in
+`app/customer-portal` threw a raw `SQLITE_CONSTRAINT_UNIQUE` error to the UI, and that both
+"Add to Favorites" and "Remove from Favorites" buttons always showed regardless of the vehicle's
+actual favorite state. Two independent problems, one fix each attempted.
+
+**Fixed:** `FavoritesService.addFavorite` (`modules/favorites/application/favorites-service.js`) now
+checks for an existing row first and returns its `ID` idempotently, instead of relying on the
+`@assert.unique` DB constraint to reject the duplicate insert and leak a raw SQL error — same
+pattern `removeFavorite` already used. Verified via curl: calling `addToFavorites` twice on the same
+vehicle now returns the same favorite ID both times, no error.
+
+**Not fixed — same class of problem as #13:** added `virtual null as isFavorited : Boolean` and
+`virtual null as isNotFavorited : Boolean` to `CustomerPortalService.Vehicles`
+(`customer-portal.cds`), populated per-row in the existing `srv.after('READ', 'Vehicles', ...)`
+handler (`customer-portal.js`) via a batched query against `Favorites`, then added
+`Hidden: isFavorited` / `Hidden: isNotFavorited` to the `addToFavorites`/`removeFromFavorites`
+`UI.DataFieldForAction` records in `customer-portal-ui.cds`. This compiles to exactly the documented
+OData shape:
+
+```xml
+<Record Type="UI.DataFieldForAction">
+  <PropertyValue Property="Action" String="CustomerPortalService.addToFavorites"/>
+  <PropertyValue Property="Label" String="Add to Favorites"/>
+  <PropertyValue Property="Hidden" Path="isFavorited"/>
+</Record>
+```
+
+Confirmed via network trace that `isFavorited`/`isNotFavorited` are present with the correct values
+in the actual OData response for the bound Object Page context. **The button still never hides** —
+both always render regardless of the field's value. Research turned up a plausible but unconfirmed
+explanation: some SAP documentation examples achieve dynamic header-action hiding via a *nested*
+`[@UI.Hidden]` CDS annotation applied to the `DataFieldForAction` record itself (a term annotation
+on the array element), not via the record's own native `Hidden` struct property — which is what was
+used here, and which does appear to be a legitimate, spec-defined property of
+`UI.DataFieldAbstract`. Whether `[@UI.Hidden]`-as-nested-annotation is even expressible in plain CDL
+(not raw CSN) for an anonymous struct inside an array annotation was not established, and the
+nested-annotation approach was not attempted. Not resolved in this session — same open-ended
+"Fiori Elements doesn't honor a spec-correct dynamic annotation the way documented" shape as #13.
+
+**Status:** left in place — `isFavorited`/`isNotFavorited` and the `Hidden` bindings are harmless
+dead weight if/when this gets revisited, and mean no further CDS/service-layer change is needed if
+the actual fix turns out to be UI-annotation-only. Both "Add to Favorites" and "Remove from
+Favorites" remain visible regardless of state; clicking either is now always safe (idempotent) even
+though it shouldn't be reachable in the wrong state at all.

@@ -21,11 +21,23 @@ service CustomerPortalService @(path: '/catalog') {
     // sortOrder, or null. Annotated @UI.IsImageURL (customer-portal-ui.cds) so
     // the List Report renders it as a thumbnail instead of a text column
     // (EPIC19-T4).
+    // isFavorited/isNotFavorited: read-only calculated fields (populated in
+    // customer-portal.js, srv.after('READ'), one query against Favorites per
+    // page) — mutually exclusive booleans, not a single field, because
+    // @UI.Hidden path bindings can only reference a field directly, with no
+    // negation operator available in CDS annotation syntax. Drive the
+    // addToFavorites/removeFromFavorites button visibility (customer-portal-ui.cds)
+    // so a customer never sees (or can click) the button for the state
+    // they're already in — previously both buttons always showed, and
+    // clicking "Add" on an already-favorited vehicle leaked a raw SQLite
+    // UNIQUE-constraint error to the UI.
     @requires: 'any'
     entity Vehicles      as
         projection on automarket.Vehicles {
             *,
-            virtual null as primaryImageUrl : String
+            virtual null as primaryImageUrl  : String,
+            virtual null as isFavorited      : Boolean,
+            virtual null as isNotFavorited   : Boolean
         }
         actions {
             // reserve/addToFavorites/removeFromFavorites (EPIC20-T1) are bound
