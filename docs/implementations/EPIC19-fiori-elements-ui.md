@@ -54,7 +54,8 @@ T6) is expected to have the identical defect, unverified only because the browse
 Branches once the pattern was confirmed broken. See `docs/cap-notes.md` #12 for the full root-cause
 trace and `docs/implementations/EPIC20-full-ui-backend-integration.md`'s sign-off for the equivalent
 correction across EPIC20 — a proper fix (splitting each entity into its own Fiori app) is scoped as
-follow-up work, not yet scheduled.
+**EPIC21 — Fiori Elements Multi-App Remediation**
+(`docs/implementations/EPIC21-fiori-multi-app-remediation.md`).
 
 ---
 

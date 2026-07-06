@@ -377,7 +377,7 @@ across EPIC19-T5, EPIC19-T6, and EPIC20-T1 through T6 needs to become its own se
 Elements application** (its own `manifest.json`, `Component.js`, `index.html`, `i18n`, `ui5.yaml`,
 `flpSandbox.html`) to actually work when clicked through by a user — see the EPIC19/EPIC20
 implementation logs for the flagged-affected ticket list. Not attempted in this session; scoped as
-follow-up work.
+`docs/implementations/EPIC21-fiori-multi-app-remediation.md`.
 
 **Verification commands used, for whoever picks this up:**
 

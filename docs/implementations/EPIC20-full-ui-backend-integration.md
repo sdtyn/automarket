@@ -76,7 +76,8 @@ but breaks the search/"Go" action for every non-root entity instead — reverted
 correct on the backend and in `$metadata`** — the CDS, JS handler, and annotation work in T1–T6 is
 not in question — but a user cannot actually reach most of these screens by clicking through the
 app today. Fixing this requires giving each entity its own separate Fiori Elements application;
-scoped as follow-up work, not yet scheduled as a ticket.
+scoped as **EPIC21 — Fiori Elements Multi-App Remediation**
+(`docs/implementations/EPIC21-fiori-multi-app-remediation.md`).
 
 ---
 
