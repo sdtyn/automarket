@@ -22,7 +22,7 @@ or "just the button."
 | EPIC20-T1 | Customer — Reservations & Favorites | Done |
 | EPIC20-T2 | Customer — Offers & Test Drives | Done |
 | EPIC20-T3 | Customer — Checkout & Payment | Done |
-| EPIC20-T4 | Operator — Vehicle & approval workflows | Open |
+| EPIC20-T4 | Operator — Vehicle & approval workflows | Done |
 | EPIC20-T5 | Manager & Admin — Offer approval and PSP simulation | Open |
 | EPIC20-T6 | Admin — User & Branch management actions | Open |
 
@@ -652,5 +652,157 @@ npm run lint && npm run format:check && npm test
 ```
 
 Expected: `Test Suites: 14 passed, 14 total`, `Tests: 138 passed, 138 total`.
+
+---
+
+## EPIC20-T4: Operator — Vehicle & approval workflows
+
+### What & Why
+
+`OperatorPortalService`'s five unbound actions (`createVehicle`, `approveReservation`,
+`rejectReservation`, `approveTestDrive`, `cancelTestDrive`, `completeTestDrive`) are converted the
+same way as EPIC20-T1/T2/T3's customer-facing actions: `createVehicle` becomes a native OData
+`CREATE` on `Vehicles` (branch/status enforcement moves into a `srv.before('CREATE', ...)` handler
+instead of an action body), and `approveReservation`/`rejectReservation`/`approveTestDrive`/
+`cancelTestDrive`/`completeTestDrive` become bound actions (`approve`/`reject` on `Reservations`,
+`approve`/`cancel`/`complete` on `TestDrives`) so `@UI.DataFieldForAction` can target them.
+
+`ReservationService`/`TestDriveService`'s own unbound actions (`/reservation/approveReservation`,
+`/test-drive/approveTestDrive`, etc.) are untouched — same reasoning as EPIC20-T1: those are the
+domain services other API consumers (guests, external integrations) still call directly.
+`OperatorPortalService`'s handlers keep delegating to them via `.send()`, just reading the bound
+key from `req.params` instead of an action parameter.
+
+Two design points carried over from earlier tickets:
+
+1. **`@restrict` needs its own grant entry per bound action**, same as EPIC20-T1's `Reservations.cancel`
+   finding — `Reservations`/`TestDrives` each got a new `@restrict` grant entry listing their bound
+   action names (`approve`, `reject` / `approve`, `cancel`, `complete`) for `Operator`/`Manager`,
+   in addition to the existing branch-scoped `READ` grant.
+2. **CREATE needs an unconditional grant** (no `where`), unlike `READ`'s `branch_ID = $user.branchId`
+   predicate — the branch/status enforcement that used to live in the `createVehicle` action body
+   moves into `srv.before('CREATE', 'Vehicles', ...)`, which overwrites `req.data.branch_ID`/`status`
+   unconditionally so a client cannot create directly into `FOR_SALE` or another branch by simply
+   including those fields in the create payload (verified below).
+
+`app/operator-portal` only had a `Vehicles` List Report/Object Page (EPIC19-T2/T3) — `Reservations`
+and `TestDrives` are new entities in that app, added by hand the same way EPIC19-T5 added
+`Branches` to `app/admin-portal`: a second (and third) route pair + target pair in `manifest.json`,
+plus a Launchpad tile each in `flpSandbox.html`. No `ui5.yaml`/`ui5-mock.yaml`/`package.json`
+changes were needed — both new entities live on the same `OperatorPortalService` already proxied
+at `/operator`.
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/vehicle/api/operator-portal.cds`
+
+- Add a `CREATE` grant (`to: ['Operator', 'Manager']`, no `where`) to the existing `Vehicles`
+  `@restrict`, and delete the `createVehicle` action declaration.
+- Convert `Reservations`/`TestDrives` from plain projections into projections with an `actions { }`
+  block declaring `approve`/`reject` (Reservations) and `approve`/`cancel`/`complete` (TestDrives),
+  each keeping its original `@requires: ['Operator', 'Manager']`. Add a grant entry for those action
+  names to each entity's `@restrict`. Delete the five old unbound action declarations
+  (`approveReservation`, `rejectReservation`, `approveTestDrive`, `cancelTestDrive`,
+  `completeTestDrive`).
+
+See the file for full content — the diff is mechanical (unbound action → bound `actions {}` block,
+one new `@restrict` grant entry per entity).
+
+#### 2. Modify `modules/vehicle/application/operator-portal.js`
+
+Replace `srv.on('createVehicle', ...)` with:
+
+```js
+srv.before('CREATE', 'Vehicles', (req) => {
+  if (req.user.is('Operator')) {
+    req.data.branch_ID = req.user.attr.branchId;
+  } else if (!req.data.branch_ID) {
+    return req.error(400, 'branch_ID is required for Manager role.');
+  }
+  req.data.status = 'DRAFT';
+});
+```
+
+Replace `srv.on('approveReservation', ...)` / `srv.on('rejectReservation', ...)` /
+`srv.on('approveTestDrive', ...)` / `srv.on('cancelTestDrive', ...)` / `srv.on('completeTestDrive', ...)`
+with `srv.on('approve', 'Reservations', ...)` / `srv.on('reject', 'Reservations', ...)` /
+`srv.on('approve', 'TestDrives', ...)` / `srv.on('cancel', 'TestDrives', ...)` /
+`srv.on('complete', 'TestDrives', ...)` — same handler bodies, just destructuring the key from
+`req.params` (`const [{ ID: reservationId }] = req.params`) instead of `req.data`.
+
+#### 3. Modify `modules/vehicle/api/operator-portal-ui.cds`
+
+Replace the stale EPIC19-T3 "Object Page is view-only" comment on `Vehicles` (creation now goes
+through native `CREATE`, no annotation needed for the toolbar button to appear), and add two new
+`annotate` blocks — `OperatorPortalService.Reservations` (`UI.LineItem`, `UI.FieldGroup`,
+`UI.Facets`, `UI.Identification` with `approve`/`reject`) and `OperatorPortalService.TestDrives`
+(same shape, `approve`/`cancel`/`complete`) — same pattern as `customer-portal-ui.cds`'s
+`Reservations`/`Offers`/`TestDrives` blocks. See the file for full content.
+
+#### 4. Modify `app/operator-portal/webapp/manifest.json` by hand
+
+Two more route pairs + target pairs, same shape as the existing `Vehicles` entries:
+
+```json
+{ "pattern": "ReservationsList:?query:", "name": "ReservationsList", "target": "ReservationsList" },
+{ "pattern": "ReservationsList/Reservations({key}):?query:", "name": "ReservationsObjectPage", "target": "ReservationsObjectPage" },
+{ "pattern": "TestDrivesList:?query:", "name": "TestDrivesList", "target": "TestDrivesList" },
+{ "pattern": "TestDrivesList/TestDrives({key}):?query:", "name": "TestDrivesObjectPage", "target": "TestDrivesObjectPage" }
+```
+
+with matching `ReservationsList`/`ReservationsObjectPage`/`TestDrivesList`/`TestDrivesObjectPage`
+target entries (`entitySet: "Reservations"` / `"TestDrives"`).
+
+#### 5. Modify `app/operator-portal/webapp/test/flpSandbox.html`
+
+Two more tiles, `../#ReservationsList` and `../#TestDrivesList`.
+
+#### 6. Modify `tests/http/vehicle.http`
+
+`POST /operator/createVehicle` → `POST /operator/Vehicles` (native create), `branchId` field →
+`branch_ID`.
+
+#### 7. Refresh the local metadata snapshot
+
+```sh
+node_modules/.bin/cds-serve &   # NOT cds watch — see docs/cap-notes.md §10
+curl -s http://localhost:4004/operator/\$metadata -o app/operator-portal/webapp/localService/mainService/metadata.xml
+```
+
+#### 8. Verify
+
+```sh
+node_modules/.bin/cds-serve                                  # backend, port 4004 — NOT cds watch
+(cd app/operator-portal && node_modules/.bin/ui5 serve --port 8080)
+```
+
+```sh
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/index.html
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/test/flpSandbox.html
+curl -s http://localhost:8080/operator/\$metadata | grep -c "UI.Identification"
+
+# Operator smuggling another branch + FOR_SALE into a native create — both silently overwritten
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST http://localhost:4004/operator/Vehicles \
+  -H "Content-Type: application/json" \
+  -d '{"vin":"...","branch_ID":"<other-branch>","status":"FOR_SALE", ...}'
+
+# Reservation/test-drive approval cycle, created via CustomerPortalService then actioned as Operator
+curl -s -u "customer.bauer@automarkt.de:Test@1234" -X POST "http://localhost:4004/catalog/Vehicles(<id>)/reserve" -d '{}'
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/Reservations(<id>)/OperatorPortalService.approve" -d '{}'
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/TestDrives(<id>)/OperatorPortalService.approve" -d '{"durationMinutes":45}'
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/TestDrives(<id>)/OperatorPortalService.complete" -d '{}'
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/TestDrives(<id>)/OperatorPortalService.cancel" -d '{}'
+curl -s -u "operator.weber@automarkt.de:Test@1234" -X POST "http://localhost:4004/operator/Reservations(<id>)/OperatorPortalService.reject" -d '{"notes":"..."}'
+```
+
+**Verified end to end** against `cds-serve` (per T1's `cds watch` / `UI.Identification` finding):
+`index.html`/`flpSandbox.html`/proxied `$metadata` all `200`; `UI.Identification` count `2`; a
+native create with a smuggled `branch_ID`/`status` came back `DRAFT` in the Operator's own branch;
+`approve`/`reject` (Reservations) and `approve`/`complete`/`cancel` (TestDrives) all returned `true`
+against reservations/test drives created fresh through `CustomerPortalService`.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
 
 ---

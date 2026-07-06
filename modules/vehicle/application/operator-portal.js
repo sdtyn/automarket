@@ -29,52 +29,26 @@ module.exports = cds.service.impl(async function (srv) {
     }
   });
 
-  // createVehicle: inserts a DRAFT vehicle and enforces branch scoping.
-  // Operators always get their branch from req.user.attr.branchId —
-  // any branchId parameter they pass is silently ignored.
-  srv.on('createVehicle', async (req) => {
-    const {
-      vin,
-      plateNumber,
-      brand,
-      model,
-      year,
-      mileage,
-      fuelType,
-      transmission,
-      color,
-      price,
-      currency,
-      branchId,
-    } = req.data;
-
-    const branch_ID = req.user.is('Operator') ? req.user.attr.branchId : branchId;
-    if (!branch_ID) return req.error(400, 'branchId is required for Manager role.');
-
-    const id = cds.utils.uuid();
-    await INSERT.into(Vehicles).entries({
-      ID: id,
-      vin,
-      plateNumber,
-      brand,
-      model,
-      year,
-      mileage,
-      fuelType,
-      transmission,
-      color,
-      price,
-      currency,
-      branch_ID,
-      status: 'DRAFT',
-    });
-    return id;
+  // Native CREATE on Vehicles (EPIC20-T4, replaces the old unbound createVehicle
+  // action — see the @restrict comment on Vehicles in operator-portal.cds).
+  // Overwrites branch_ID/status unconditionally so a client cannot create a
+  // vehicle directly into FOR_SALE, or an Operator into another branch, by
+  // simply submitting those fields in the create payload.
+  srv.before('CREATE', 'Vehicles', (req) => {
+    if (req.user.is('Operator')) {
+      req.data.branch_ID = req.user.attr.branchId;
+    } else if (!req.data.branch_ID) {
+      return req.error(400, 'branch_ID is required for Manager role.');
+    }
+    req.data.status = 'DRAFT';
   });
 
-  // approveReservation: verifies the reservation belongs to the Operator's branch,
-  // then delegates to ReservationService so subscribers receive the canonical event.
-  srv.on('approveReservation', async (req) => {
-    const { reservationId } = req.data;
+  // approve (EPIC20-T4): bound to Reservations. Verifies the reservation
+  // belongs to the Operator's branch, then delegates to ReservationService so
+  // subscribers receive the canonical event. Same logic as the old unbound
+  // approveReservation action, just reading the bound key from req.params.
+  srv.on('approve', 'Reservations', async (req) => {
+    const [{ ID: reservationId }] = req.params;
     const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
     if (!reservation) return req.error(404, 'Reservation not found');
 
@@ -91,9 +65,11 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // rejectReservation: same branch-scoped guard; returns vehicle to FOR_SALE.
-  srv.on('rejectReservation', async (req) => {
-    const { reservationId, notes } = req.data;
+  // reject (EPIC20-T4): bound to Reservations, same branch-scoped guard;
+  // returns the vehicle to FOR_SALE.
+  srv.on('reject', 'Reservations', async (req) => {
+    const [{ ID: reservationId }] = req.params;
+    const { notes } = req.data;
     const reservation = await SELECT.one.from(Reservations).where({ ID: reservationId });
     if (!reservation) return req.error(404, 'Reservation not found');
 
@@ -121,10 +97,13 @@ module.exports = cds.service.impl(async function (srv) {
     await resSrv.emit('ReservationRejected', { reservationId, vehicleId: reservation.vehicle_ID });
     return true;
   });
-  // approveTestDrive: branch guard for Operators; delegates event emission to
-  // TestDriveService to keep subscribers decoupled from the portal.
-  srv.on('approveTestDrive', async (req) => {
-    const { testDriveId, durationMinutes } = req.data;
+
+  // approve (EPIC20-T4): bound to TestDrives — a distinct overload from
+  // Reservations' own `approve` above (OData resolves same-named bound
+  // actions by their bound type, same pattern as EPIC20-T2's `cancel`).
+  srv.on('approve', 'TestDrives', async (req) => {
+    const [{ ID: testDriveId }] = req.params;
+    const { durationMinutes } = req.data;
     const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
     if (!testDrive) return req.error(404, 'Test drive not found');
 
@@ -143,9 +122,9 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // cancelTestDrive: branch guard for Operators; emits via TestDriveService.
-  srv.on('cancelTestDrive', async (req) => {
-    const { testDriveId } = req.data;
+  // cancel (EPIC20-T4): bound to TestDrives.
+  srv.on('cancel', 'TestDrives', async (req) => {
+    const [{ ID: testDriveId }] = req.params;
     const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
     if (!testDrive) return req.error(404, 'Test drive not found');
 
@@ -162,9 +141,9 @@ module.exports = cds.service.impl(async function (srv) {
     return true;
   });
 
-  // completeTestDrive: branch guard for Operators; only valid from APPROVED.
-  srv.on('completeTestDrive', async (req) => {
-    const { testDriveId } = req.data;
+  // complete (EPIC20-T4): bound to TestDrives; only valid from APPROVED.
+  srv.on('complete', 'TestDrives', async (req) => {
+    const [{ ID: testDriveId }] = req.params;
     const testDrive = await SELECT.one.from(TestDrives).where({ ID: testDriveId });
     if (!testDrive) return req.error(404, 'Test drive not found');
 

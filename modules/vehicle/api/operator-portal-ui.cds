@@ -7,38 +7,39 @@ using {automarket} from '../db/vehicle';
 // Elements renders it — a UI-only change here never touches the @restrict
 // authorization logic.
 //
-// EPIC19-T3 note on the create/edit form: OperatorPortalService.Vehicles has
-// no CREATE/UPDATE grant (see operator-portal.cds) — vehicle creation is
-// deliberately only reachable through the createVehicle action, so status and
-// branch enforcement cannot be bypassed via a raw PATCH/POST. createVehicle is
-// an *unbound* OData action (IsBound="false"), so it cannot be wired onto the
-// List Report toolbar via @UI.DataFieldForAction (that annotation targets
-// actions bound to the entity type). Wiring it in would require a manifest.json
-// custom-toolbar-action entry, which cannot be verified without a real browser
-// session — left as a follow-up rather than shipped unverified. This Object
-// Page is therefore view-only; creation still goes through the createVehicle
-// endpoint directly (see tests/http/vehicle.http).
+// EPIC20-T4 update: Vehicles now has a native CREATE grant (see
+// operator-portal.cds), enforced by srv.before('CREATE', 'Vehicles', ...) in
+// operator-portal.js. Fiori Elements shows a "Create" toolbar button on the
+// List Report automatically whenever CREATE is permitted — no annotation
+// needed here. This replaces the EPIC19-T3 unbound-createVehicle-action note;
+// that action is gone, the Object Page is no longer view-only.
 annotate OperatorPortalService.Vehicles with @(
     // List Report columns, with a status color badge (statusCriticality is
     // populated per-row in operator-portal.js, srv.after('READ')).
-    UI.LineItem                : [
+    UI.LineItem               : [
         {Value: brand},
         {Value: model},
         {Value: year},
         {Value: price},
-        {Value: status, Criticality: statusCriticality},
-        {Value: branch.name, Label: 'Branch'}
+        {
+            Value      : status,
+            Criticality: statusCriticality
+        },
+        {
+            Value: branch.name,
+            Label: 'Branch'
+        }
     ],
 
     // Filter bar fields on the List Report.
-    UI.SelectionFields          : [
+    UI.SelectionFields        : [
         brand,
         fuelType,
         status
     ],
 
     // Object Page general-info section.
-    UI.FieldGroup #GeneralInfo : {
+    UI.FieldGroup #GeneralInfo: {
         $Type: 'UI.FieldGroupType',
         Data : [
             {Value: vin},
@@ -53,7 +54,10 @@ annotate OperatorPortalService.Vehicles with @(
             {Value: price},
             {Value: currency},
             {Value: status},
-            {Value: branch.name, Label: 'Branch'}
+            {
+                Value: branch.name,
+                Label: 'Branch'
+            }
         ]
     },
 
@@ -61,7 +65,7 @@ annotate OperatorPortalService.Vehicles with @(
     // driven by the images composition (see UI.LineItem on VehicleImages
     // below — a Facet pointing at a composition needs a LineItem defined on
     // the target type for Fiori Elements to know which columns to render).
-    UI.Facets                  : [
+    UI.Facets                 : [
         {
             $Type : 'UI.ReferenceFacet',
             Label : 'Vehicle Details',
@@ -80,9 +84,139 @@ annotate OperatorPortalService.Vehicles with @(
 // (not a per-service projection) because it is not exposed as a standalone
 // entity set in OperatorPortalService — it only exists here as the images
 // composition's target type, reachable through Vehicles(ID)/images.
-annotate automarket.VehicleImages with @(
-    UI.LineItem: [
-        {Value: url},
-        {Value: sortOrder, Label: 'Order'}
+annotate automarket.VehicleImages with @(UI.LineItem: [
+    {Value: url},
+    {
+        Value: sortOrder,
+        Label: 'Order'
+    }
+]);
+
+
+// "Reservations" (EPIC20-T4) — branch-scoped List Report + Object Page,
+// second entity in app/operator-portal (same manual-merge-into-one-app
+// pattern as EPIC19-T5/EPIC20-T1's customer-portal). approve/reject are bound
+// to Reservations (see operator-portal.cds), so they get their own
+// @UI.DataFieldForAction Object Page header buttons.
+annotate OperatorPortalService.Reservations with @(
+    UI.LineItem                      : [
+        {
+            Value: vehicle_ID,
+            Label: 'Vehicle'
+        },
+        {
+            Value: customer_ID,
+            Label: 'Customer'
+        },
+        {Value: status},
+        {Value: expiresAt},
+        {
+            Value: createdAt,
+            Label: 'Requested'
+        }
+    ],
+    UI.FieldGroup #ReservationDetails: {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {
+                Value: vehicle_ID,
+                Label: 'Vehicle'
+            },
+            {
+                Value: customer_ID,
+                Label: 'Customer'
+            },
+            {Value: status},
+            {Value: expiresAt},
+            {Value: notes},
+            {
+                Value: createdAt,
+                Label: 'Requested'
+            }
+        ]
+    },
+    UI.Facets                        : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Reservation Details',
+        Target: '@UI.FieldGroup#ReservationDetails'
+    }],
+    UI.Identification                : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.approve',
+            Label : 'Approve Reservation'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.reject',
+            Label : 'Reject Reservation'
+        }
+    ]
+);
+
+// "Test Drives" (EPIC20-T4) — third entity in app/operator-portal.
+// approve/cancel/complete are bound to TestDrives — a distinct overload from
+// Reservations' own `approve` above (OData resolves same-named bound actions
+// by their bound type, same pattern as EPIC20-T2's customer-side `cancel`).
+annotate OperatorPortalService.TestDrives with @(
+    UI.LineItem                    : [
+        {
+            Value: vehicle_ID,
+            Label: 'Vehicle'
+        },
+        {
+            Value: customer_ID,
+            Label: 'Customer'
+        },
+        {Value: scheduledAt},
+        {
+            Value: durationMinutes,
+            Label: 'Duration (min)'
+        },
+        {Value: status}
+    ],
+    UI.FieldGroup #TestDriveDetails: {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {
+                Value: vehicle_ID,
+                Label: 'Vehicle'
+            },
+            {
+                Value: customer_ID,
+                Label: 'Customer'
+            },
+            {Value: contactEmail},
+            {Value: contactPhone},
+            {Value: scheduledAt},
+            {
+                Value: durationMinutes,
+                Label: 'Duration (min)'
+            },
+            {Value: status},
+            {Value: notes}
+        ]
+    },
+    UI.Facets                      : [{
+        $Type : 'UI.ReferenceFacet',
+        Label : 'Test Drive Details',
+        Target: '@UI.FieldGroup#TestDriveDetails'
+    }],
+    UI.Identification              : [
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.approve',
+            Label : 'Approve Test Drive'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.cancel',
+            Label : 'Cancel Test Drive'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.complete',
+            Label : 'Complete Test Drive'
+        }
     ]
 );

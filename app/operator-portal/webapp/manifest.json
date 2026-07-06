@@ -102,6 +102,26 @@
           "pattern": "Vehicles({key}):?query:",
           "name": "VehiclesObjectPage",
           "target": "VehiclesObjectPage"
+        },
+        {
+          "pattern": "ReservationsList:?query:",
+          "name": "ReservationsList",
+          "target": "ReservationsList"
+        },
+        {
+          "pattern": "ReservationsList/Reservations({key}):?query:",
+          "name": "ReservationsObjectPage",
+          "target": "ReservationsObjectPage"
+        },
+        {
+          "pattern": "TestDrivesList:?query:",
+          "name": "TestDrivesList",
+          "target": "TestDrivesList"
+        },
+        {
+          "pattern": "TestDrivesList/TestDrives({key}):?query:",
+          "name": "TestDrivesObjectPage",
+          "target": "TestDrivesObjectPage"
         }
       ],
       "targets": {
@@ -138,6 +158,78 @@
             "settings": {
               "editableHeaderContent": false,
               "entitySet": "Vehicles"
+            }
+          }
+        },
+        "ReservationsList": {
+          "type": "Component",
+          "id": "ReservationsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "Reservations",
+              "variantManagement": "Page",
+              "navigation": {
+                "Reservations": {
+                  "detail": {
+                    "route": "ReservationsObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ReservationsObjectPage": {
+          "type": "Component",
+          "id": "ReservationsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "Reservations"
+            }
+          }
+        },
+        "TestDrivesList": {
+          "type": "Component",
+          "id": "TestDrivesList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "entitySet": "TestDrives",
+              "variantManagement": "Page",
+              "navigation": {
+                "TestDrives": {
+                  "detail": {
+                    "route": "TestDrivesObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "TestDrivesObjectPage": {
+          "type": "Component",
+          "id": "TestDrivesObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "editableHeaderContent": false,
+              "entitySet": "TestDrives"
             }
           }
         }

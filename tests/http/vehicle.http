@@ -51,8 +51,11 @@ Content-Type: application/json
 # --- OperatorPortalService (/operator) ------------------------------------
 
 ### 8. Create vehicle — Operator (München branch)
+### EPIC20-T4: native OData CREATE (was POST /operator/createVehicle, an
+### unbound action that could never be wired to a Fiori "Create" button).
+### branch_ID is ignored for Operators — always forced to their own branch.
 # @name createVehicle
-POST {{baseUrl}}/operator/createVehicle
+POST {{baseUrl}}/operator/Vehicles
 Authorization: {{operatorAuth}}
 Content-Type: application/json
 
@@ -68,7 +71,7 @@ Content-Type: application/json
   "color": "Blau",
   "price": 31500.00,
   "currency": "EUR",
-  "branchId": "aaa00000-0000-0000-0000-000000000001"
+  "branch_ID": "aaa00000-0000-0000-0000-000000000001"
 }
 
 ### 9. Operator sees only their own branch vehicles

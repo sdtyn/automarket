@@ -20,6 +20,13 @@ service OperatorPortalService @(path: '/operator') {
     // the Object Page (EPIC19-T2, operator-portal-ui.cds) has a composition to
     // navigate to. This entity set is opened one record at a time in the
     // Fiori app, not listed in bulk with images inlined, so the cost is fine.
+    // CREATE is granted unconditionally (no `where`, unlike READ) — branch/status
+    // enforcement moved from the old unbound createVehicle action into a native
+    // srv.before('CREATE', 'Vehicles', ...) handler (operator-portal.js), which
+    // overwrites req.data.branch_ID/status regardless of what the client sends.
+    // This is what gives the Fiori List Report a real native "Create" toolbar
+    // button and full-field create form (EPIC20-T4) — the old unbound action
+    // could never be wired to one (see docs/implementations/EPIC19-fiori-elements-ui.md, T3).
     @restrict: [
         {
             grant: 'READ',
@@ -29,6 +36,13 @@ service OperatorPortalService @(path: '/operator') {
         {
             grant: 'READ',
             to   : 'Manager'
+        },
+        {
+            grant: 'CREATE',
+            to   : [
+                'Operator',
+                'Manager'
+            ]
         }
     ]
     // statusCriticality is a read-only calculated field (populated in
@@ -42,29 +56,11 @@ service OperatorPortalService @(path: '/operator') {
             virtual null as statusCriticality : Integer
         };
 
-    // createVehicle: registers a new DRAFT vehicle.
-    // For Operators the branch is taken from the user attribute —
-    // they cannot target a different branch by passing a branchId.
-    // Managers must supply an explicit branchId.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action createVehicle(vin: String,
-                         plateNumber: String,
-                         brand: String,
-                         model: String,
-                         year: Integer,
-                         mileage: Integer,
-                         fuelType: automarket.FuelType,
-                         transmission: automarket.Transmission,
-                         color: String,
-                         price: Decimal,
-                         currency: String,
-                         branchId: String)                         returns String;
-
     // Reservations: Operators see only their branch's reservations via the
-    // $user.branchId attribute. Managers see all branches.
+    // $user.branchId attribute. Managers see all branches. approve/reject are
+    // bound actions (EPIC20-T4) — the branch guard moved into the handler
+    // (operator-portal.js), same logic as before, just reading req.params
+    // instead of a reservationId parameter.
     @restrict: [
         {
             grant: 'READ',
@@ -74,26 +70,37 @@ service OperatorPortalService @(path: '/operator') {
         {
             grant: 'READ',
             to   : 'Manager'
+        },
+        {
+            grant: [
+                'approve',
+                'reject'
+            ],
+            to   : [
+                'Operator',
+                'Manager'
+            ]
         }
     ]
-    entity Reservations as projection on automarket.Reservations;
+    entity Reservations as
+        projection on automarket.Reservations
+        actions {
+            @requires: [
+                'Operator',
+                'Manager'
+            ]
+            action approve()             returns Boolean;
 
-    // approveReservation: branch-scoped wrapper around the ReservationService
-    // action. Operators may only approve reservations belonging to their branch.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action approveReservation(reservationId: String)               returns Boolean;
-
-    // rejectReservation: branch-scoped wrapper with the same guard.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action rejectReservation(reservationId: String, notes: String) returns Boolean;
+            @requires: [
+                'Operator',
+                'Manager'
+            ]
+            action reject(notes : String) returns Boolean;
+        };
 
     // TestDrives: branch-scoped read for Operators; Managers see all branches.
+    // approve/cancel/complete are bound actions (EPIC20-T4), same branch-guard
+    // logic as before, moved from unbound-action parameters to req.params.
     @restrict: [
         {
             grant: 'READ',
@@ -103,33 +110,40 @@ service OperatorPortalService @(path: '/operator') {
         {
             grant: 'READ',
             to   : 'Manager'
+        },
+        {
+            grant: [
+                'approve',
+                'cancel',
+                'complete'
+            ],
+            to   : [
+                'Operator',
+                'Manager'
+            ]
         }
     ]
-    entity TestDrives   as projection on automarket.TestDrives;
+    entity TestDrives   as
+        projection on automarket.TestDrives
+        actions {
+            @requires: [
+                'Operator',
+                'Manager'
+            ]
+            action approve(durationMinutes : Integer) returns Boolean;
 
-    // approveTestDrive: branch-scoped wrapper — Operators may only approve test
-    // drives belonging to their branch.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action approveTestDrive(testDriveId: String,
-                            durationMinutes: Integer)              returns Boolean;
+            @requires: [
+                'Operator',
+                'Manager'
+            ]
+            action cancel()                           returns Boolean;
 
-    // cancelTestDrive: branch-scoped cancel; Operators cannot cancel drives from
-    // other branches.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action cancelTestDrive(testDriveId: String)                    returns Boolean;
-
-    // completeTestDrive: marks the test drive as done. Only valid from APPROVED.
-    @requires: [
-        'Operator',
-        'Manager'
-    ]
-    action completeTestDrive(testDriveId: String)                  returns Boolean;
+            @requires: [
+                'Operator',
+                'Manager'
+            ]
+            action complete()                         returns Boolean;
+        };
 
     // Offers: branch-scoped read for Managers and Admins only.
     // Operators do not have offer approval authority.
