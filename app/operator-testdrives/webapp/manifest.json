@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.operatorportal",
+    "id": "automarket.operatortestdrives",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -69,7 +69,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.operatorportal.i18n.i18n"
+          "bundleName": "automarket.operatortestdrives.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +95,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "VehiclesList",
-          "target": "VehiclesList"
+          "name": "TestDrivesList",
+          "target": "TestDrivesList"
         },
         {
-          "pattern": "Vehicles({key}):?query:",
-          "name": "VehiclesObjectPage",
-          "target": "VehiclesObjectPage"
+          "pattern": "TestDrives({key}):?query:",
+          "name": "TestDrivesObjectPage",
+          "target": "TestDrivesObjectPage"
         }
       ],
       "targets": {
-        "VehiclesList": {
+        "TestDrivesList": {
           "type": "Component",
-          "id": "VehiclesList",
+          "id": "TestDrivesList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Vehicles",
+              "entitySet": "TestDrives",
               "variantManagement": "Page",
               "navigation": {
-                "Vehicles": {
+                "TestDrives": {
                   "detail": {
-                    "route": "VehiclesObjectPage"
+                    "route": "TestDrivesObjectPage"
                   }
                 }
               },
@@ -130,14 +130,14 @@
             }
           }
         },
-        "VehiclesObjectPage": {
+        "TestDrivesObjectPage": {
           "type": "Component",
-          "id": "VehiclesObjectPage",
+          "id": "TestDrivesObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Vehicles"
+              "entitySet": "TestDrives"
             }
           }
         }
