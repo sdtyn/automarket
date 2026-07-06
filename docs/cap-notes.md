@@ -318,3 +318,73 @@ srv.on('capture', 'Payments', async (req) => {
   return paymentSrv.send('capturePayment', { paymentId, transactionReference });
 });
 ```
+
+---
+
+## 12. `sap.fe.templates` Does Not Support Multiple Unrelated List Reports in One App — the EPIC19-T5/T6 and EPIC20 "Manually Merge Nth Entity" Pattern Is Broken
+
+**Context:** First real-browser verification of the UI work (all prior "Verified end to end" claims in
+EPIC19-T5/T6 and EPIC20-T1–T6 were backend curl calls + `$metadata` grep counts + static-file `200`
+checks — never an actual rendered page). Using Playwright against a live `cds-serve` + `ui5 serve`,
+navigating to any "Nth entity manually added to an existing app" List Report (`#ReservationsList`,
+`#TestDrivesList`, `#OffersList` in `app/operator-portal`; `#PaymentsList` in `app/admin-portal`;
+`#OrdersList` in `app/customer-portal`, and by the same construction `#BranchesList`/`#AuditLogsList`
+from EPIC19-T5/T6) crashes to a full-page "Sorry, we can't find this page" error. Only the app's
+*first* (default, empty-hash) entity ever renders.
+
+**Root cause, traced via `?sap-ui-log-level=DEBUG`:** The named route *does* match
+(`sap.ui.core.routing.Route`: "did match with its pattern") and the `sap.fe.templates.ListReport`
+component *does* get placed into the page aggregation. But a separate, unrelated FE mechanism —
+the "related apps" / `GetLinks` shell-service probe that normally populates the "Related Apps"
+smart-link menu under a real Fiori Launchpad — fires for every List Report and tries to resolve a
+path built from **the route/target name itself**, not the entity set configured in
+`options.settings.entitySet`:
+
+```
+[warning] Unknown child ReservationsList of OperatorPortalService.EntityContainer - /ReservationsList/
+[error]   Failed to read path /ReservationsList - Invalid resource path "OperatorPortalService.ReservationsList"
+[error]   Cannot retrieve the links from the shell service - Error: Invalid resource path "..."
+```
+
+That failure's error handler calls `sap.m.NavContainer#appContent`'s navigation to the framework's
+built-in "Page Not Found" illustration page, **replacing the already-correctly-rendered List Report**.
+This is because the default root view here is a plain `sap.m.NavContainer` (no `rootView` override in
+`manifest.json` → `sap.ui5`), and pushing more than one independent `sap.fe.templates.ListReport`
+Component target onto that stack is not something `sap.fe.core` expects — the "related apps" probe
+assumption (that the container hosts exactly one List Report, "the app") only holds for the first one.
+
+**Attempted fix, also insufficient:** Configuring `sap.fe.core.rootView.Fcl` (the officially documented
+way to enable `sap.f.routing.Router` / Flexible Column Layout — `rootView.viewName:
+"sap.fe.core.rootView.Fcl"`, `routing.config.routerClass: "sap.f.routing.Router"`, `sap.f` library
+dependency, `controlAggregation: "beginColumnPages"`/`"midColumnPages"` on List/Object Page targets)
+**does** stop the crash — the page renders with the right columns and no console error. But it
+introduces a new failure: the FilterBar's "Go" button click reaches the right control
+(`...ReservationsList--fe::FilterBar::Reservations-btnSearch`, confirmed via debug log event trace)
+but triggers **no OData request at all** for any entity other than the app's original root — the
+search action itself is never wired up for the second-and-later List Report. FCL's
+`beginColumnPages`/`midColumnPages` aggregations are designed for **one entity's own List → Object
+Page → sub-Object-Page drill-down**, not for hosting several *unrelated* entities' own independent
+List Reports side by side. Neither the plain-NavContainer default nor the FCL rootView is the right
+tool for that.
+
+**Conclusion:** there is no supported `sap.fe.templates` configuration found (through this
+investigation) for genuinely independent, unrelated List Report/Object Page pairs sharing one
+`sap.fe.core.AppComponent`. The only pattern actually proven to work end to end in this project is
+one entity's List Report as the sole root of its own app (`VehiclesList` in `app/operator-portal`,
+`UsersList` in `app/admin-portal`, `VehiclesList` in `app/customer-portal` — each verified with real
+data, real search, and a real Object Page). **Every "Nth entity manually added to an existing app"
+across EPIC19-T5, EPIC19-T6, and EPIC20-T1 through T6 needs to become its own separate Fiori
+Elements application** (its own `manifest.json`, `Component.js`, `index.html`, `i18n`, `ui5.yaml`,
+`flpSandbox.html`) to actually work when clicked through by a user — see the EPIC19/EPIC20
+implementation logs for the flagged-affected ticket list. Not attempted in this session; scoped as
+follow-up work.
+
+**Verification commands used, for whoever picks this up:**
+
+```sh
+node_modules/.bin/cds-serve &
+(cd app/operator-portal && node_modules/.bin/ui5 serve --port 8080)
+# then, with Playwright/chromium-cli against a manager.schmidt-authenticated context:
+#   nav http://localhost:8080/index.html#ReservationsList
+#   nav http://localhost:8080/index.html?sap-ui-log-level=DEBUG#ReservationsList   # for the trace above
+```

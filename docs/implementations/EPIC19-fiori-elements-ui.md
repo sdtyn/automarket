@@ -42,6 +42,20 @@ annotations, and the actual `sap.fe.templates` library all confirmed reachable) 
 rendering was not, and cannot be, verified in this environment. 13 test suites, 125 tests.
 Sprint completed 2026-07-02.
 
+**Post-hoc correction (2026-07-06, during EPIC20 UI testing):** the claim above — "pixel-level
+rendering was not, and cannot be, verified" — undersold the actual risk. A real-browser Playwright
+check (see `docs/cap-notes.md` #12) found that `AdminService.Branches`'s List Report (added to
+`app/admin-portal` alongside `Users` in T5, the exact "second entity manually added to an existing
+app" pattern) crashes to a full-page "Sorry, we can't find this page" error the moment its route is
+opened — `sap.fe.templates` does not support multiple unrelated List Reports sharing one
+`sap.fe.core.AppComponent` the way this ticket assumed. `UsersList` (the app's original, sole root
+entity) still works correctly; `BranchesList` does not, and `AuditLogsList` (added the same way in
+T6) is expected to have the identical defect, unverified only because the browser check stopped at
+Branches once the pattern was confirmed broken. See `docs/cap-notes.md` #12 for the full root-cause
+trace and `docs/implementations/EPIC20-full-ui-backend-integration.md`'s sign-off for the equivalent
+correction across EPIC20 — a proper fix (splitting each entity into its own Fiori app) is scoped as
+follow-up work, not yet scheduled.
+
 ---
 
 ## EPIC19-T1: Fiori Elements setup

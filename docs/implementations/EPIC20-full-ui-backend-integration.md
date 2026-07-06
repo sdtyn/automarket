@@ -59,6 +59,25 @@ per ticket (routes, proxy, auth, `UI.Identification` counts, and real end-to-end
 including cross-service event propagation for the PSP-capture → `SalesService` → vehicle-`SOLD`
 chain). 14 test suites, 138 tests, 0 lint errors. Sprint completed 2026-07-06.
 
+**Post-hoc correction (2026-07-06, same day, first real-browser pass):** every "Every button
+verified against a live `cds-serve` backend + a live `ui5 serve` instance" claim in this document,
+across all six tickets, verified the *backend* (curl against bound actions directly, `$metadata`
+`UI.Identification` grep counts, static-file `200`s) but never an actual rendered page in a browser.
+The first real Playwright-driven check found that **every List Report added as a "second/third/
+fourth/etc. entity manually merged into an existing app"** — `ReservationsList`, `TestDrivesList`,
+`OffersList` in `app/operator-portal` (T4/T5); `PaymentsList` in `app/admin-portal` (T5); by the same
+construction `OrdersList`/every non-root entity in `app/customer-portal` (T1–T3, confirmed for
+`OrdersList`) — crashes to a full-page "Sorry, we can't find this page" error the instant its route
+opens. Only each app's original *root* entity (`VehiclesList`, `UsersList`) actually renders and
+works. Root cause, a `sap.fe.templates` limitation with no working fix found in this session, is
+documented in `docs/cap-notes.md` #12 (an attempted `sap.fe.core.rootView.Fcl` fix stops the crash
+but breaks the search/"Go" action for every non-root entity instead — reverted, not shipped).
+**Every bound action and `@UI.DataFieldForAction` button described in this document is real and
+correct on the backend and in `$metadata`** — the CDS, JS handler, and annotation work in T1–T6 is
+not in question — but a user cannot actually reach most of these screens by clicking through the
+app today. Fixing this requires giving each entity its own separate Fiori Elements application;
+scoped as follow-up work, not yet scheduled as a ticket.
+
 ---
 
 ## EPIC20-T1: Customer — Reservations & Favorites
