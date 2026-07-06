@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.adminportal",
+    "id": "automarket.adminauditlogs",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -69,7 +69,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.adminportal.i18n.i18n"
+          "bundleName": "automarket.adminauditlogs.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +95,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "UsersList",
-          "target": "UsersList"
+          "name": "AuditLogsList",
+          "target": "AuditLogsList"
         },
         {
-          "pattern": "Users({key}):?query:",
-          "name": "UsersObjectPage",
-          "target": "UsersObjectPage"
+          "pattern": "AuditLogs({key}):?query:",
+          "name": "AuditLogsObjectPage",
+          "target": "AuditLogsObjectPage"
         }
       ],
       "targets": {
-        "UsersList": {
+        "AuditLogsList": {
           "type": "Component",
-          "id": "UsersList",
+          "id": "AuditLogsList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Users",
+              "entitySet": "AuditLogs",
               "variantManagement": "Page",
               "navigation": {
-                "Users": {
+                "AuditLogs": {
                   "detail": {
-                    "route": "UsersObjectPage"
+                    "route": "AuditLogsObjectPage"
                   }
                 }
               },
@@ -130,14 +130,14 @@
             }
           }
         },
-        "UsersObjectPage": {
+        "AuditLogsObjectPage": {
           "type": "Component",
-          "id": "UsersObjectPage",
+          "id": "AuditLogsObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Users"
+              "entitySet": "AuditLogs"
             }
           }
         }

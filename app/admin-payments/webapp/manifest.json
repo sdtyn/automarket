@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.adminportal",
+    "id": "automarket.adminpayments",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -69,7 +69,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.adminportal.i18n.i18n"
+          "bundleName": "automarket.adminpayments.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +95,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "UsersList",
-          "target": "UsersList"
+          "name": "PaymentsList",
+          "target": "PaymentsList"
         },
         {
-          "pattern": "Users({key}):?query:",
-          "name": "UsersObjectPage",
-          "target": "UsersObjectPage"
+          "pattern": "Payments({key}):?query:",
+          "name": "PaymentsObjectPage",
+          "target": "PaymentsObjectPage"
         }
       ],
       "targets": {
-        "UsersList": {
+        "PaymentsList": {
           "type": "Component",
-          "id": "UsersList",
+          "id": "PaymentsList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Users",
+              "entitySet": "Payments",
               "variantManagement": "Page",
               "navigation": {
-                "Users": {
+                "Payments": {
                   "detail": {
-                    "route": "UsersObjectPage"
+                    "route": "PaymentsObjectPage"
                   }
                 }
               },
@@ -130,14 +130,14 @@
             }
           }
         },
-        "UsersObjectPage": {
+        "PaymentsObjectPage": {
           "type": "Component",
-          "id": "UsersObjectPage",
+          "id": "PaymentsObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Users"
+              "entitySet": "Payments"
             }
           }
         }
