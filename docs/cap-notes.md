@@ -505,3 +505,12 @@ properties on the same bound entity instance the action was called on.
 **Verified end to end** with a live browser (not just curl/metadata): loading a non-favorited
 vehicle's Object Page shows only "Add to Favorites"; clicking it hides "Add" and shows "Remove"
 immediately, no reload; clicking "Remove" flips it back — the full toggle cycle works.
+
+**Third occurrence (EPIC22-T2):** the same missing-`SideEffects` mistake was made again, this time
+on the *operator* side — `OperatorPortalService.Offers`' new `counter` action changed
+`offeredPrice`/`proposedBy`/`status` but was written without `@Common.SideEffects`, so
+`app/operator-offers`'s Object Page kept showing the pre-counter price after a successful dialog
+submit. Same fix, same file-location rule (declare it directly on the action in its `actions {}`
+block, not via a separate `annotate` path). Treat this as a checklist item, not a one-off bug: any
+new bound action that changes fields displayed elsewhere on the same Object Page needs
+`@Common.SideEffects` written at the same time as the action, not discovered by testing afterward.

@@ -40,6 +40,13 @@ service CustomerPortalService @(path: '/catalog') {
     // back once a Manager rejects. myOffer* mirror the fields of that one
     // active offer, for the "My Offer" facet (customer-portal-ui.cds); all
     // null when hasActiveOffer is false.
+    // hasCustomerOffer/hasStaffOffer (+ their negations, EPIC22-T2): split
+    // "there is an active offer" into "who currently owns the price on it" —
+    // hasCustomerOffer drives the "Remove the Offer" button (only makes
+    // sense for the customer's own still-pending price), hasStaffOffer
+    // drives Accept/Reject-Counter/Make-a-New-Offer (only shown once a
+    // Manager has countered). Exactly one of hasCustomerOffer/hasStaffOffer
+    // is true whenever hasActiveOffer is true; both false when it isn't.
     @requires: 'any'
     entity Vehicles      as
         projection on automarket.Vehicles {
@@ -49,10 +56,15 @@ service CustomerPortalService @(path: '/catalog') {
             virtual null as isNotFavorited         : Boolean,
             virtual null as hasActiveOffer         : Boolean,
             virtual null as hasNoActiveOffer       : Boolean,
+            virtual null as hasCustomerOffer       : Boolean,
+            virtual null as hasNoCustomerOffer     : Boolean,
+            virtual null as hasStaffOffer          : Boolean,
+            virtual null as hasNoStaffOffer        : Boolean,
             virtual null as myOfferId              : String,
             virtual null as myOfferPrice           : Decimal,
             virtual null as myOfferCurrency        : String,
             virtual null as myOfferStatus          : String,
+            virtual null as myOfferProposedBy      : String,
             virtual null as myOfferDesiredPickupDate : Date
         }
         actions {
@@ -130,6 +142,81 @@ service CustomerPortalService @(path: '/catalog') {
                 'in/myOfferDesiredPickupDate'
             ]}
             action removeOffer()             returns Boolean;
+
+            // acceptCounterOffer/rejectCounterOffer/makeNewOffer (EPIC22-T2):
+            // the customer's three responses to a Manager's counter-offer
+            // (hasStaffOffer, customer-portal-ui.cds). All three share the
+            // same SideEffects target list as submitOffer/removeOffer above,
+            // plus the new hasCustomerOffer/hasStaffOffer pair.
+            @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/hasActiveOffer',
+                'in/hasNoActiveOffer',
+                'in/hasCustomerOffer',
+                'in/hasNoCustomerOffer',
+                'in/hasStaffOffer',
+                'in/hasNoStaffOffer',
+                'in/myOfferId',
+                'in/myOfferPrice',
+                'in/myOfferCurrency',
+                'in/myOfferStatus',
+                'in/myOfferProposedBy',
+                'in/myOfferDesiredPickupDate'
+            ]}
+            action acceptCounterOffer()      returns {
+                reservationId : String
+            };
+
+            // rejectCounterOffer: declines the Manager's counter-price.
+            // Delegates to the same OfferService.withdrawOffer as
+            // removeOffer above (deleting a still-pending offer the
+            // customer owns is the same operation regardless of who most
+            // recently set its price) — a distinct bound action only so the
+            // UI can show a distinct label/visibility condition.
+            @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/hasActiveOffer',
+                'in/hasNoActiveOffer',
+                'in/hasCustomerOffer',
+                'in/hasNoCustomerOffer',
+                'in/hasStaffOffer',
+                'in/hasNoStaffOffer',
+                'in/myOfferId',
+                'in/myOfferPrice',
+                'in/myOfferCurrency',
+                'in/myOfferStatus',
+                'in/myOfferProposedBy',
+                'in/myOfferDesiredPickupDate'
+            ]}
+            action rejectCounterOffer()      returns Boolean;
+
+            // makeNewOffer: declines the Manager's counter-price by
+            // proposing the customer's own instead. Orchestrates the two
+            // existing OfferService actions (customer-portal.js) —
+            // withdrawOffer to remove the Manager's counter, then
+            // submitOffer for the fresh customer-proposed price — rather
+            // than a new OfferService action, since the combination is
+            // exactly "reject this, then make an offer" with no new
+            // domain logic of its own.
+            @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/hasActiveOffer',
+                'in/hasNoActiveOffer',
+                'in/hasCustomerOffer',
+                'in/hasNoCustomerOffer',
+                'in/hasStaffOffer',
+                'in/hasNoStaffOffer',
+                'in/myOfferId',
+                'in/myOfferPrice',
+                'in/myOfferCurrency',
+                'in/myOfferStatus',
+                'in/myOfferProposedBy',
+                'in/myOfferDesiredPickupDate'
+            ]}
+            action makeNewOffer(offeredPrice : Decimal,
+                                currency : String,
+                                desiredPickupDate : Date,
+                                notes : String)  returns String;
 
             @requires: 'Customer'
             action requestTestDrive(scheduledAt : Timestamp,

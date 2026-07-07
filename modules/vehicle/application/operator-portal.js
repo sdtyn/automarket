@@ -215,4 +215,30 @@ module.exports = cds.service.impl(async function (srv) {
     await offerSrv.emit('OfferRejected', { offerId, vehicleId: offer.vehicle_ID });
     return true;
   });
+
+  // counter (EPIC22-T2): bound to Offers, same branch-scoped guard as
+  // approve/reject above; proposes a different price instead of
+  // approving/rejecting outright. Same one-row negotiation-history
+  // philosophy as OfferService.resubmitOffer — updates offeredPrice and
+  // flips proposedBy to 'STAFF' on the existing row.
+  srv.on('counter', 'Offers', async (req) => {
+    const [{ ID: offerId }] = req.params;
+    const { offeredPrice } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (req.user.is('Manager') && offer.branch_ID !== req.user.attr.branchId) {
+      return req.error(403, 'You can only counter offers for your branch');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot counter an offer in status ${offer.status}`);
+    }
+
+    await UPDATE(Offers)
+      .set({ offeredPrice, proposedBy: 'STAFF', status: 'UNDER_REVIEW' })
+      .where({ ID: offerId });
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.emit('OfferCountered', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
 });

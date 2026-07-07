@@ -154,7 +154,9 @@ service OperatorPortalService @(path: '/operator') {
     // Offers: branch-scoped read for Managers and Admins only. approve/reject
     // are bound actions (EPIC20-T5) — same branch-guard logic as before,
     // moved from unbound-action parameters to req.params (same conversion as
-    // Reservations/TestDrives in EPIC20-T4).
+    // Reservations/TestDrives in EPIC20-T4). counter (EPIC22-T2) is the same
+    // shape — Operators still have no offer authority at all, unchanged from
+    // EPIC20-T5's design.
     @restrict: [
         {
             grant: 'READ',
@@ -168,7 +170,8 @@ service OperatorPortalService @(path: '/operator') {
         {
             grant: [
                 'approve',
-                'reject'
+                'reject',
+                'counter'
             ],
             to   : [
                 'Manager',
@@ -189,5 +192,23 @@ service OperatorPortalService @(path: '/operator') {
                 'Admin'
             ]
             action reject(rejectionNotes: String) returns Boolean;
+
+            // counter (EPIC22-T2): proposes a different price instead of
+            // approving/rejecting outright. Delegates to
+            // OfferService.counterOffer (operator-portal.js) — same branch-
+            // scoped guard as approve/reject. SideEffects is required here
+            // (same lesson as customer-portal.cds's T2 actions, cap-notes.md
+            // #14) — without it the Object Page keeps showing the pre-counter
+            // offeredPrice/proposedBy/status until a full reload.
+            @requires: [
+                'Manager',
+                'Admin'
+            ]
+            @Common.SideEffects: {TargetProperties: [
+                'in/offeredPrice',
+                'in/proposedBy',
+                'in/status'
+            ]}
+            action counter(offeredPrice: Decimal) returns Boolean;
         };
 }

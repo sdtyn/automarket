@@ -77,10 +77,15 @@
         <Property Name="isNotFavorited" Type="Edm.Boolean"/>
         <Property Name="hasActiveOffer" Type="Edm.Boolean"/>
         <Property Name="hasNoActiveOffer" Type="Edm.Boolean"/>
+        <Property Name="hasCustomerOffer" Type="Edm.Boolean"/>
+        <Property Name="hasNoCustomerOffer" Type="Edm.Boolean"/>
+        <Property Name="hasStaffOffer" Type="Edm.Boolean"/>
+        <Property Name="hasNoStaffOffer" Type="Edm.Boolean"/>
         <Property Name="myOfferId" Type="Edm.String"/>
         <Property Name="myOfferPrice" Type="Edm.Decimal" Scale="variable"/>
         <Property Name="myOfferCurrency" Type="Edm.String"/>
         <Property Name="myOfferStatus" Type="Edm.String"/>
+        <Property Name="myOfferProposedBy" Type="Edm.String"/>
         <Property Name="myOfferDesiredPickupDate" Type="Edm.Date"/>
       </EntityType>
       <EntityType Name="VehicleImages">
@@ -138,6 +143,7 @@
         <Property Name="currency" Type="Edm.String" MaxLength="3" DefaultValue="TRY"/>
         <Property Name="desiredPickupDate" Type="Edm.Date"/>
         <Property Name="status" Type="Edm.String" DefaultValue="SUBMITTED"/>
+        <Property Name="proposedBy" Type="Edm.String" MaxLength="20" DefaultValue="CUSTOMER"/>
         <Property Name="rejectionNotes" Type="Edm.String" MaxLength="1000"/>
       </EntityType>
       <EntityType Name="TestDrives">
@@ -204,6 +210,9 @@
       <ComplexType Name="return_CustomerPortalService_Vehicles_reserve">
         <Property Name="reservationId" Type="Edm.String"/>
       </ComplexType>
+      <ComplexType Name="return_CustomerPortalService_Vehicles_acceptCounterOffer">
+        <Property Name="reservationId" Type="Edm.String"/>
+      </ComplexType>
       <ComplexType Name="return_CustomerPortalService_getPriceHistory">
         <Property Name="newPrice" Type="Edm.Decimal" Scale="variable"/>
         <Property Name="currency" Type="Edm.String"/>
@@ -233,6 +242,22 @@
       <Action Name="removeOffer" IsBound="true">
         <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
         <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="acceptCounterOffer" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <ReturnType Type="CustomerPortalService.return_CustomerPortalService_Vehicles_acceptCounterOffer"/>
+      </Action>
+      <Action Name="rejectCounterOffer" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="makeNewOffer" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <Parameter Name="offeredPrice" Type="Edm.Decimal" Scale="variable"/>
+        <Parameter Name="currency" Type="Edm.String"/>
+        <Parameter Name="desiredPickupDate" Type="Edm.Date"/>
+        <Parameter Name="notes" Type="Edm.String"/>
+        <ReturnType Type="Edm.String"/>
       </Action>
       <Action Name="requestTestDrive" IsBound="true">
         <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
@@ -360,6 +385,10 @@
                   <PropertyValue Property="Label" String="Status"/>
                 </Record>
                 <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="myOfferProposedBy"/>
+                  <PropertyValue Property="Label" String="Proposed By"/>
+                </Record>
+                <Record Type="UI.DataField">
                   <PropertyValue Property="Value" Path="myOfferDesiredPickupDate"/>
                   <PropertyValue Property="Label" String="Desired Pickup Date"/>
                 </Record>
@@ -408,7 +437,22 @@
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.removeOffer"/>
               <PropertyValue Property="Label" String="Remove the Offer"/>
-              <Annotation Term="UI.Hidden" Path="hasNoActiveOffer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoCustomerOffer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.acceptCounterOffer"/>
+              <PropertyValue Property="Label" String="Accept Offer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoStaffOffer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.rejectCounterOffer"/>
+              <PropertyValue Property="Label" String="Reject Offer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoStaffOffer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.makeNewOffer"/>
+              <PropertyValue Property="Label" String="Make a New Offer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoStaffOffer"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.requestTestDrive"/>
@@ -546,6 +590,18 @@
       <Annotations Target="CustomerPortalService.Vehicles/hasNoActiveOffer">
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasCustomerOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasNoCustomerOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasStaffOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasNoStaffOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
       <Annotations Target="CustomerPortalService.Vehicles/myOfferId">
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
@@ -556,6 +612,9 @@
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
       <Annotations Target="CustomerPortalService.Vehicles/myOfferStatus">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferProposedBy">
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
       <Annotations Target="CustomerPortalService.Vehicles/myOfferDesiredPickupDate">
@@ -613,6 +672,72 @@
                 <String>in/myOfferPrice</String>
                 <String>in/myOfferCurrency</String>
                 <String>in/myOfferStatus</String>
+                <String>in/myOfferDesiredPickupDate</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.acceptCounterOffer(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/hasActiveOffer</String>
+                <String>in/hasNoActiveOffer</String>
+                <String>in/hasCustomerOffer</String>
+                <String>in/hasNoCustomerOffer</String>
+                <String>in/hasStaffOffer</String>
+                <String>in/hasNoStaffOffer</String>
+                <String>in/myOfferId</String>
+                <String>in/myOfferPrice</String>
+                <String>in/myOfferCurrency</String>
+                <String>in/myOfferStatus</String>
+                <String>in/myOfferProposedBy</String>
+                <String>in/myOfferDesiredPickupDate</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.rejectCounterOffer(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/hasActiveOffer</String>
+                <String>in/hasNoActiveOffer</String>
+                <String>in/hasCustomerOffer</String>
+                <String>in/hasNoCustomerOffer</String>
+                <String>in/hasStaffOffer</String>
+                <String>in/hasNoStaffOffer</String>
+                <String>in/myOfferId</String>
+                <String>in/myOfferPrice</String>
+                <String>in/myOfferCurrency</String>
+                <String>in/myOfferStatus</String>
+                <String>in/myOfferProposedBy</String>
+                <String>in/myOfferDesiredPickupDate</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.makeNewOffer(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/hasActiveOffer</String>
+                <String>in/hasNoActiveOffer</String>
+                <String>in/hasCustomerOffer</String>
+                <String>in/hasNoCustomerOffer</String>
+                <String>in/hasStaffOffer</String>
+                <String>in/hasNoStaffOffer</String>
+                <String>in/myOfferId</String>
+                <String>in/myOfferPrice</String>
+                <String>in/myOfferCurrency</String>
+                <String>in/myOfferStatus</String>
+                <String>in/myOfferProposedBy</String>
                 <String>in/myOfferDesiredPickupDate</String>
               </Collection>
             </PropertyValue>
@@ -903,6 +1028,20 @@
             <Record Type="Validation.AllowedValue">
               <Annotation Term="Core.SymbolicName" String="EXPIRED"/>
               <PropertyValue Property="Value" String="EXPIRED"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Offers/proposedBy">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="CUSTOMER"/>
+              <PropertyValue Property="Value" String="CUSTOMER"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="STAFF"/>
+              <PropertyValue Property="Value" String="STAFF"/>
             </Record>
           </Collection>
         </Annotation>

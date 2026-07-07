@@ -16,7 +16,7 @@ native "Delete" button visible to a role that can never actually delete a vehicl
 | Ticket | Description | Status |
 |--------|-------------|--------|
 | EPIC22-T1 | Customer offer lifecycle | Done |
-| EPIC22-T2 | Operator/Manager counter-offers | Open |
+| EPIC22-T2 | Operator/Manager counter-offers | Done |
 | EPIC22-T3 | Customer Portal navigation | Open |
 | EPIC22-T4 | Vehicle Object Page polish | Open |
 | EPIC22-T5 | Read-only Vehicles for Customers | Open |
@@ -151,5 +151,167 @@ clicking "Remove the Offer" brings "Make an Offer" back; a Manager rejecting the
 ```sh
 npm run lint && npm run format:check && npm test
 ```
+
+---
+
+## EPIC22-T2: Operator/Manager Counter-Offers
+
+### What & Why
+
+Before this ticket, Manager/Admin could only approve or reject a `SUBMITTED`/`UNDER_REVIEW` offer —
+there was no way to propose a different price back to the customer. Two design questions were
+flagged to the user before writing any code (not decided unilaterally, per CLAUDE.md §8):
+
+1. **What does "Accept" do?** Two options existed: (a) create a new `Order`/payment flow at the
+   agreed price, or (b) reuse the existing `approveOffer` → `Reservation` path (EPIC20-T1/T2), the
+   same outcome a normal approved offer already produces. The user picked (b) — no new
+   `agreedPrice`/`Order` mechanism. This surfaced a **pre-existing, system-wide limitation** that
+   this ticket does not fix: negotiated offer prices never flow into payment anywhere in the system
+   — `SalesService.createOrder`/`Orders` never store a price, and `customer-portal.js`'s `pay`
+   handler always reads `vehicle.price` (the list price), never any offer's `offeredPrice`. This was
+   true before T2 and stays true after it; flagged to the user rather than silently patched in.
+2. **Who can counter-offer?** Operator or Manager/Admin only? The user picked Manager/Admin only —
+   unchanged from EPIC20-T5's existing approve/reject authority, no new Operator capability.
+
+A new `proposedBy` enum field (`CUSTOMER` | `STAFF`, default `CUSTOMER`) on `Offers` is the single
+source of truth for "whose price is this, right now" — every button's visibility is a function of
+it, not a separate state machine. Same "CDS annotations can't express negation" reasoning as
+`isFavorited`/`hasActiveOffer` (cap-notes.md #14) means two more Boolean-pair fields were needed on
+the customer side: `hasCustomerOffer`/`hasNoCustomerOffer` (an active offer that's still the
+customer's own price — shows "Remove the Offer") and `hasStaffOffer`/`hasNoStaffOffer` (an active
+offer the staff most recently repriced — shows Accept/Reject/Make a New Offer instead).
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/offer/db/offer.cds`
+
+Add `proposedBy: String(20) enum { CUSTOMER; STAFF; } default 'CUSTOMER';` to `Offers`.
+
+#### 2. Modify `modules/offer/api/offer-service.cds`
+
+Add after `withdrawOffer`:
+
+```cds
+@requires: ['Manager', 'Admin']
+action counterOffer(offerId: String, offeredPrice: Decimal) returns Boolean;
+
+@requires: 'Customer'
+action acceptCounterOffer(offerId: String) returns { reservationId: String };
+```
+
+Add `event OfferCountered { offerId: String; vehicleId: String; }` alongside the existing
+`OfferSubmitted`/`OfferApproved`/`OfferRejected`.
+
+#### 3. Modify `modules/offer/application/offer-service.js`
+
+`submitOffer`'s `INSERT` and `resubmitOffer`'s `UPDATE.set(...)` both now explicitly set
+`proposedBy: 'CUSTOMER'` — a resubmit always resets ownership of the price back to the customer,
+even if the offer being resubmitted had previously been staff-countered. Add `srv.on('counterOffer', ...)`:
+same offer lookup + `SUBMITTED`/`UNDER_REVIEW`-only guard as `approveOffer`, then
+`UPDATE(Offers).set({ offeredPrice, proposedBy: 'STAFF', status: 'UNDER_REVIEW' })`, then
+`srv.emit('OfferCountered', { offerId, vehicleId })`. Add `srv.on('acceptCounterOffer', ...)`: same
+ownership check as `resubmitOffer` (`offer.customer_ID !== req.user.id` → 403), a `proposedBy !== 'STAFF'`
+guard (409 — nothing to accept), same status guard, then mark the offer `APPROVED` and
+`INSERT INTO Reservations` — copy of `approveOffer`'s existing reservation-creation logic (same
+48-hour `expiresAt`, `guestToken: null`), reused rather than refactored into a shared helper since
+`approveOffer` is Manager-initiated and this is Customer-initiated with a different ownership check.
+
+#### 4. Modify `modules/vehicle/api/operator-portal.cds`
+
+Add `'counter'` to the `Offers` `@restrict` grant list (alongside `'approve'`/`'reject'`). Add inside
+the `Offers` `actions {}` block:
+
+```cds
+@requires: ['Manager', 'Admin']
+@Common.SideEffects: {TargetProperties: ['in/offeredPrice', 'in/proposedBy', 'in/status']}
+action counter(offeredPrice: Decimal) returns Boolean;
+```
+
+The `@Common.SideEffects` is not optional — see Verify below, it was initially omitted and caused a
+real, confirmed bug.
+
+#### 5. Modify `modules/vehicle/application/operator-portal.js`
+
+Add `srv.on('counter', 'Offers', ...)` after `reject`: same branch-scoped Manager guard
+(`offer.branch_ID !== req.user.attr.branchId` → 403) and status guard as `approve`/`reject`, then
+`UPDATE(Offers).set({ offeredPrice, proposedBy: 'STAFF', status: 'UNDER_REVIEW' })`, then delegate
+the event emission through `(await cds.connect.to('OfferService')).emit('OfferCountered', ...)` —
+not `srv.emit(...)` on this service's own instance (cap-notes.md #11: events must originate from the
+service instance other services actually subscribe to).
+
+#### 6. Modify `modules/vehicle/api/operator-portal-ui.cds`
+
+Add `proposedBy` to `Offers`' `UI.LineItem` and `UI.FieldGroup#OfferDetails`. Add to
+`UI.Identification`: `{ $Type: 'UI.DataFieldForAction', Action: 'OperatorPortalService.counter', Label: 'Counter Offer' }`.
+
+#### 7. Modify `modules/vehicle/api/customer-portal.cds`
+
+Add virtual fields to `Vehicles`: `hasCustomerOffer`/`hasNoCustomerOffer`, `hasStaffOffer`/
+`hasNoStaffOffer`, `myOfferProposedBy: String`. Add three new bound actions after `removeOffer`,
+each with a full `@Common.SideEffects` targeting every `myOffer*`/`has*Offer` field (all of them, not
+just the ones that specific action changes — the customer could be looking at any of the three new
+buttons, and the whole visibility state needs to be consistent after any of them fires):
+
+```cds
+action acceptCounterOffer() returns { reservationId: String };
+action rejectCounterOffer() returns Boolean;
+action makeNewOffer(offeredPrice: Decimal, currency: String, desiredPickupDate: Date, notes: String) returns String;
+```
+
+#### 8. Modify `modules/vehicle/application/customer-portal.js`
+
+Extend the `Offers` `SELECT` in `srv.after('READ', 'Vehicles', ...)` to include `proposedBy`. Per
+row, compute `isStaffOffer = !!offer && offer.proposedBy === 'STAFF'`, then derive
+`hasCustomerOffer`/`hasNoCustomerOffer`/`hasStaffOffer`/`hasNoStaffOffer`/`myOfferProposedBy` from
+it (an offer is "the customer's" for button-visibility purposes only when it exists **and** isn't
+staff-priced). Add `srv.on('acceptCounterOffer'/'rejectCounterOffer'/'makeNewOffer', 'Vehicles', ...)`:
+each looks up the bound vehicle's active `proposedBy: 'STAFF'` offer (404 if none — the buttons
+should be hidden anyway, this is the server-side guard), then delegates: `acceptCounterOffer` →
+`OfferService.acceptCounterOffer`; `rejectCounterOffer` → the existing `OfferService.withdrawOffer`
+(rejecting a staff counter-offer and withdrawing your own offer end the same way — the row is gone,
+"Make an Offer" comes back); `makeNewOffer` → `withdrawOffer` the staff offer, then `submitOffer` a
+fresh one (two delegated calls, not a single combined action — keeps `OfferService` the sole owner
+of every offer state transition, same delegation pattern as the rest of `customer-portal.js`).
+
+#### 9. Modify `modules/vehicle/api/customer-portal-ui.cds`
+
+Change "Remove the Offer"'s `@UI.Hidden` from `hasNoActiveOffer` to `hasNoCustomerOffer` (it must
+hide, not just when there's no offer, but also when the current offer is a staff counter-offer —
+the customer can't "remove" a price they didn't set). Add three new `UI.DataFieldForAction` entries
+(Accept Offer / Reject Offer / Make a New Offer), all `@UI.Hidden: hasNoStaffOffer`. Add
+`{Value: myOfferProposedBy, Label: 'Proposed By'}` to the `#MyOffer` `UI.FieldGroup`.
+
+### Verify
+
+Backend logic verified with `curl` end to end: submit (customer) → counter (Manager) → each of the
+three customer response paths (accept → `Reservations` row created with `status: 'APPROVED'`;
+reject → offer row deleted; make a new offer → old staff offer deleted, new customer offer created)
+— all confirmed with correct data at every step.
+
+**A real, confirmed bug found during UI verification, not guessed at:** the operator-side
+`app/operator-offers` Object Page's "Counter Offer" dialog submitted successfully (`200`, offer row
+updated correctly in the database — confirmed via `curl` immediately after), but the page kept
+showing the *pre-counter* price and `proposedBy` until a full reload. Same root cause as
+`cap-notes.md` #14 (Favorites, then EPIC22-T1's own offer fields): step 4's `counter` action was
+initially written **without** `@Common.SideEffects`, unlike every T2 action on the customer-portal
+side, which had it from the start. Fiori Elements has no way to know `offeredPrice`/`proposedBy`/
+`status` changed as a side effect of `counter` unless told explicitly — adding
+`@Common.SideEffects: {TargetProperties: ['in/offeredPrice', 'in/proposedBy', 'in/status']}` (step 4,
+above) fixed it; re-verified via Playwright against a fresh backend + fresh offer: dialog submit
+now immediately shows `22,500.00` / `STAFF` / `UNDER_REVIEW` on the Object Page with no reload.
+**Any new bound action that changes fields displayed elsewhere on the same page needs
+`@Common.SideEffects` from the moment it's written — this is now the third time in this project a
+missing one caused a stale-UI bug that looked like a broken action.**
+
+Customer side re-verified on the same fresh backend/offer: Object Page shows `Accept Offer` /
+`Reject Offer` / `Make a New Offer` (not `Make an Offer` / `Remove the Offer`), and the "My Offer"
+facet shows `22,500` / `EUR` / `UNDER_REVIEW` / `STAFF` / the correct pickup date — all matching the
+counter-offer just submitted from the operator side.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
 
 ---

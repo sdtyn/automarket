@@ -53,7 +53,15 @@ module.exports = cds.service.impl(async function (srv) {
       favoritedIds = new Set(favorites.map((f) => f.vehicle_ID));
 
       const offers = await SELECT.from(Offers)
-        .columns('ID', 'vehicle_ID', 'offeredPrice', 'currency', 'status', 'desiredPickupDate')
+        .columns(
+          'ID',
+          'vehicle_ID',
+          'offeredPrice',
+          'currency',
+          'status',
+          'proposedBy',
+          'desiredPickupDate'
+        )
         .where({
           customer_ID: req.user.id,
           vehicle_ID: { in: ids },
@@ -71,12 +79,18 @@ module.exports = cds.service.impl(async function (srv) {
         row.isNotFavorited = !favoritedIds.has(row.ID);
 
         const offer = activeOfferByVehicle[row.ID];
+        const isStaffOffer = !!offer && offer.proposedBy === 'STAFF';
         row.hasActiveOffer = !!offer;
         row.hasNoActiveOffer = !offer;
+        row.hasCustomerOffer = !!offer && !isStaffOffer;
+        row.hasNoCustomerOffer = !offer || isStaffOffer;
+        row.hasStaffOffer = isStaffOffer;
+        row.hasNoStaffOffer = !isStaffOffer;
         row.myOfferId = offer?.ID ?? null;
         row.myOfferPrice = offer?.offeredPrice ?? null;
         row.myOfferCurrency = offer?.currency ?? null;
         row.myOfferStatus = offer?.status ?? null;
+        row.myOfferProposedBy = offer?.proposedBy ?? null;
         row.myOfferDesiredPickupDate = offer?.desiredPickupDate ?? null;
       }
     }
@@ -179,6 +193,80 @@ module.exports = cds.service.impl(async function (srv) {
 
     const offerSrv = await cds.connect.to('OfferService');
     return offerSrv.send('withdrawOffer', { offerId: offer.ID });
+  });
+
+  // acceptCounterOffer/rejectCounterOffer/makeNewOffer (EPIC22-T2): the
+  // customer's three responses to a Manager's counter-offer. All three
+  // first look up the customer's own STAFF-proposed active offer on this
+  // vehicle the same way removeOffer looks up any active offer above.
+  srv.on('acceptCounterOffer', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const offer = await SELECT.one
+      .from(Offers)
+      .columns('ID')
+      .where({
+        vehicle_ID: vehicleId,
+        customer_ID: req.user.id,
+        proposedBy: 'STAFF',
+        status: { in: ACTIVE_OFFER_STATUSES },
+      });
+    if (!offer) return req.error(404, 'No counter-offer to accept');
+
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('acceptCounterOffer', { offerId: offer.ID });
+  });
+
+  // rejectCounterOffer: delegates to the same OfferService.withdrawOffer as
+  // removeOffer — declining a Manager's counter is the same "delete a
+  // still-pending offer I own" operation, just reachable from a different
+  // button (customer-portal-ui.cds) shown only when hasStaffOffer is true.
+  srv.on('rejectCounterOffer', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const offer = await SELECT.one
+      .from(Offers)
+      .columns('ID')
+      .where({
+        vehicle_ID: vehicleId,
+        customer_ID: req.user.id,
+        proposedBy: 'STAFF',
+        status: { in: ACTIVE_OFFER_STATUSES },
+      });
+    if (!offer) return req.error(404, 'No counter-offer to reject');
+
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('withdrawOffer', { offerId: offer.ID });
+  });
+
+  // makeNewOffer: declines the Manager's counter by proposing the
+  // customer's own price instead — withdraws the counter, then submits a
+  // fresh offer, same two domain actions removeOffer/submitOffer each use
+  // individually, just chained. Not wrapped in a transaction: if the
+  // withdraw succeeds but the submit somehow fails, the customer ends up
+  // back at "no active offer" (Make an Offer visible) and can just try
+  // again — never stuck looking at a counter-offer they can't respond to.
+  srv.on('makeNewOffer', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const { offeredPrice, currency, desiredPickupDate, notes } = req.data;
+    const offer = await SELECT.one
+      .from(Offers)
+      .columns('ID')
+      .where({
+        vehicle_ID: vehicleId,
+        customer_ID: req.user.id,
+        proposedBy: 'STAFF',
+        status: { in: ACTIVE_OFFER_STATUSES },
+      });
+    if (!offer) return req.error(404, 'No counter-offer to replace');
+
+    const offerSrv = await cds.connect.to('OfferService');
+    await offerSrv.send('withdrawOffer', { offerId: offer.ID });
+    return offerSrv.send('submitOffer', {
+      vehicleId,
+      offeredPrice,
+      currency,
+      desiredPickupDate,
+      notes,
+    });
   });
 
   // requestTestDrive needs branchId, which TestDriveService.requestTestDrive

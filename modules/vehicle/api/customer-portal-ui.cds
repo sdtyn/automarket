@@ -34,16 +34,20 @@ annotate CustomerPortalService.Vehicles with @(
         ]
     },
 
-    // "My Offer" (EPIC22-T1): shows the customer's own active offer on this
-    // vehicle. The facet itself is hidden when there is none — see
-    // UI.Facets below — so this section only ever appears alongside the
-    // "Remove the Offer" button (UI.Identification), never on its own.
+    // "My Offer" (EPIC22-T1, myOfferProposedBy added EPIC22-T2): shows the
+    // customer's own active offer on this vehicle, whoever most recently
+    // set its price. The facet itself is hidden when there is none — see
+    // UI.Facets below — so this section only ever appears alongside either
+    // "Remove the Offer" (still the customer's own price) or
+    // Accept/Reject/Make a New Offer (a Manager's counter, UI.Identification
+    // below) — myOfferProposedBy tells the customer which case they're in.
     UI.FieldGroup #MyOffer      : {
         $Type: 'UI.FieldGroupType',
         Data : [
             {Value: myOfferPrice, Label: 'Offered Price'},
             {Value: myOfferCurrency, Label: 'Currency'},
             {Value: myOfferStatus, Label: 'Status'},
+            {Value: myOfferProposedBy, Label: 'Proposed By'},
             {Value: myOfferDesiredPickupDate, Label: 'Desired Pickup Date'}
         ]
     },
@@ -105,7 +109,25 @@ annotate CustomerPortalService.Vehicles with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.removeOffer',
             Label : 'Remove the Offer',
-            @UI.Hidden: hasNoActiveOffer
+            @UI.Hidden: hasNoCustomerOffer
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.acceptCounterOffer',
+            Label : 'Accept Offer',
+            @UI.Hidden: hasNoStaffOffer
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.rejectCounterOffer',
+            Label : 'Reject Offer',
+            @UI.Hidden: hasNoStaffOffer
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.makeNewOffer',
+            Label : 'Make a New Offer',
+            @UI.Hidden: hasNoStaffOffer
         },
         {
             $Type : 'UI.DataFieldForAction',

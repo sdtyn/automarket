@@ -61,9 +61,36 @@ service OfferService @(path: '/offer') {
     // history and stays (REJECTED remains resubmit-able via resubmitOffer
     // above). Unlike rejection, withdrawal actually deletes the row: the
     // customer chose to retract it before anyone reviewed it, so there is no
-    // decision to keep a record of.
+    // decision to keep a record of. Also used (unchanged) by EPIC22-T2 for a
+    // Customer declining a Manager's counter-offer — same "delete a still-
+    // pending offer its own customer_ID owns" semantics apply regardless of
+    // who (customer or staff) most recently set the price.
     @requires: 'Customer'
     action withdrawOffer(offerId: String)         returns Boolean;
+
+    // counterOffer (EPIC22-T2): a Manager proposes a different price on an
+    // existing SUBMITTED/UNDER_REVIEW offer instead of approving/rejecting
+    // outright. Updates the same row (offeredPrice, proposedBy = 'STAFF') —
+    // same one-row negotiation-history philosophy as resubmitOffer — rather
+    // than opening a second Offers record for the same negotiation.
+    @requires: [
+        'Manager',
+        'Admin'
+    ]
+    action counterOffer(offerId: String,
+                        offeredPrice: Decimal)     returns Boolean;
+
+    // acceptCounterOffer (EPIC22-T2): the Customer accepts the Manager's
+    // counter-price. Mirrors approveOffer's own effect (APPROVED + a
+    // Reservation created) since accepting is functionally the same outcome
+    // as a Manager approving the customer's own offer — only who clicked
+    // the button differs. Reservation creation still uses the vehicle's own
+    // price at checkout (system-wide limitation, unchanged by this ticket —
+    // see docs/implementations/EPIC22-customer-portal-ux-fixes.md, T2).
+    @requires: 'Customer'
+    action acceptCounterOffer(offerId: String)     returns {
+        reservationId : String
+    };
 
     event OfferSubmitted {
         offerId   : String;
@@ -76,6 +103,14 @@ service OfferService @(path: '/offer') {
     }
 
     event OfferRejected {
+        offerId   : String;
+        vehicleId : String;
+    }
+
+    // OfferCountered (EPIC22-T2): fired when a Manager counters, mirroring
+    // OfferSubmitted/OfferApproved/OfferRejected above so any future
+    // notification subscriber has the same event to hook into.
+    event OfferCountered {
         offerId   : String;
         vehicleId : String;
     }

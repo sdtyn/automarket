@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Capabilities.V1.xml">
+    <edmx:Include Alias="Capabilities" Namespace="Org.OData.Capabilities.V1"/>
+  </edmx:Reference>
   <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml">
     <edmx:Include Alias="Common" Namespace="com.sap.vocabularies.Common.v1"/>
   </edmx:Reference>
@@ -143,6 +146,7 @@
         <Property Name="currency" Type="Edm.String" MaxLength="3" DefaultValue="TRY"/>
         <Property Name="desiredPickupDate" Type="Edm.Date"/>
         <Property Name="status" Type="Edm.String" DefaultValue="SUBMITTED"/>
+        <Property Name="proposedBy" Type="Edm.String" MaxLength="20" DefaultValue="CUSTOMER"/>
         <Property Name="rejectionNotes" Type="Edm.String" MaxLength="1000"/>
       </EntityType>
       <Action Name="approve" IsBound="true">
@@ -174,6 +178,11 @@
       </Action>
       <Action Name="complete" IsBound="true">
         <Parameter Name="in" Type="OperatorPortalService.TestDrives"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
+      <Action Name="counter" IsBound="true">
+        <Parameter Name="in" Type="OperatorPortalService.Offers"/>
+        <Parameter Name="offeredPrice" Type="Edm.Decimal" Scale="variable"/>
         <ReturnType Type="Edm.Boolean"/>
       </Action>
       <Annotations Target="OperatorPortalService.Vehicles">
@@ -267,6 +276,13 @@
               <PropertyValue Property="Target" AnnotationPath="images/@UI.LineItem"/>
             </Record>
           </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="OperatorPortalService.EntityContainer/Vehicles">
+        <Annotation Term="Capabilities.InsertRestrictions">
+          <Record Type="Capabilities.InsertRestrictionsType">
+            <PropertyValue Property="Insertable" Bool="true"/>
+          </Record>
         </Annotation>
       </Annotations>
       <Annotations Target="OperatorPortalService.Vehicles/ID">
@@ -716,6 +732,10 @@
               <PropertyValue Property="Value" Path="status"/>
             </Record>
             <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="proposedBy"/>
+              <PropertyValue Property="Label" String="Proposed By"/>
+            </Record>
+            <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="desiredPickupDate"/>
             </Record>
           </Collection>
@@ -737,6 +757,10 @@
                 </Record>
                 <Record Type="UI.DataField">
                   <PropertyValue Property="Value" Path="currency"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="proposedBy"/>
+                  <PropertyValue Property="Label" String="Proposed By"/>
                 </Record>
                 <Record Type="UI.DataField">
                   <PropertyValue Property="Value" Path="desiredPickupDate"/>
@@ -768,6 +792,10 @@
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="OperatorPortalService.reject"/>
               <PropertyValue Property="Label" String="Reject Offer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="OperatorPortalService.counter"/>
+              <PropertyValue Property="Label" String="Counter Offer"/>
             </Record>
           </Collection>
         </Annotation>
@@ -825,6 +853,20 @@
             <Record Type="Validation.AllowedValue">
               <Annotation Term="Core.SymbolicName" String="EXPIRED"/>
               <PropertyValue Property="Value" String="EXPIRED"/>
+            </Record>
+          </Collection>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="OperatorPortalService.Offers/proposedBy">
+        <Annotation Term="Validation.AllowedValues">
+          <Collection>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="CUSTOMER"/>
+              <PropertyValue Property="Value" String="CUSTOMER"/>
+            </Record>
+            <Record Type="Validation.AllowedValue">
+              <Annotation Term="Core.SymbolicName" String="STAFF"/>
+              <PropertyValue Property="Value" String="STAFF"/>
             </Record>
           </Collection>
         </Annotation>

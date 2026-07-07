@@ -110,6 +110,10 @@ annotate OperatorPortalService.Offers with @(
         {Value: offeredPrice},
         {Value: currency},
         {Value: status},
+        {
+            Value: proposedBy,
+            Label: 'Proposed By'
+        },
         {Value: desiredPickupDate}
     ],
     UI.FieldGroup #OfferDetails: {
@@ -125,6 +129,10 @@ annotate OperatorPortalService.Offers with @(
             },
             {Value: offeredPrice},
             {Value: currency},
+            {
+                Value: proposedBy,
+                Label: 'Proposed By'
+            },
             {Value: desiredPickupDate},
             {Value: status},
             {Value: rejectionNotes}
@@ -145,6 +153,11 @@ annotate OperatorPortalService.Offers with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'OperatorPortalService.reject',
             Label : 'Reject Offer'
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'OperatorPortalService.counter',
+            Label : 'Counter Offer'
         }
     ]
 );

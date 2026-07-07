@@ -28,6 +28,7 @@ module.exports = cds.service.impl(async function (srv) {
       currency: currency ?? 'TRY',
       desiredPickupDate,
       status: 'SUBMITTED',
+      proposedBy: 'CUSTOMER',
     });
 
     await srv.emit('OfferSubmitted', { offerId: id, vehicleId });
@@ -95,7 +96,13 @@ module.exports = cds.service.impl(async function (srv) {
     }
 
     await UPDATE(Offers)
-      .set({ status: 'SUBMITTED', offeredPrice, desiredPickupDate, rejectionNotes: null })
+      .set({
+        status: 'SUBMITTED',
+        offeredPrice,
+        desiredPickupDate,
+        rejectionNotes: null,
+        proposedBy: 'CUSTOMER',
+      })
       .where({ ID: offerId });
 
     await srv.emit('OfferSubmitted', { offerId, vehicleId: offer.vehicle_ID });
@@ -120,5 +127,63 @@ module.exports = cds.service.impl(async function (srv) {
 
     await DELETE.from(Offers).where({ ID: offerId });
     return true;
+  });
+
+  // counterOffer (EPIC22-T2): a Manager proposes a different price on the
+  // same row instead of approving/rejecting outright. No ownership check —
+  // any Manager/Admin (per @requires) may counter, same as approve/reject.
+  srv.on('counterOffer', async (req) => {
+    const { offerId, offeredPrice } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot counter an offer in status ${offer.status}`);
+    }
+
+    await UPDATE(Offers)
+      .set({ offeredPrice, proposedBy: 'STAFF', status: 'UNDER_REVIEW' })
+      .where({ ID: offerId });
+
+    await srv.emit('OfferCountered', { offerId, vehicleId: offer.vehicle_ID });
+    return true;
+  });
+
+  // acceptCounterOffer: the Customer accepts the Manager's counter-price.
+  // Same effect as approveOffer (APPROVED + a Reservation created) — only
+  // who clicked the button differs. Ownership check like withdrawOffer;
+  // proposedBy check ensures a Customer can't "accept" their own still-
+  // pending offer through this action (that's what waiting for a Manager
+  // is for) — only an actual Manager counter can be accepted.
+  srv.on('acceptCounterOffer', async (req) => {
+    const { offerId } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (offer.customer_ID !== req.user.id) {
+      return req.error(403, 'You can only accept counter-offers made to you');
+    }
+    if (offer.proposedBy !== 'STAFF') {
+      return req.error(409, 'There is no counter-offer to accept');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot accept an offer in status ${offer.status}`);
+    }
+
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const reservationId = cds.utils.uuid();
+
+    await UPDATE(Offers).set({ status: 'APPROVED' }).where({ ID: offerId });
+    await INSERT.into(Reservations).entries({
+      ID: reservationId,
+      vehicle_ID: offer.vehicle_ID,
+      branch_ID: offer.branch_ID,
+      customer_ID: offer.customer_ID,
+      guestToken: null,
+      status: 'APPROVED',
+      expiresAt,
+    });
+
+    await srv.emit('OfferApproved', { offerId, vehicleId: offer.vehicle_ID });
+    return { reservationId };
   });
 });
