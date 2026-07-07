@@ -51,10 +51,27 @@ service CustomerPortalService @(path: '/catalog') {
                 reservationId : String
             };
 
+            // @Common.SideEffects: addToFavorites/removeFromFavorites change
+            // isFavorited/isNotFavorited on this same bound instance, but
+            // those two fields are calculated (srv.after('READ'),
+            // customer-portal.js) — not part of what the action itself
+            // returns — so without this, Fiori Elements never refetches them
+            // after the action succeeds and the Add/Remove button visibility
+            // (customer-portal-ui.cds, @UI.Hidden) stays stale until a full
+            // page reload. 'in' is the bound-parameter name CAP generates
+            // for these actions (confirmed in the served $metadata).
             @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/isFavorited',
+                'in/isNotFavorited'
+            ]}
             action addToFavorites()         returns String;
 
             @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/isFavorited',
+                'in/isNotFavorited'
+            ]}
             action removeFromFavorites()    returns Boolean;
 
             // submitOffer/requestTestDrive (EPIC20-T2), same delegation

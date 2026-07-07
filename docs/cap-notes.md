@@ -429,49 +429,69 @@ works. See `docs/implementations/EPIC21-fiori-multi-app-remediation.md`, EPIC21-
 
 ---
 
-## 14. `Hidden` Path Binding on `UI.DataFieldForAction` Does Not Hide Object Page Header Buttons
+## 14. Conditional Object Page Header Buttons: Wrong `Hidden` Syntax, Then Missing `SideEffects`
 
 **Context:** A user reported clicking "Add to Favorites" on an already-favorited vehicle in
-`app/customer-portal` threw a raw `SQLITE_CONSTRAINT_UNIQUE` error to the UI, and that both
-"Add to Favorites" and "Remove from Favorites" buttons always showed regardless of the vehicle's
-actual favorite state. Two independent problems, one fix each attempted.
+`app/customer-portal` threw a raw `SQLITE_CONSTRAINT_UNIQUE` error, and that both "Add to
+Favorites" and "Remove from Favorites" buttons always showed regardless of the vehicle's actual
+favorite state. Three distinct problems stacked on top of each other; all three now fixed.
 
-**Fixed:** `FavoritesService.addFavorite` (`modules/favorites/application/favorites-service.js`) now
-checks for an existing row first and returns its `ID` idempotently, instead of relying on the
-`@assert.unique` DB constraint to reject the duplicate insert and leak a raw SQL error — same
-pattern `removeFavorite` already used. Verified via curl: calling `addToFavorites` twice on the same
-vehicle now returns the same favorite ID both times, no error.
+**Fix 1 — raw SQL error:** `FavoritesService.addFavorite`
+(`modules/favorites/application/favorites-service.js`) now checks for an existing row first and
+returns its `ID` idempotently, instead of relying on the `@assert.unique` DB constraint to reject
+the duplicate insert — same pattern `removeFavorite` already used.
 
-**Not fixed — same class of problem as #13:** added `virtual null as isFavorited : Boolean` and
-`virtual null as isNotFavorited : Boolean` to `CustomerPortalService.Vehicles`
-(`customer-portal.cds`), populated per-row in the existing `srv.after('READ', 'Vehicles', ...)`
-handler (`customer-portal.js`) via a batched query against `Favorites`, then added
-`Hidden: isFavorited` / `Hidden: isNotFavorited` to the `addToFavorites`/`removeFromFavorites`
-`UI.DataFieldForAction` records in `customer-portal-ui.cds`. This compiles to exactly the documented
-OData shape:
+**Fix 2 — wrong `Hidden` syntax.** Added `virtual null as isFavorited : Boolean` and
+`virtual null as isNotFavorited : Boolean` to `CustomerPortalService.Vehicles` (`customer-portal.cds`),
+populated per-row in `srv.after('READ', 'Vehicles', ...)` (`customer-portal.js`) via a batched query
+against `Favorites`. The first attempt set `Hidden: isFavorited` as a plain struct field inside the
+`UI.DataFieldForAction` record — this compiles to a `PropertyValue Property="Hidden"` on the record,
+which is spec-correct per the `UI.DataFieldAbstract` vocabulary type but **`sap.fe.templates`
+silently ignores it for Object Page header actions** (`UI.Identification`), confirmed via network
+trace that the underlying field had the correct value the whole time — the button just never
+reacted to it. The fix is a *nested annotation* on the record instead, using `@` prefix syntax:
 
-```xml
-<Record Type="UI.DataFieldForAction">
-  <PropertyValue Property="Action" String="CustomerPortalService.addToFavorites"/>
-  <PropertyValue Property="Label" String="Add to Favorites"/>
-  <PropertyValue Property="Hidden" Path="isFavorited"/>
-</Record>
+```cds
+// Wrong — compiles, does nothing for header actions:
+{
+    $Type : 'UI.DataFieldForAction',
+    Action: 'CustomerPortalService.addToFavorites',
+    Label : 'Add to Favorites',
+    Hidden: isFavorited
+}
+
+// Correct — compiles to a nested <Annotation Term="UI.Hidden" Path="..."/>
+// instead of a <PropertyValue>, and sap.fe.templates actually honors it:
+{
+    $Type : 'UI.DataFieldForAction',
+    Action: 'CustomerPortalService.addToFavorites',
+    Label : 'Add to Favorites',
+    @UI.Hidden: isFavorited
+}
 ```
 
-Confirmed via network trace that `isFavorited`/`isNotFavorited` are present with the correct values
-in the actual OData response for the bound Object Page context. **The button still never hides** —
-both always render regardless of the field's value. Research turned up a plausible but unconfirmed
-explanation: some SAP documentation examples achieve dynamic header-action hiding via a *nested*
-`[@UI.Hidden]` CDS annotation applied to the `DataFieldForAction` record itself (a term annotation
-on the array element), not via the record's own native `Hidden` struct property — which is what was
-used here, and which does appear to be a legitimate, spec-defined property of
-`UI.DataFieldAbstract`. Whether `[@UI.Hidden]`-as-nested-annotation is even expressible in plain CDL
-(not raw CSN) for an anonymous struct inside an array annotation was not established, and the
-nested-annotation approach was not attempted. Not resolved in this session — same open-ended
-"Fiori Elements doesn't honor a spec-correct dynamic annotation the way documented" shape as #13.
+**Fix 3 — missing `@Common.SideEffects`.** With fix 2 alone, the button correctly hid/showed based
+on the *initial* page load's data, but clicking the action never flipped it — `isFavorited`/
+`isNotFavorited` are calculated fields (not part of what `addToFavorites`/`removeFromFavorites`
+themselves return), so Fiori Elements has no way to know they changed as a side effect of the
+action and never refetches them; the buttons kept showing stale pre-action visibility until a full
+page reload. Declaring the side effect on the action itself (`customer-portal.cds`, where the
+action is declared — annotating it from a separate file via
+`annotate CustomerPortalService.Vehicles.actions { addToFavorites @(...) }` produced a silent
+`[WARNING] ... Artifact "CustomerPortalService.Vehicles.actions" has not been found` and the
+annotation was dropped; annotate actions declared inside an entity's `actions {}` block at their
+declaration site, not via a separate `.actions` path) fixed it:
 
-**Status:** left in place — `isFavorited`/`isNotFavorited` and the `Hidden` bindings are harmless
-dead weight if/when this gets revisited, and mean no further CDS/service-layer change is needed if
-the actual fix turns out to be UI-annotation-only. Both "Add to Favorites" and "Remove from
-Favorites" remain visible regardless of state; clicking either is now always safe (idempotent) even
-though it shouldn't be reachable in the wrong state at all.
+```cds
+@requires: 'Customer'
+@Common.SideEffects: {TargetProperties: ['in/isFavorited', 'in/isNotFavorited']}
+action addToFavorites() returns String;
+```
+
+`'in'` is the bound-parameter name CAP generates for these actions (confirmed in the served
+`$metadata`: `<Parameter Name="in" Type="CustomerPortalService.Vehicles"/>`) — use it to reference
+properties on the same bound entity instance the action was called on.
+
+**Verified end to end** with a live browser (not just curl/metadata): loading a non-favorited
+vehicle's Object Page shows only "Add to Favorites"; clicking it hides "Add" and shows "Remove"
+immediately, no reload; clicking "Remove" flips it back — the full toggle cycle works.

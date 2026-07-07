@@ -66,13 +66,13 @@ annotate CustomerPortalService.Vehicles with @(
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.addToFavorites',
             Label : 'Add to Favorites',
-            Hidden: isFavorited
+            @UI.Hidden: isFavorited
         },
         {
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.removeFromFavorites',
             Label : 'Remove from Favorites',
-            Hidden: isNotFavorited
+            @UI.Hidden: isNotFavorited
         },
         {
             $Type : 'UI.DataFieldForAction',

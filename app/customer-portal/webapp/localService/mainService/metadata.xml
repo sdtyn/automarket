@@ -353,12 +353,12 @@
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.addToFavorites"/>
               <PropertyValue Property="Label" String="Add to Favorites"/>
-              <PropertyValue Property="Hidden" Path="isFavorited"/>
+              <Annotation Term="UI.Hidden" Path="isFavorited"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.removeFromFavorites"/>
               <PropertyValue Property="Label" String="Remove from Favorites"/>
-              <PropertyValue Property="Hidden" Path="isNotFavorited"/>
+              <Annotation Term="UI.Hidden" Path="isNotFavorited"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.submitOffer"/>
@@ -493,6 +493,30 @@
       </Annotations>
       <Annotations Target="CustomerPortalService.Vehicles/isNotFavorited">
         <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.addToFavorites(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/isFavorited</String>
+                <String>in/isNotFavorited</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.removeFromFavorites(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/isFavorited</String>
+                <String>in/isNotFavorited</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
       </Annotations>
       <Annotations Target="CustomerPortalService.VehicleImages">
         <Annotation Term="UI.LineItem">
