@@ -101,4 +101,24 @@ module.exports = cds.service.impl(async function (srv) {
     await srv.emit('OfferSubmitted', { offerId, vehicleId: offer.vehicle_ID });
     return true;
   });
+
+  // withdrawOffer: deletes a still-pending offer at the customer's own
+  // request. Same ownership check as resubmitOffer above. Unlike
+  // rejectOffer, this actually removes the row — the customer retracted it
+  // before a Manager ever reviewed it, so there is no decision to preserve.
+  srv.on('withdrawOffer', async (req) => {
+    const { offerId } = req.data;
+    const offer = await SELECT.one.from(Offers).where({ ID: offerId });
+    if (!offer) return req.error(404, 'Offer not found');
+
+    if (offer.customer_ID !== req.user.id) {
+      return req.error(403, 'You can only withdraw your own offers');
+    }
+    if (!['SUBMITTED', 'UNDER_REVIEW'].includes(offer.status)) {
+      return req.error(409, `Cannot withdraw an offer in status ${offer.status}`);
+    }
+
+    await DELETE.from(Offers).where({ ID: offerId });
+    return true;
+  });
 });

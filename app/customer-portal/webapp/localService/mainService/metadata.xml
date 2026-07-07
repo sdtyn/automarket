@@ -75,6 +75,13 @@
         <Property Name="primaryImageUrl" Type="Edm.String"/>
         <Property Name="isFavorited" Type="Edm.Boolean"/>
         <Property Name="isNotFavorited" Type="Edm.Boolean"/>
+        <Property Name="hasActiveOffer" Type="Edm.Boolean"/>
+        <Property Name="hasNoActiveOffer" Type="Edm.Boolean"/>
+        <Property Name="myOfferId" Type="Edm.String"/>
+        <Property Name="myOfferPrice" Type="Edm.Decimal" Scale="variable"/>
+        <Property Name="myOfferCurrency" Type="Edm.String"/>
+        <Property Name="myOfferStatus" Type="Edm.String"/>
+        <Property Name="myOfferDesiredPickupDate" Type="Edm.Date"/>
       </EntityType>
       <EntityType Name="VehicleImages">
         <Key>
@@ -223,6 +230,10 @@
         <Parameter Name="notes" Type="Edm.String"/>
         <ReturnType Type="Edm.String"/>
       </Action>
+      <Action Name="removeOffer" IsBound="true">
+        <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
+        <ReturnType Type="Edm.Boolean"/>
+      </Action>
       <Action Name="requestTestDrive" IsBound="true">
         <Parameter Name="in" Type="CustomerPortalService.Vehicles"/>
         <Parameter Name="scheduledAt" Type="Edm.DateTimeOffset" Precision="7"/>
@@ -332,6 +343,30 @@
             </PropertyValue>
           </Record>
         </Annotation>
+        <Annotation Term="UI.FieldGroup" Qualifier="MyOffer">
+          <Record Type="UI.FieldGroupType">
+            <PropertyValue Property="Data">
+              <Collection>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="myOfferPrice"/>
+                  <PropertyValue Property="Label" String="Offered Price"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="myOfferCurrency"/>
+                  <PropertyValue Property="Label" String="Currency"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="myOfferStatus"/>
+                  <PropertyValue Property="Label" String="Status"/>
+                </Record>
+                <Record Type="UI.DataField">
+                  <PropertyValue Property="Value" Path="myOfferDesiredPickupDate"/>
+                  <PropertyValue Property="Label" String="Desired Pickup Date"/>
+                </Record>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
         <Annotation Term="UI.Facets">
           <Collection>
             <Record Type="UI.ReferenceFacet">
@@ -341,6 +376,11 @@
             <Record Type="UI.ReferenceFacet">
               <PropertyValue Property="Label" String="Photos"/>
               <PropertyValue Property="Target" AnnotationPath="images/@UI.LineItem"/>
+            </Record>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Label" String="My Offer"/>
+              <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#MyOffer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoActiveOffer"/>
             </Record>
           </Collection>
         </Annotation>
@@ -363,6 +403,12 @@
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.submitOffer"/>
               <PropertyValue Property="Label" String="Make an Offer"/>
+              <Annotation Term="UI.Hidden" Path="hasActiveOffer"/>
+            </Record>
+            <Record Type="UI.DataFieldForAction">
+              <PropertyValue Property="Action" String="CustomerPortalService.removeOffer"/>
+              <PropertyValue Property="Label" String="Remove the Offer"/>
+              <Annotation Term="UI.Hidden" Path="hasNoActiveOffer"/>
             </Record>
             <Record Type="UI.DataFieldForAction">
               <PropertyValue Property="Action" String="CustomerPortalService.requestTestDrive"/>
@@ -494,6 +540,27 @@
       <Annotations Target="CustomerPortalService.Vehicles/isNotFavorited">
         <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasActiveOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/hasNoActiveOffer">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferId">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferPrice">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferCurrency">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferStatus">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Vehicles/myOfferDesiredPickupDate">
+        <Annotation Term="Core.Computed" Bool="true"/>
+      </Annotations>
       <Annotations Target="CustomerPortalService.addToFavorites(CustomerPortalService.Vehicles)">
         <Annotation Term="Common.SideEffects">
           <Record Type="Common.SideEffectsType">
@@ -513,6 +580,40 @@
               <Collection>
                 <String>in/isFavorited</String>
                 <String>in/isNotFavorited</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.submitOffer(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/hasActiveOffer</String>
+                <String>in/hasNoActiveOffer</String>
+                <String>in/myOfferId</String>
+                <String>in/myOfferPrice</String>
+                <String>in/myOfferCurrency</String>
+                <String>in/myOfferStatus</String>
+                <String>in/myOfferDesiredPickupDate</String>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.removeOffer(CustomerPortalService.Vehicles)">
+        <Annotation Term="Common.SideEffects">
+          <Record Type="Common.SideEffectsType">
+            <PropertyValue Property="TargetProperties">
+              <Collection>
+                <String>in/hasActiveOffer</String>
+                <String>in/hasNoActiveOffer</String>
+                <String>in/myOfferId</String>
+                <String>in/myOfferPrice</String>
+                <String>in/myOfferCurrency</String>
+                <String>in/myOfferStatus</String>
+                <String>in/myOfferDesiredPickupDate</String>
               </Collection>
             </PropertyValue>
           </Record>

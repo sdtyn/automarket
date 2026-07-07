@@ -34,9 +34,24 @@ annotate CustomerPortalService.Vehicles with @(
         ]
     },
 
+    // "My Offer" (EPIC22-T1): shows the customer's own active offer on this
+    // vehicle. The facet itself is hidden when there is none — see
+    // UI.Facets below — so this section only ever appears alongside the
+    // "Remove the Offer" button (UI.Identification), never on its own.
+    UI.FieldGroup #MyOffer      : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: myOfferPrice, Label: 'Offered Price'},
+            {Value: myOfferCurrency, Label: 'Currency'},
+            {Value: myOfferStatus, Label: 'Status'},
+            {Value: myOfferDesiredPickupDate, Label: 'Desired Pickup Date'}
+        ]
+    },
+
     // Object Page facets: specs form + an inline photo gallery table driven by
     // the images composition (VehicleImages' UI.LineItem is annotated once,
-    // shared with OperatorPortalService — see operator-portal-ui.cds).
+    // shared with OperatorPortalService — see operator-portal-ui.cds), plus
+    // the conditional "My Offer" facet above.
     UI.Facets                  : [
         {
             $Type : 'UI.ReferenceFacet',
@@ -47,6 +62,12 @@ annotate CustomerPortalService.Vehicles with @(
             $Type : 'UI.ReferenceFacet',
             Label : 'Photos',
             Target: 'images/@UI.LineItem'
+        },
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'My Offer',
+            Target: '@UI.FieldGroup#MyOffer',
+            @UI.Hidden: hasNoActiveOffer
         }
     ],
 
@@ -77,7 +98,14 @@ annotate CustomerPortalService.Vehicles with @(
         {
             $Type : 'UI.DataFieldForAction',
             Action: 'CustomerPortalService.submitOffer',
-            Label : 'Make an Offer'
+            Label : 'Make an Offer',
+            @UI.Hidden: hasActiveOffer
+        },
+        {
+            $Type : 'UI.DataFieldForAction',
+            Action: 'CustomerPortalService.removeOffer',
+            Label : 'Remove the Offer',
+            @UI.Hidden: hasNoActiveOffer
         },
         {
             $Type : 'UI.DataFieldForAction',

@@ -31,13 +31,29 @@ service CustomerPortalService @(path: '/catalog') {
     // they're already in — previously both buttons always showed, and
     // clicking "Add" on an already-favorited vehicle leaked a raw SQLite
     // UNIQUE-constraint error to the UI.
+    // hasActiveOffer/hasNoActiveOffer (EPIC22-T1): same mutually-exclusive-
+    // boolean-pair pattern as isFavorited/isNotFavorited above, one query
+    // against Offers per page (customer-portal.js). "Active" means
+    // SUBMITTED/UNDER_REVIEW — a REJECTED offer is negotiation history (the
+    // customer may still resubmit it via the separate My Offers app) but is
+    // not "active" here, so the Vehicle page's Make an Offer button comes
+    // back once a Manager rejects. myOffer* mirror the fields of that one
+    // active offer, for the "My Offer" facet (customer-portal-ui.cds); all
+    // null when hasActiveOffer is false.
     @requires: 'any'
     entity Vehicles      as
         projection on automarket.Vehicles {
             *,
-            virtual null as primaryImageUrl  : String,
-            virtual null as isFavorited      : Boolean,
-            virtual null as isNotFavorited   : Boolean
+            virtual null as primaryImageUrl        : String,
+            virtual null as isFavorited            : Boolean,
+            virtual null as isNotFavorited         : Boolean,
+            virtual null as hasActiveOffer         : Boolean,
+            virtual null as hasNoActiveOffer       : Boolean,
+            virtual null as myOfferId              : String,
+            virtual null as myOfferPrice           : Decimal,
+            virtual null as myOfferCurrency        : String,
+            virtual null as myOfferStatus          : String,
+            virtual null as myOfferDesiredPickupDate : Date
         }
         actions {
             // reserve/addToFavorites/removeFromFavorites (EPIC20-T1) are bound
@@ -79,11 +95,41 @@ service CustomerPortalService @(path: '/catalog') {
             // it is auto-derived from the bound Vehicle's own branch_ID in
             // the handler (customer-portal.js), sparing the customer a field
             // they have no reason to type in themselves.
+            // @Common.SideEffects (EPIC22-T1): submitOffer changes
+            // hasActiveOffer/myOffer* on this same bound instance — see the
+            // isFavorited/isNotFavorited SideEffects comment above for why
+            // this is required, not optional.
             @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/hasActiveOffer',
+                'in/hasNoActiveOffer',
+                'in/myOfferId',
+                'in/myOfferPrice',
+                'in/myOfferCurrency',
+                'in/myOfferStatus',
+                'in/myOfferDesiredPickupDate'
+            ]}
             action submitOffer(offeredPrice : Decimal,
                                currency : String,
                                desiredPickupDate : Date,
                                notes : String)   returns String;
+
+            // removeOffer (EPIC22-T1): withdraws the customer's own still-
+            // pending offer on this vehicle. Delegates to
+            // OfferService.withdrawOffer (looks up the offer itself — no
+            // offerId parameter needed here, same "derive from context"
+            // approach as submitOffer's branchId above).
+            @requires: 'Customer'
+            @Common.SideEffects: {TargetProperties: [
+                'in/hasActiveOffer',
+                'in/hasNoActiveOffer',
+                'in/myOfferId',
+                'in/myOfferPrice',
+                'in/myOfferCurrency',
+                'in/myOfferStatus',
+                'in/myOfferDesiredPickupDate'
+            ]}
+            action removeOffer()             returns Boolean;
 
             @requires: 'Customer'
             action requestTestDrive(scheduledAt : Timestamp,

@@ -10,15 +10,23 @@ module.exports = cds.service.impl(async function (srv) {
     req.query.where({ status: 'FOR_SALE' });
   });
 
-  const { Favorites, PriceHistory, VehicleImages } = cds.entities('automarket');
+  const { Favorites, Offers, PriceHistory, VehicleImages } = cds.entities('automarket');
 
-  // Populates the virtual primaryImageUrl/isFavorited/isNotFavorited fields
-  // (declared in customer-portal.cds) for every Vehicles row returned by
-  // READ — one batched query per concern for the whole result page, not one
-  // query per row. isFavorited/isNotFavorited stay false/true (never
-  // favorited) for guests — Favorites has no concept of a guest, and
-  // addToFavorites/removeFromFavorites already require 'Customer' regardless
-  // of what these two fields say.
+  // "Active" offer statuses for the Vehicle page's purposes (EPIC22-T1) —
+  // SUBMITTED/UNDER_REVIEW only. REJECTED is negotiation history (still
+  // resubmit-able via the separate My Offers app, EPIC20-T2) but is not
+  // "active" here, so the Vehicle page's Make an Offer button reappears the
+  // moment a Manager rejects, with no extra wiring: hasActiveOffer is
+  // recomputed fresh on every READ, not a stored flag.
+  const ACTIVE_OFFER_STATUSES = ['SUBMITTED', 'UNDER_REVIEW'];
+
+  // Populates the virtual primaryImageUrl/isFavorited/isNotFavorited/
+  // hasActiveOffer/myOffer* fields (declared in customer-portal.cds) for
+  // every Vehicles row returned by READ — one batched query per concern for
+  // the whole result page, not one query per row. All stay false/null for
+  // guests — Favorites/Offers have no concept of a guest, and the actions
+  // that use them already require 'Customer' regardless of what these
+  // fields say.
   srv.after('READ', 'Vehicles', async (rows, req) => {
     const list = Array.isArray(rows) ? rows : [rows];
     const ids = list.filter(Boolean).map((r) => r.ID);
@@ -37,11 +45,23 @@ module.exports = cds.service.impl(async function (srv) {
     }
 
     let favoritedIds = new Set();
+    const activeOfferByVehicle = {};
     if (req.user.is('Customer')) {
       const favorites = await SELECT.from(Favorites)
         .columns('vehicle_ID')
         .where({ customer_ID: req.user.id, vehicle_ID: { in: ids } });
       favoritedIds = new Set(favorites.map((f) => f.vehicle_ID));
+
+      const offers = await SELECT.from(Offers)
+        .columns('ID', 'vehicle_ID', 'offeredPrice', 'currency', 'status', 'desiredPickupDate')
+        .where({
+          customer_ID: req.user.id,
+          vehicle_ID: { in: ids },
+          status: { in: ACTIVE_OFFER_STATUSES },
+        });
+      for (const offer of offers) {
+        activeOfferByVehicle[offer.vehicle_ID] = offer;
+      }
     }
 
     for (const row of list) {
@@ -49,6 +69,15 @@ module.exports = cds.service.impl(async function (srv) {
         row.primaryImageUrl = firstImageByVehicle[row.ID] ?? null;
         row.isFavorited = favoritedIds.has(row.ID);
         row.isNotFavorited = !favoritedIds.has(row.ID);
+
+        const offer = activeOfferByVehicle[row.ID];
+        row.hasActiveOffer = !!offer;
+        row.hasNoActiveOffer = !offer;
+        row.myOfferId = offer?.ID ?? null;
+        row.myOfferPrice = offer?.offeredPrice ?? null;
+        row.myOfferCurrency = offer?.currency ?? null;
+        row.myOfferStatus = offer?.status ?? null;
+        row.myOfferDesiredPickupDate = offer?.desiredPickupDate ?? null;
       }
     }
   });
@@ -129,6 +158,27 @@ module.exports = cds.service.impl(async function (srv) {
       desiredPickupDate,
       notes,
     });
+  });
+
+  // removeOffer (EPIC22-T1): withdraws the customer's own still-pending
+  // offer on this vehicle. Looks up the offer itself (same "derive from
+  // context" approach submitOffer's branchId derivation uses) so the UI
+  // never needs to know or pass an offerId — delegates the actual deletion
+  // to OfferService.withdrawOffer, which re-verifies ownership and status.
+  srv.on('removeOffer', 'Vehicles', async (req) => {
+    const [{ ID: vehicleId }] = req.params;
+    const offer = await SELECT.one
+      .from(Offers)
+      .columns('ID')
+      .where({
+        vehicle_ID: vehicleId,
+        customer_ID: req.user.id,
+        status: { in: ACTIVE_OFFER_STATUSES },
+      });
+    if (!offer) return req.error(404, 'No active offer to remove');
+
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('withdrawOffer', { offerId: offer.ID });
   });
 
   // requestTestDrive needs branchId, which TestDriveService.requestTestDrive

@@ -55,6 +55,16 @@ service OfferService @(path: '/offer') {
                          offeredPrice: Decimal,
                          desiredPickupDate: Date) returns Boolean;
 
+    // withdrawOffer (EPIC22-T1): a Customer voluntarily withdraws their own
+    // still-pending offer. Only SUBMITTED/UNDER_REVIEW may be withdrawn —
+    // once a Manager has decided (APPROVED/REJECTED), the row is negotiation
+    // history and stays (REJECTED remains resubmit-able via resubmitOffer
+    // above). Unlike rejection, withdrawal actually deletes the row: the
+    // customer chose to retract it before anyone reviewed it, so there is no
+    // decision to keep a record of.
+    @requires: 'Customer'
+    action withdrawOffer(offerId: String)         returns Boolean;
+
     event OfferSubmitted {
         offerId   : String;
         vehicleId : String;
