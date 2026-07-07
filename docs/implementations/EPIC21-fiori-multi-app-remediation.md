@@ -167,8 +167,8 @@ to change, from `../#<Entity>List` (a dead in-app hash) to the new app's own abs
 
 **Local-dev-only caveat, called out here so it isn't mistaken for the final architecture:** pointing
 tiles at `http://localhost:<port>/` only works because every app currently runs as its own
-`ui5 serve` process on its own port. In a real deployment (EPIC22's Approuter/XSUAA territory,
-`sample.env` per EPIC22-T6), these would be reverse-proxied under one origin with distinct *paths*
+`ui5 serve` process on its own port. In a real deployment (EPIC23's Approuter/XSUAA territory,
+`sample.env` per EPIC23-T6), these would be reverse-proxied under one origin with distinct *paths*
 instead of distinct *ports*, and the tile URLs would change accordingly — not a concern for this
 epic.
 
