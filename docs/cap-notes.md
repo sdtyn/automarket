@@ -412,20 +412,30 @@ app's local metadata snapshot to rule out a stale-cache false negative. **The Cr
 does not appear.** This annotation is not sufficient on its own (and, based on this evidence, might
 not be a factor at all).
 
-**Unresolved — contradictory information found, not adjudicated:** some sources say CAP + Fiori
-Elements V4 requires draft mode (`@odata.draft.enabled`) for any native Create/Update UX on an
-entity; official CAP documentation says non-draft Create should work out of the box with a plain
-`@restrict` grant and no special annotation. Neither claim matches what's actually observed here.
-Root cause not identified. Enabling full draft mode on `Vehicles` to test the first theory was
-considered and explicitly not attempted — draft mode changes an entity's key/identity semantics
-(`IsActiveEntity`, `DraftAdministrativeData`, a save/discard lifecycle) and would touch every
-existing Vehicles read/write handler, a materially bigger and riskier change than confirming a
-button's visibility warrants without a firm diagnosis first.
+**Second attempt, also ruled out:** added `"creationMode": {"name": "NewPage"}` to the `VehiclesList`
+target's `tableSettings` in `app/operator-portal/webapp/manifest.json` (the manifest-level knob
+several SAP docs cite for enabling List Report creation). Compiled fine, no console errors, no
+`UI.CreateHidden` annotation present anywhere in the served `$metadata` to explain a suppression —
+**the Create button still does not appear.** Reverted (no diff left behind).
+
+**Conclusion — accepted as Won't Fix:** two independent, otherwise-correct configuration paths
+(the OData Capabilities vocabulary annotation, and the manifest-level `creationMode` knob) both
+fail to surface a native Create button on this non-draft entity. Combined with the contradictory
+research (some sources say CAP + Fiori Elements V4 requires draft mode — `@odata.draft.enabled` —
+for any native Create/Update UX on an entity; official CAP documentation says non-draft Create
+should work out of the box with a plain `@restrict` grant), the practical conclusion is that draft
+mode is genuinely required here, and no annotation-only fix exists. Enabling full draft mode on
+`Vehicles` was evaluated and explicitly rejected as disproportionate: it changes an entity's
+key/identity semantics (`IsActiveEntity`, `DraftAdministrativeData`, a save/discard lifecycle) and
+would touch every existing Vehicles read/write handler across all three portals and every EPIC20
+bound action built on top of it — a materially bigger and riskier change than one toolbar button
+justifies.
 
 **Status:** `@Capabilities.InsertRestrictions.Insertable: true` left in place in
 `operator-portal.cds` — it is accurate metadata (Vehicles is genuinely insertable) and harmless even
 though it didn't solve the visibility problem. `POST /operator/Vehicles` is unaffected and still
-works. See `docs/implementations/EPIC21-fiori-multi-app-remediation.md`, EPIC21-T4, left **Open**.
+works; only the native toolbar button is missing. See
+`docs/implementations/EPIC21-fiori-multi-app-remediation.md`, EPIC21-T4 — closed **Won't Fix**.
 
 ---
 

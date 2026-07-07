@@ -34,7 +34,7 @@ Root-cause trace, the rejected FCL attempt, and verification commands: `docs/cap
 | EPIC21-T1 | Operator Portal — split into separate apps | Done |
 | EPIC21-T2 | Admin Portal — split into separate apps | Done |
 | EPIC21-T3 | Customer Portal — split into separate apps | Done |
-| EPIC21-T4 | Native Create button fix | Open |
+| EPIC21-T4 | Native Create button fix | Won't Fix |
 | EPIC21-T5 | Per-role navigation | Done |
 
 ### Sprint Backlog DoD Mapping
@@ -42,13 +42,27 @@ Root-cause trace, the rejected FCL attempt, and verification commands: `docs/cap
 | DoD Item | Satisfied by |
 |----------|-------------|
 | Every EPIC19-T5/T6 and EPIC20-T1–T6 List Report/Object Page is reachable and functional (real data on "Go", buttons work) in a real browser | EPIC21-T1, T2, T3 |
-| Native "Create" button visible and functional on `Vehicles` | EPIC21-T4 |
+| Native "Create" button visible and functional on `Vehicles` | EPIC21-T4 — **not met, Won't Fix** (requires CAP draft mode; see `docs/cap-notes.md` #13) |
 | Every role can actually reach all of their apps, not just the one at each app's root hash | EPIC21-T5 |
 | Verified with Playwright/`chromium-cli` against a live backend + live `ui5 serve`, not just backend curl + `$metadata` grep | Per ticket |
 
 ### Sign-off
 
-_To be filled in at sprint end (T4 still open)._
+Four of five tickets delivered: T1–T3 split 11 entities out of three overloaded apps into their own
+dedicated Fiori Elements apps, fixing the EPIC19-T5/T6 and EPIC20-T1–T6 "second entity crashes to
+Page Not Found" defect (`docs/cap-notes.md` #12) end to end, verified in a real browser with
+Playwright — every List Report loads real data and every `@UI.DataFieldForAction` button from
+EPIC19/EPIC20 renders and works (approve/reject/cancel/complete/capture/fail/refund/pay/resubmit,
+all clicked through against a live backend). T5 repointed each original app's Launchpad tiles at
+the newly split-out apps, restoring per-role navigation. T4 (native "Create" toolbar button on
+`Vehicles`) is closed **Won't Fix**: two independent, otherwise-correct fixes (the OData
+`Capabilities.InsertRestrictions` annotation, and the manifest-level `creationMode` config) were
+tried and both failed to surface the button; the remaining candidate fix is full CAP draft mode on
+`Vehicles`, rejected as disproportionate — it would touch every Vehicles read/write handler across
+all three portals and every EPIC20 bound action built on top of it, for one toolbar button, when
+`POST /operator/Vehicles` already works without it. Full trace: `docs/cap-notes.md` #13. Re-verified
+live a second time (after the EPIC22 planning conversation) with no regressions: all 11 split apps,
+the 3 original apps, and per-role tile navigation all still work exactly as first verified.
 
 ---
 
