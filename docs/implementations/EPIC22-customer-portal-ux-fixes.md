@@ -419,6 +419,15 @@ List Report except the Vehicle Object Page, i.e. every app's own list screen, no
 either. Extended to all six apps' List Reports in a follow-up commit, same `content.header.actions`
 mechanism, no new pattern needed.
 
+**Second scope correction:** after that, the user asked for a "Vehicle Catalog" link on the five
+non-catalog apps' **Object Pages** too (Reservation/Offer/TestDrive/Order/Payment detail screens),
+alongside the existing `BackToList`/`Logout` — someone reviewing a single Reservation's details had
+`Back to List` (their own list) and `Logout`, but no way to reach the vehicle catalog without first
+going back to the list. Added `NavCatalog` to each Object Page target's `content.header.actions`
+(reusing the `onNavCatalog` handler already added to each app's `CustomActions.js` for the List
+Report links) — just the one catalog link, not all five sibling links, since Object Pages weren't
+asked to carry the full nav set, only a way back to the vehicle catalog specifically.
+
 #### 4. Add `Logout` to every app, both List Report and Object Page targets
 
 Same `content.header.actions` mechanism, one more entry per target:

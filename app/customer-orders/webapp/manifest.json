@@ -196,6 +196,13 @@
                       "enabled": true,
                       "visible": true
                     },
+                    "NavCatalog": {
+                      "id": "NavCatalog",
+                      "press": "automarket.customerorders.ext.CustomActions.onNavCatalog",
+                      "text": "Vehicle Catalog",
+                      "enabled": true,
+                      "visible": true
+                    },
                     "Logout": {
                       "id": "Logout",
                       "press": "automarket.customerorders.ext.CustomActions.onLogout",
