@@ -1,16 +1,21 @@
 sap.ui.define([], function () {
   "use strict";
 
-  // Sibling customer apps (EPIC21-T3 split) each run standalone on their own
-  // ui5-serve port — there is no shared Fiori Launchpad shell tying them
-  // together at runtime, so cross-app navigation has to be a plain
-  // window.location redirect to another origin, not an in-app router.navTo.
+  // Sibling customer apps (EPIC21-T3 split) are separate sap.fe.core
+  // AppComponents with no shared Fiori Launchpad shell, so cross-app
+  // navigation has to be a plain window.location redirect, not an in-app
+  // router.navTo. cds-serve hosts every app's static webapp/ folder under
+  // one origin as a sibling path (confirmed via its own generated welcome
+  // page: "/customer-offers/webapp", "/customer-reservations/webapp", etc.)
+  // — origin-relative paths work both for that normal deployment and for
+  // BTP/approuter-fronted deployments, where an absolute localhost:PORT
+  // (only ever valid for an isolated `ui5 serve` dev session) would 404.
   var SIBLING_APPS = {
-    reservations: "http://localhost:8096/",
-    offers: "http://localhost:8097/",
-    testdrives: "http://localhost:8098/",
-    orders: "http://localhost:8099/",
-    payments: "http://localhost:8100/",
+    reservations: "/customer-reservations/webapp/index.html",
+    offers: "/customer-offers/webapp/index.html",
+    testdrives: "/customer-testdrives/webapp/index.html",
+    orders: "/customer-orders/webapp/index.html",
+    payments: "/customer-payments/webapp/index.html",
   };
 
   return {

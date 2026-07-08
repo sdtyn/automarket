@@ -630,3 +630,24 @@ operation is genuinely never allowed (not just role-conditionally hidden), reach
 `Capabilities` annotation family before reaching for `@UI.Hidden` — it fixes the actual
 authorization gap and the UI symptom in one place, rather than leaving the hole open and only
 hiding the button that led someone to it.
+
+## 17. Isolated `ui5 serve` Dev-Testing Can Mask a Same-Origin Cross-App Navigation Bug
+
+**Context (EPIC22-T3, bug caught by the user, not by testing):** the customer-portal cross-app
+navigation buttons (note #15) were coded to redirect to `http://localhost:8096`–`8100` — the exact
+ports this ticket's own isolated verification sessions used (`ui5 serve --port 809X`, one app per
+port, spun up specifically to test that one app in an environment not shared with the stray
+`cds-serve` process already occupying port 4004). Every Playwright check during T3 clicked a nav
+button and confirmed it landed on the right app — because in that test setup, the hardcoded port
+*was* where the target app actually lived. None of that testing ever ran against how the app is
+actually deployed: `cds-serve` on one port (4004 in this project) serving every app's static
+`webapp/` folder as a sibling path under the same origin (`/customer-offers/webapp`,
+`/customer-reservations/webapp`, etc. — visible on its own generated welcome page). Against that
+real deployment, `http://localhost:8097/` doesn't exist at all.
+
+**Lesson:** for anything that depends on *how apps are actually deployed relative to each other*
+(cross-app links, shared-origin assumptions, CORS), isolated single-app dev-server testing can pass
+cleanly while being wrong for the real deployment, if the dev ports happen to match up with
+whatever URLs the code hardcodes. Verify cross-app navigation against the actual multi-app host
+(`cds-serve`, one origin) at least once, not only against however each piece was tested in
+isolation — the two environments can silently agree with each other while both being wrong.

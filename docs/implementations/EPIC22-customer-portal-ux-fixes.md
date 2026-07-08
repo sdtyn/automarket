@@ -356,9 +356,19 @@ layout-state computation at all.
 whether the user arrived via an in-app row click or a deep/bookmarked link with no relevant browser
 history) and `onLogout` (see step 4). `customer-portal`'s copy additionally exports
 `onNavReservations`/`onNavOffers`/`onNavTestDrives`/`onNavOrders`/`onNavPayments`, each a plain
-`window.location.href` redirect to the sibling app's own port (there is no shared Fiori Launchpad
-shell tying the six standalone apps together at runtime, so cross-app navigation can't be an
-in-app `router.navTo` — it has to cross an origin).
+`window.location.href` redirect to the sibling app's own path — there is no shared Fiori Launchpad
+shell tying the six apps together at runtime, so cross-app navigation can't be an in-app
+`router.navTo`, but it also doesn't need to cross an origin: `cds-serve` hosts every app's static
+`webapp/` folder under one origin as a sibling path (its own generated welcome page lists them —
+`/customer-offers/webapp`, `/customer-reservations/webapp`, etc.), so an **origin-relative** path
+(`/customer-offers/webapp/index.html`) is correct. **A wrong guess caught by the user, not by
+testing:** the first version of this hardcoded `http://localhost:8097/` etc. — the ports used for
+this ticket's own isolated `ui5 serve` dev-testing sessions — which 404'd against the user's actual
+`cds-serve` deployment on port 4004. Playwright verification during this ticket used the same
+isolated-port setup and never caught it, because in that setup the wrong port coincidentally *was*
+where the target app lived. Fixed to the origin-relative paths shown above, and re-verified directly
+against the user's own running `cds-serve` instance on port 4004 (read-only `curl`/Playwright checks
+only — no state-changing requests against a process this session didn't start).
 
 #### 2. Modify every app's `webapp/manifest.json` — Object Page target
 
