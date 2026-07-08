@@ -18,7 +18,7 @@ native "Delete" button visible to a role that can never actually delete a vehicl
 | EPIC22-T1 | Customer offer lifecycle | Done |
 | EPIC22-T2 | Operator/Manager counter-offers | Done |
 | EPIC22-T3 | Customer Portal navigation | Done |
-| EPIC22-T4 | Vehicle Object Page polish | Open |
+| EPIC22-T4 | Vehicle Object Page polish | Done |
 | EPIC22-T5 | Read-only Vehicles for Customers | Open |
 
 ### Sprint Backlog DoD Mapping
@@ -463,5 +463,52 @@ npm run lint && npm run format:check && npm test
 
 All 138 tests pass, 0 lint errors (`app/` is excluded from ESLint entirely — pre-existing
 `.eslint` config, not a T3 change), format clean.
+
+---
+
+## EPIC22-T4: Vehicle Object Page Polish
+
+### What & Why
+
+Two reported defects on the Vehicle Object Page's "Specifications" facet and "Photos" gallery — both
+root-caused to the same class of problem as `cap-notes.md` earlier findings: an annotation was
+simply never written, not a framework limitation. Fiori Elements only shows a field's raw value with
+no caption unless `Label` is explicit — `#VehicleSpecs`'s fields had none, so a customer saw a bare
+`AUTOMATIC` with no indication it's the transmission type. Separately, the "Photos" gallery table
+showed the image `url` as plain text (a clickable link, but not a rendered thumbnail) because
+`@UI.IsImageURL: true` — already applied to `primaryImageUrl` on the List Report back in EPIC19-T4 —
+had never been applied to the equivalent field on the Object Page's own image gallery.
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/vehicle/api/customer-portal-ui.cds`
+
+Add an explicit `Label` to every field in `#VehicleSpecs`'s `UI.FieldGroup` (`brand` → "Brand",
+`model` → "Model", `year` → "Year", `mileage` → "Mileage", `fuelType` → "Fuel Type",
+`transmission` → "Transmission", `color` → "Color", `price` → "Price", `currency` → "Currency" — the
+two `branch.*` fields already had one, from EPIC19-T4).
+
+#### 2. Modify `modules/vehicle/api/operator-portal-ui.cds`
+
+Add `annotate automarket.VehicleImages with { url @UI.IsImageURL: true; };` right after the existing
+`UI.LineItem` annotate block for the same type. `automarket.VehicleImages` is annotated once here
+(not per-service) because it's the shared target type of the `images` composition, reachable from
+both `OperatorPortalService.Vehicles(ID)/images` and `CustomerPortalService.Vehicles(ID)/images` —
+fixing it here fixes the Photos gallery thumbnail rendering on **both** portals in one place, not
+just the customer-facing one this ticket was scoped to.
+
+### Verify
+
+Verified end to end in a live browser (Playwright, `customer-portal`, fresh `cds-serve` + `ui5 serve`
+against a vehicle with one image): Specifications facet shows "Brand:", "Fuel Type:",
+"Transmission:", "Mileage:" etc. as actual field captions (confirmed via page text search, not just
+that the annotation compiled); Photos facet's single row renders a real thumbnail image instead of
+the raw Wikimedia Commons URL text — confirmed visually via screenshot.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors, format clean.
 
 ---

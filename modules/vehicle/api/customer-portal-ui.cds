@@ -17,18 +17,21 @@ annotate CustomerPortalService.Vehicles with @(
 
     // Object Page: full specs (internal/operational fields — vin, plateNumber,
     // status — are deliberately left out; a customer does not need them).
+    // Explicit Label on every field (EPIC22-T4) — without it Fiori Elements
+    // falls back to the raw enum/value with no caption at all (e.g. a bare
+    // "AUTOMATIC" with nothing saying it's the transmission type).
     UI.FieldGroup #VehicleSpecs : {
         $Type: 'UI.FieldGroupType',
         Data : [
-            {Value: brand},
-            {Value: model},
-            {Value: year},
-            {Value: mileage},
-            {Value: fuelType},
-            {Value: transmission},
-            {Value: color},
-            {Value: price},
-            {Value: currency},
+            {Value: brand, Label: 'Brand'},
+            {Value: model, Label: 'Model'},
+            {Value: year, Label: 'Year'},
+            {Value: mileage, Label: 'Mileage'},
+            {Value: fuelType, Label: 'Fuel Type'},
+            {Value: transmission, Label: 'Transmission'},
+            {Value: color, Label: 'Color'},
+            {Value: price, Label: 'Price'},
+            {Value: currency, Label: 'Currency'},
             {Value: branch.name, Label: 'Branch'},
             {Value: branch.city, Label: 'City'}
         ]

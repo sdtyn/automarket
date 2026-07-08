@@ -83,7 +83,10 @@ annotate OperatorPortalService.Vehicles with @(
 // Page facet above. Annotated on the shared automarket.VehicleImages type
 // (not a per-service projection) because it is not exposed as a standalone
 // entity set in OperatorPortalService — it only exists here as the images
-// composition's target type, reachable through Vehicles(ID)/images.
+// composition's target type, reachable through Vehicles(ID)/images. Shared
+// by both OperatorPortalService and CustomerPortalService (both facets
+// target the same images/@UI.LineItem), so fixing url's rendering here
+// fixes the Photos gallery on both portals at once (EPIC22-T4).
 annotate automarket.VehicleImages with @(UI.LineItem: [
     {Value: url},
     {
@@ -91,6 +94,13 @@ annotate automarket.VehicleImages with @(UI.LineItem: [
         Label: 'Order'
     }
 ]);
+
+// Renders url as an actual thumbnail in the Photos gallery table instead of
+// a plain text link (EPIC22-T4) — same fix already applied to
+// primaryImageUrl on the List Report (customer-portal-ui.cds).
+annotate automarket.VehicleImages with {
+    url @UI.IsImageURL: true;
+};
 
 // "Offers" (EPIC20-T5) — fourth entity in app/operator-portal, visible only
 // to Manager/Admin per the @restrict on Offers (operator-portal.cds) —
