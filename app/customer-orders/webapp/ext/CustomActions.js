@@ -1,6 +1,19 @@
 sap.ui.define([], function () {
   "use strict";
 
+  // Sibling customer apps (EPIC22-T3, cross-app nav on every List Report —
+  // not just the Vehicle Catalog's — added after the user caught the first
+  // version's hardcoded ui5-serve dev ports, cap-notes.md #17). cds-serve
+  // hosts every app's static webapp/ folder under one origin as a sibling
+  // path, so these are origin-relative, not absolute localhost:PORT URLs.
+  var SIBLING_APPS = {
+    catalog: "/customer-portal/webapp/index.html",
+    reservations: "/customer-reservations/webapp/index.html",
+    offers: "/customer-offers/webapp/index.html",
+    testdrives: "/customer-testdrives/webapp/index.html",
+    payments: "/customer-payments/webapp/index.html",
+  };
+
   return {
     // Bound to the Object Page header's "Back to List" custom action
     // (manifest.json, OrdersObjectPage target). Not a CDS/server action —
@@ -10,6 +23,26 @@ sap.ui.define([], function () {
     // may have no "list" entry in browser history at all).
     onBackToList: function () {
       window.location.hash = "#/";
+    },
+
+    onNavCatalog: function () {
+      window.location.href = SIBLING_APPS.catalog;
+    },
+
+    onNavReservations: function () {
+      window.location.href = SIBLING_APPS.reservations;
+    },
+
+    onNavOffers: function () {
+      window.location.href = SIBLING_APPS.offers;
+    },
+
+    onNavTestDrives: function () {
+      window.location.href = SIBLING_APPS.testdrives;
+    },
+
+    onNavPayments: function () {
+      window.location.href = SIBLING_APPS.payments;
     },
 
     // Mocked auth (package.json cds.requires.auth.kind: mocked) is plain

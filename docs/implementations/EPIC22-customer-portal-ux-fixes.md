@@ -399,16 +399,25 @@ the button never rendered) and `defaultLayoutType` in `options.settings` (silent
 both tried first; `content.header.actions` is the one that actually renders the button in the
 Object Page's header toolbar, verified via a live browser screenshot before moving on.
 
-#### 3. Modify `customer-portal`'s `webapp/manifest.json` — List Report target
+#### 3. Modify every app's `webapp/manifest.json` — List Report target
 
-Add the same `content.header.actions` structure to the `VehiclesList` target's `options.settings`,
-with five `NavX` entries (`NavReservations`/`NavOffers`/`NavTestDrives`/`NavOrders`/`NavPayments`,
-labels "My Reservations" / "My Offers" / "My Test Drives" / "My Orders" / "My Payments") each
-`press`-wired to its matching `onNavX` handler. This is the "vehicle list page needs links to my
-other pages" requirement — a flat row of buttons rather than a dropdown/menu control, since the
-flat-button `content.header.actions` shape is the one just proven to work; a menu-type custom
-action wasn't attempted (no verified syntax for it, and flat buttons satisfy the requirement
-without the extra risk).
+Add the same `content.header.actions` structure to each app's own List Report target
+(`VehiclesList`, `ReservationsList`, `OffersList`, `TestDrivesList`, `OrdersList`,
+`PaymentsList`) with one `NavX` entry per **sibling** app (five links each — every app except
+itself; `customer-portal` links to the other five, each of the other five links to
+`customer-portal` labeled "Vehicle Catalog" plus the remaining four), `press`-wired to a matching
+`onNavX` handler in that app's own `CustomActions.js`. A flat row of buttons rather than a
+dropdown/menu control, since the flat-button `content.header.actions` shape is the one just proven
+to work; a menu-type custom action wasn't attempted (no verified syntax for it, and flat buttons
+satisfy the requirement without the extra risk).
+
+**Scope correction (caught by the user after the first commit):** the first version of this ticket
+put the five nav links only on `customer-portal`'s List Report ("the vehicle list page needs links
+to my other pages" read narrowly). The user clarified after testing: the links should be on every
+List Report except the Vehicle Object Page, i.e. every app's own list screen, not just the catalog
+— someone looking at their Reservations list has no way back to the catalog or across to Offers
+either. Extended to all six apps' List Reports in a follow-up commit, same `content.header.actions`
+mechanism, no new pattern needed.
 
 #### 4. Add `Logout` to every app, both List Report and Object Page targets
 

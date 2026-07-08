@@ -130,6 +130,41 @@
               "content": {
                 "header": {
                   "actions": {
+                    "NavCatalog": {
+                      "id": "NavCatalog",
+                      "press": "automarket.customertestdrives.ext.CustomActions.onNavCatalog",
+                      "text": "Vehicle Catalog",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavReservations": {
+                      "id": "NavReservations",
+                      "press": "automarket.customertestdrives.ext.CustomActions.onNavReservations",
+                      "text": "My Reservations",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavOffers": {
+                      "id": "NavOffers",
+                      "press": "automarket.customertestdrives.ext.CustomActions.onNavOffers",
+                      "text": "My Offers",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavOrders": {
+                      "id": "NavOrders",
+                      "press": "automarket.customertestdrives.ext.CustomActions.onNavOrders",
+                      "text": "My Orders",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavPayments": {
+                      "id": "NavPayments",
+                      "press": "automarket.customertestdrives.ext.CustomActions.onNavPayments",
+                      "text": "My Payments",
+                      "enabled": true,
+                      "visible": true
+                    },
                     "Logout": {
                       "id": "Logout",
                       "press": "automarket.customertestdrives.ext.CustomActions.onLogout",
