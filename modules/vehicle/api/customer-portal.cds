@@ -47,7 +47,17 @@ service CustomerPortalService @(path: '/catalog') {
     // drives Accept/Reject-Counter/Make-a-New-Offer (only shown once a
     // Manager has countered). Exactly one of hasCustomerOffer/hasStaffOffer
     // is true whenever hasActiveOffer is true; both false when it isn't.
+    // @readonly (EPIC22-T5): CustomerPortalService never intended to expose
+    // create/update/delete on Vehicles — every mutation a customer can make
+    // goes through an explicit bound action (reserve/submitOffer/checkout/
+    // etc.), never a raw PATCH/DELETE. Before this, nothing actually
+    // enforced that: @requires: 'any' with no @restrict left CAP's generic
+    // handlers processing PATCH/DELETE for anyone, confirmed via curl (a
+    // customer could DELETE any vehicle, 204, or PATCH its price to 1). Not
+    // just a UI-hidden-button cosmetic issue — this was a real, exploitable
+    // write hole, and @requires: 'any' meant even a guest could hit it.
     @requires: 'any'
+    @readonly
     entity Vehicles      as
         projection on automarket.Vehicles {
             *,

@@ -597,3 +597,36 @@ used for `customer-portal`'s cross-app navigation buttons and the `Logout` butto
 existing OData action, not defining a new client-only one) — go straight to `content.header.actions`
 in the target's `options.settings`, and verify the button actually renders in a live browser before
 trusting the manifest compiled without error, since a wrong key here fails silently every time.
+
+## 16. `@requires: 'any'` With No `@restrict`/`@readonly` Leaves Generic CRUD Wide Open — a Visible "Delete" Button Was the Symptom, Not the Bug
+
+**Context (EPIC22-T5):** a reported "customers shouldn't see a Delete button" UI complaint turned
+out to be reporting a real symptom of a real authorization gap, not a cosmetic one.
+`CustomerPortalService.Vehicles` had `@requires: 'any'` (intentional — guests can browse the
+catalog) but **no `@restrict` and no `@readonly`**. Every customer-facing mutation on this service
+goes through an explicit bound action (`reserve`, `submitOffer`, `addToFavorites`, `checkout`,
+etc.) — nothing was ever meant to call generic CRUD on `Vehicles` directly. But CAP doesn't infer
+that from "the app only calls bound actions" — with no `@restrict`/`@readonly` on the entity, its
+generic `CREATE`/`UPDATE`/`DELETE` handlers are wired up and reachable by anyone the `@requires`
+allows in. Confirmed via raw `curl`, not assumed: `DELETE .../Vehicles(id)` as an ordinary customer
+returned `204` and genuinely removed the row; `PATCH .../Vehicles(id)` with `{"price": 1}` returned
+`200` and changed it. Because the entity is `@requires: 'any'`, an unauthenticated guest could
+plausibly do the same.
+
+**Fix:** `@readonly` on the entity (same pattern already used for `AdminService.AuditLogs`/
+`EventOutbox`) — blocks generic `CREATE`/`UPDATE`/`DELETE` with a `405 ENTITY_IS_READ_ONLY`, and
+does **not** affect bound actions on the same entity (`reserve`/`submitOffer`/etc. all still work
+unchanged — confirmed via `curl`, not assumed, since "does @readonly also block my custom actions"
+isn't something to find out the hard way after shipping).
+
+**The Delete button disappeared for free, no `@UI.Hidden` needed** — `@readonly` also generates the
+`Capabilities.{Insert,Update,Delete}Restrictions: {…: false}` OData annotations, and
+`sap.fe.templates` *does* honor those for hiding an existing native button on both the List Report
+and the Object Page. This is the mirror image of EPIC21-T4/note #13's finding, not a contradiction
+of it: note #13 found Capabilities annotations can't make an absent **Create** button *appear* on a
+non-draft entity (an unsupported direction); *hiding* an otherwise-native button by setting its
+Capability to `false` is the supported, working direction. If a button needs to disappear because an
+operation is genuinely never allowed (not just role-conditionally hidden), reach for the
+`Capabilities` annotation family before reaching for `@UI.Hidden` — it fixes the actual
+authorization gap and the UI symptom in one place, rather than leaving the hole open and only
+hiding the button that led someone to it.

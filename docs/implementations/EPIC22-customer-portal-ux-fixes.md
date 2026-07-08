@@ -19,7 +19,7 @@ native "Delete" button visible to a role that can never actually delete a vehicl
 | EPIC22-T2 | Operator/Manager counter-offers | Done |
 | EPIC22-T3 | Customer Portal navigation | Done |
 | EPIC22-T4 | Vehicle Object Page polish | Done |
-| EPIC22-T5 | Read-only Vehicles for Customers | Open |
+| EPIC22-T5 | Read-only Vehicles for Customers | Done |
 
 ### Sprint Backlog DoD Mapping
 
@@ -33,7 +33,13 @@ native "Delete" button visible to a role that can never actually delete a vehicl
 
 ### Sign-off
 
-_To be filled in at sprint end (T2–T5 still open)._
+All five tickets done, CI green after every commit. T5 turned up a real, confirmed authorization
+gap beyond its original "hide a button" framing — `CustomerPortalService.Vehicles` had no
+`@restrict`/`@readonly` at all, so a customer (or, since the service is `@requires: 'any'`, even an
+unauthenticated guest) could `DELETE` or `PATCH` any vehicle via a raw OData request; found and
+confirmed via `curl` before writing any fix, reported to the user, and fixed with explicit
+confirmation to touch both the server-side authorization and the UI in the same ticket rather than
+deferring the security half. Everything else in the epic was UI/UX as scoped, no other surprises.
 
 ---
 
@@ -504,6 +510,65 @@ against a vehicle with one image): Specifications facet shows "Brand:", "Fuel Ty
 "Transmission:", "Mileage:" etc. as actual field captions (confirmed via page text search, not just
 that the annotation compiled); Photos facet's single row renders a real thumbnail image instead of
 the raw Wikimedia Commons URL text — confirmed visually via screenshot.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors, format clean.
+
+---
+
+## EPIC22-T5: Read-only Vehicles for Customers
+
+### What & Why
+
+Reported as a UI cosmetic issue — a native "Delete" button visible on both the Vehicle List Report
+and Object Page in `customer-portal`, for a role that "can never actually delete a vehicle." Before
+writing any fix, that assumption was tested directly against the running service rather than taken
+on faith (per CLAUDE.md §8 — a design gap found while testing gets reported, not silently patched):
+`CustomerPortalService.Vehicles` had **no `@restrict` and no `@readonly`** at all, only
+`@requires: 'any'`. A raw `curl -X DELETE` as `customer.bauer` returned `204` and the vehicle was
+genuinely gone; a raw `PATCH` changed a vehicle's price to `1`. This was not a cosmetic issue — it
+was a real, exploitable write hole, reachable by any authenticated customer and, because the service
+is guest-readable, plausibly by an anonymous guest too. Reported to the user with the concrete
+`curl` evidence; the user confirmed fixing both the server-side authorization and the UI in this
+ticket, rather than treating the UI fix as separate from a later security ticket.
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/vehicle/api/customer-portal.cds`
+
+Add `@readonly` to the `Vehicles` projection, alongside its existing `@requires: 'any'` — same
+established pattern already used for `AdminService.AuditLogs`/`EventOutbox`
+(`modules/admin/api/admin-service.cds`). `@readonly` makes CAP's generic handlers reject
+`CREATE`/`UPDATE`/`DELETE` outright (`405`, `ENTITY_IS_READ_ONLY`) and generates the proper OData
+`Capabilities.{Insert,Update,Delete}Restrictions` annotations — it does **not** block bound actions
+(`reserve`/`submitOffer`/`addToFavorites`/etc. all still work exactly as before — those are custom
+operations, not generic CRUD, confirmed via `curl` immediately after adding the annotation).
+
+### Verify
+
+**Server-side, via `curl`** (the regression test that matters most here — re-ran the exact requests
+that succeeded before the fix): `DELETE` and `PATCH` against `CustomerPortalService.Vehicles` both
+now return `405 ENTITY_IS_READ_ONLY`; the vehicle whose price was corrupted during the initial
+exploit-confirmation step still shows its original price afterward. Bound actions
+(`addToFavorites`, `submitOffer`) still return `200` with correct results — `@readonly` only blocks
+generic CRUD, not custom actions, confirmed rather than assumed.
+
+**UI, via a live browser (Playwright):** with no extra `@UI.Hidden` annotation needed at all — the
+`Capabilities.DeleteRestrictions`/`InsertRestrictions`/`UpdateRestrictions: false` that `@readonly`
+generates were enough on their own for `sap.fe.templates` to stop rendering the native "Delete"
+button, on **both** the List Report and the Object Page (this is the *opposite* direction of
+EPIC21-T4's finding — that ticket found Capabilities annotations don't make an absent Create button
+*appear* on a non-draft entity; here, Capabilities annotations *hiding* an otherwise-native button
+worked immediately, confirming that direction is properly supported). All other customer-facing
+buttons (Reserve, Favorites, Make an Offer, Test Drive, Buy, Back to List, Logout, the five cross-app
+nav links) confirmed still present and unaffected.
+
+`OperatorPortalService.Vehicles` (a separate projection, used only by staff) was untouched — spot-
+checked that an Operator's own `DELETE` attempt still behaves exactly as it did before this ticket
+(`403`, pre-existing branch-scoped `@restrict` behavior, nothing to do with this change).
 
 ```sh
 npm run lint && npm run format:check && npm test
