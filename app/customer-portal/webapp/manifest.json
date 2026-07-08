@@ -126,6 +126,54 @@
                     "type": "ResponsiveTable"
                   }
                 }
+              },
+              "content": {
+                "header": {
+                  "actions": {
+                    "NavReservations": {
+                      "id": "NavReservations",
+                      "press": "automarket.customerportal.ext.CustomActions.onNavReservations",
+                      "text": "My Reservations",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavOffers": {
+                      "id": "NavOffers",
+                      "press": "automarket.customerportal.ext.CustomActions.onNavOffers",
+                      "text": "My Offers",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavTestDrives": {
+                      "id": "NavTestDrives",
+                      "press": "automarket.customerportal.ext.CustomActions.onNavTestDrives",
+                      "text": "My Test Drives",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavOrders": {
+                      "id": "NavOrders",
+                      "press": "automarket.customerportal.ext.CustomActions.onNavOrders",
+                      "text": "My Orders",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavPayments": {
+                      "id": "NavPayments",
+                      "press": "automarket.customerportal.ext.CustomActions.onNavPayments",
+                      "text": "My Payments",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "Logout": {
+                      "id": "Logout",
+                      "press": "automarket.customerportal.ext.CustomActions.onLogout",
+                      "text": "Logout",
+                      "enabled": true,
+                      "visible": true
+                    }
+                  }
+                }
               }
             }
           }
@@ -137,7 +185,27 @@
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Vehicles"
+              "entitySet": "Vehicles",
+              "content": {
+                "header": {
+                  "actions": {
+                    "BackToList": {
+                      "id": "BackToList",
+                      "press": "automarket.customerportal.ext.CustomActions.onBackToList",
+                      "text": "Back to List",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "Logout": {
+                      "id": "Logout",
+                      "press": "automarket.customerportal.ext.CustomActions.onLogout",
+                      "text": "Logout",
+                      "enabled": true,
+                      "visible": true
+                    }
+                  }
+                }
+              }
             }
           }
         }

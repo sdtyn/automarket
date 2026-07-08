@@ -126,6 +126,19 @@
                     "type": "ResponsiveTable"
                   }
                 }
+              },
+              "content": {
+                "header": {
+                  "actions": {
+                    "Logout": {
+                      "id": "Logout",
+                      "press": "automarket.customerorders.ext.CustomActions.onLogout",
+                      "text": "Logout",
+                      "enabled": true,
+                      "visible": true
+                    }
+                  }
+                }
               }
             }
           }
@@ -137,7 +150,27 @@
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Orders"
+              "entitySet": "Orders",
+              "content": {
+                "header": {
+                  "actions": {
+                    "BackToList": {
+                      "id": "BackToList",
+                      "press": "automarket.customerorders.ext.CustomActions.onBackToList",
+                      "text": "Back to List",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "Logout": {
+                      "id": "Logout",
+                      "press": "automarket.customerorders.ext.CustomActions.onLogout",
+                      "text": "Logout",
+                      "enabled": true,
+                      "visible": true
+                    }
+                  }
+                }
+              }
             }
           }
         }

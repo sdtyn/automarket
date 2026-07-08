@@ -514,3 +514,86 @@ submit. Same fix, same file-location rule (declare it directly on the action in 
 block, not via a separate `annotate` path). Treat this as a checklist item, not a one-off bug: any
 new bound action that changes fields displayed elsewhere on the same Object Page needs
 `@Common.SideEffects` written at the same time as the action, not discovered by testing afterward.
+
+## 15. Adding a Custom, Non-CDS Page Action (e.g. "Back to List", "Logout") — Wrong Manifest Keys Tried First, and Why FCL Wasn't the Answer
+
+**Context (EPIC22-T3):** every standalone customer app (EPIC21-T3 split — one app per entity, no
+shared Fiori Launchpad shell) needed a plain client-side "Back to List" button on its Object Page,
+with no server call and no CDS action behind it at all — pure UI-only navigation.
+
+**Wrong turn #1 — trying to get it for free from FCL.** The "correct-looking" SAP pattern is
+`sap.fe.core.rootView.Fcl` (Flexible Column Layout), whose native `FCLStandardAction::Close` button
+is exactly a "back" arrow, provided by the framework with zero custom code. Enabling it needs three
+manifest changes together (skip any one and it throws or silently does nothing):
+
+```json
+"sap.ui5": {
+  "rootView": {
+    "viewName": "sap.fe.core.rootView.Fcl",
+    "type": "XML",
+    "async": true,
+    "id": "appRootView"
+  },
+  "routing": {
+    "config": { "routerClass": "sap.f.routing.Router" },
+    "targets": {
+      "MyList": { "controlAggregation": "beginColumnPages", "...": "..." },
+      "MyObjectPage": { "controlAggregation": "midColumnPages", "...": "..." }
+    }
+  }
+}
+```
+
+This got FCL running, but real-browser testing (not just "no console errors") showed the row-click
+navigation always landed directly on `layout=MidColumnFullScreen` — skipping the two-column state
+FCL's own semantic helper expects on a first navigation. That left `FCLStandardAction::Close`'s
+`visible` binding (`/actionButtonsInfo/closeVisible`) permanently `false`, confirmed by querying the
+live control (`sap.ui.getCore().byId(...).getBindingInfo('visible')`) in the browser console — the
+button existed in the DOM (`sap-ui-invisible-...` placeholder) but never showed. *Why* the app
+defaults straight to full screen instead of the two-column state isn't documented anywhere
+reachable, and `"defaultLayoutType"` on the Object Page target's `options.settings` (a plausible
+manifest key) had **no effect at all** — silently ignored. Chasing this further meant reading
+minified `sap.fe.core`/`sap.f` library code with no source maps, for a framework internal with no
+guaranteed fix. **Abandoned — reverted the `rootView`/`routerClass`/`controlAggregation` changes
+completely** rather than keep debugging an undocumented internal.
+
+**The actual fix — a manifest-based custom page action**, `sap.fe`'s documented (if easy to get
+wrong) extension point for adding a plain button with a JS handler, no FCL and no CDS action
+required:
+
+```json
+// wrong — compiles, no error, button never renders:
+"controlConfiguration": {
+  "@com.sap.vocabularies.UI.v1.Identification": {
+    "actions": { "BackToList": { "press": "...", "text": "..." } }
+  }
+}
+
+// correct — renders in the Object Page header toolbar:
+"content": {
+  "header": {
+    "actions": {
+      "BackToList": {
+        "id": "BackToList",
+        "press": "automarket.<app>.ext.CustomActions.onBackToList",
+        "text": "Back to List",
+        "enabled": true,
+        "visible": true
+      }
+    }
+  }
+}
+```
+
+`press` is a dotted module path — CAP resolves it by turning dots into slashes and treating the
+last segment as the exported method name, so `automarket.customerportal.ext.CustomActions.onBackToList`
+loads `webapp/ext/CustomActions.js` (a plain `sap.ui.define([], function () { return { onBackToList:
+function () { ... } }; })`, not a `Class.extend`) and calls its `onBackToList` export on click. Same
+`content.header.actions` key works identically on a **List Report** target, not just Object Page —
+used for `customer-portal`'s cross-app navigation buttons and the `Logout` button on every app.
+
+**Lesson:** for a pure client-side/UI-only page action with no backing CDS action, don't reach for
+`controlConfiguration.@com.sap.vocabularies.UI.v1.Identification` (that's for *annotating* an
+existing OData action, not defining a new client-only one) — go straight to `content.header.actions`
+in the target's `options.settings`, and verify the button actually renders in a live browser before
+trusting the manifest compiled without error, since a wrong key here fails silently every time.

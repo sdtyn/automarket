@@ -17,7 +17,7 @@ native "Delete" button visible to a role that can never actually delete a vehicl
 |--------|-------------|--------|
 | EPIC22-T1 | Customer offer lifecycle | Done |
 | EPIC22-T2 | Operator/Manager counter-offers | Done |
-| EPIC22-T3 | Customer Portal navigation | Open |
+| EPIC22-T3 | Customer Portal navigation | Done |
 | EPIC22-T4 | Vehicle Object Page polish | Open |
 | EPIC22-T5 | Read-only Vehicles for Customers | Open |
 
@@ -313,5 +313,155 @@ npm run lint && npm run format:check && npm test
 ```
 
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
+
+---
+
+## EPIC22-T3: Customer Portal Navigation
+
+### What & Why
+
+Three separate, real UX defects reported while manually driving the six standalone customer apps
+(EPIC21-T3 split): no way back from a Vehicle Object Page to its List Report, no links between the
+customer's six apps (Vehicle Catalog / Reservations / Offers / Test Drives / Orders / Payments —
+each its own standalone app, its own port, no shared shell), and no logout (mocked HTTP Basic Auth
+has no server-side session to end).
+
+**A wrong turn, corrected before it shipped:** the first approach for the back button tried to
+enable `sap.fe`'s *native* Flexible Column Layout (FCL) shell — `sap.fe.core.rootView.Fcl` — since
+that's the standard SAP-generated pattern and would have given a native "Close column" arrow for
+free. This was abandoned after real-browser testing (not just reading docs) showed the row-click
+navigation always lands directly on `layout=MidColumnFullScreen` (skipping the two-column state
+FCL expects), which left the native `FCLStandardAction::Close` button's `visible` binding
+permanently stuck at `false` — confirmed by inspecting the live control and its `fclhelper` model in
+the browser, not guessed at. Chasing down *why* FCL was skipping straight to full screen meant
+digging into unpublished `sap.fe.core` internals with no reliable documentation and no guaranteed
+fix. Reverted (manifest.json's `rootView`/`routerClass`/`controlAggregation` changes fully removed)
+in favor of a much simpler, deterministic mechanism: `sap.fe`'s documented manifest-based **custom
+page action** — a plain button wired to a small JS handler, with no dependency on FCL's internal
+layout-state computation at all.
+
+### Step-by-step instructions
+
+#### 1. Create `app/<app>/webapp/ext/CustomActions.js` in all six customer apps
+
+(`customer-portal`, `customer-reservations`, `customer-offers`, `customer-testdrives`,
+`customer-orders`, `customer-payments`.) Each exports `onBackToList` (`window.location.hash = "#/"`
+— hardcoded to the app's own list route rather than `window.history.back()`, so it works identically
+whether the user arrived via an in-app row click or a deep/bookmarked link with no relevant browser
+history) and `onLogout` (see step 4). `customer-portal`'s copy additionally exports
+`onNavReservations`/`onNavOffers`/`onNavTestDrives`/`onNavOrders`/`onNavPayments`, each a plain
+`window.location.href` redirect to the sibling app's own port (there is no shared Fiori Launchpad
+shell tying the six standalone apps together at runtime, so cross-app navigation can't be an
+in-app `router.navTo` — it has to cross an origin).
+
+#### 2. Modify every app's `webapp/manifest.json` — Object Page target
+
+Add a `content.header.actions.BackToList` entry to the `ObjectPage` target's `options.settings`
+(sibling to `entitySet`):
+
+```json
+"content": {
+  "header": {
+    "actions": {
+      "BackToList": {
+        "id": "BackToList",
+        "press": "automarket.<app>.ext.CustomActions.onBackToList",
+        "text": "Back to List",
+        "enabled": true,
+        "visible": true
+      }
+    }
+  }
+}
+```
+
+This is `sap.fe`'s standard manifest-based custom-action extension point — the `press` value is a
+dotted module path (dots become slashes, the last segment is the exported method name), resolved
+against the app's own namespace. Confirmed via **two wrong guesses before the right key**, not
+assumed: `controlConfiguration.@com.sap.vocabularies.UI.v1.Identification.actions` (no error, but
+the button never rendered) and `defaultLayoutType` in `options.settings` (silently ignored) were
+both tried first; `content.header.actions` is the one that actually renders the button in the
+Object Page's header toolbar, verified via a live browser screenshot before moving on.
+
+#### 3. Modify `customer-portal`'s `webapp/manifest.json` — List Report target
+
+Add the same `content.header.actions` structure to the `VehiclesList` target's `options.settings`,
+with five `NavX` entries (`NavReservations`/`NavOffers`/`NavTestDrives`/`NavOrders`/`NavPayments`,
+labels "My Reservations" / "My Offers" / "My Test Drives" / "My Orders" / "My Payments") each
+`press`-wired to its matching `onNavX` handler. This is the "vehicle list page needs links to my
+other pages" requirement — a flat row of buttons rather than a dropdown/menu control, since the
+flat-button `content.header.actions` shape is the one just proven to work; a menu-type custom
+action wasn't attempted (no verified syntax for it, and flat buttons satisfy the requirement
+without the extra risk).
+
+#### 4. Add `Logout` to every app, both List Report and Object Page targets
+
+Same `content.header.actions` mechanism, one more entry per target:
+
+```json
+"Logout": {
+  "id": "Logout",
+  "press": "automarket.<app>.ext.CustomActions.onLogout",
+  "text": "Logout",
+  "enabled": true,
+  "visible": true
+}
+```
+
+`onLogout` in `CustomActions.js`:
+
+```js
+onLogout: function () {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "/", true, "logout", "logout");
+  xhr.onloadend = function () {
+    window.location.href = window.location.origin + window.location.pathname;
+  };
+  xhr.send();
+},
+```
+
+Mocked auth (`package.json`, `cds.requires.auth.kind: mocked`) is plain HTTP Basic — there is no
+server-side session or token to invalidate, only whatever credentials the browser itself cached
+against the origin the first time it was challenged. The standard, well-documented trick for
+"logging out" of HTTP Basic Auth: issue one request with deliberately wrong credentials via the
+three-argument `XMLHttpRequest#open(method, url, async, user, password)` overload. A real browser
+overwrites its cached credential for that origin/realm with the (bad) one just used, so the next
+request the app makes gets a genuine `401` and the browser re-prompts for login — there is no
+"log out" endpoint to call because none exists for Basic Auth by design.
+
+### Verify
+
+**Back to List** — verified end to end in a live browser (Playwright, `customer-portal` +
+`customer-offers`), both navigation paths: (a) List Report → click a row → Object Page → click
+"Back to List" → List Report renders correctly again; (b) a **deep link straight to the Object
+Page** (`#/Vehicles(id)`, no prior in-app navigation, simulating a bookmark or shared URL) → "Back
+to List" is present and still correctly returns to the List Report. Spot-checked on
+`customer-reservations`'s List Report to confirm the same `content.header.actions` wiring renders
+correctly on a different app/entity.
+
+**Cross-app links** — verified on `customer-portal`'s List Report: all five buttons ("My
+Reservations" / "My Offers" / "My Test Drives" / "My Orders" / "My Payments") render correctly
+alongside "Logout", confirmed via screenshot.
+
+**Logout** — the mechanism's own effect (a real browser silently overwriting its Basic Auth
+credential cache) **could not be fully verified through Playwright**: Playwright's
+`httpCredentials` context option is a test-harness feature that automatically answers every `401`
+challenge with the originally configured (valid) credentials, regardless of what credentials a
+page's own script attempts to set — so a "does the next request now fail?" test can't distinguish
+"the trick didn't work" from "Playwright's test harness papered over it." What *was* verified: a
+network-request listener confirmed `onLogout` fires exactly the expected request
+(`http://logout:logout@localhost:8081/`, i.e. deliberately wrong credentials against the app's own
+origin) — the mechanism does what the code says it does. The credential-overwrite *effect* itself
+is standard, long-documented browser behavior (Chrome/Firefox/Edge), not something invented for
+this ticket; flagged here rather than silently claimed as fully verified, since real-browser manual
+testing is the only way to close this gap and wasn't performed.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (`app/` is excluded from ESLint entirely — pre-existing
+`.eslint` config, not a T3 change), format clean.
 
 ---
