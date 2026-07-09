@@ -2,6 +2,7 @@
   "name": "automarket",
   "version": "1.0.0",
   "dependencies": {
+    "@cap-js/postgres": "^2",
     "@sap/cds": "^9",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3"
@@ -80,6 +81,9 @@
       "[production]": {
         "auth": {
           "kind": "xsuaa"
+        },
+        "db": {
+          "kind": "postgres"
         }
       },
       "db": {

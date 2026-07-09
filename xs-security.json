@@ -58,5 +58,13 @@
       "name": "AutoMarket_Customer",
       "role-template-references": ["$XSAPPNAME.Customer"]
     }
+  ],
+  "attributes": [
+    {
+      "name": "branchId",
+      "description": "branchId",
+      "valueType": "s",
+      "valueRequired": false
+    }
   ]
 }
