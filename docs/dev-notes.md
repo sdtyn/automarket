@@ -101,3 +101,50 @@ npx cds deploy --to postgres --dry
 `schema_evolution: auto`, `impl: @cap-js/postgres`). The actual `cds deploy --model-only` / `cds
 deploy` flow against a live PostgreSQL should be run at least once before this is considered
 production-ready — flagged here rather than silently assumed to work.
+
+---
+
+## 4. BTP XSUAA Service Binding Procedure (EPIC23-T2)
+
+`xs-security.json` (scopes, role templates, role collections for Admin/Manager/Operator/Customer —
+EPIC02-T8) describes the XSUAA service instance's *configuration*, but doesn't create or bind
+anything by itself. On Cloud Foundry, this is a three-step process using the `cf` CLI:
+
+```bash
+# 1. Create the XSUAA service instance from xs-security.json (one-time, or
+#    whenever xs-security.json changes — re-run "cf update-service" instead):
+cf create-service xsuaa application automarket-xsuaa -c xs-security.json
+
+# 2. Bind it to the deployed application (makes its credentials available
+#    to the app via VCAP_SERVICES at startup — no manual credential copying):
+cf bind-service automarket automarket-xsuaa
+
+# 3. Restage so the app picks up the new binding:
+cf restage automarket
+```
+
+After `xs-security.json` changes (e.g. adding/removing a scope or attribute), update the existing
+instance instead of recreating it:
+
+```bash
+cf update-service automarket-xsuaa -c xs-security.json
+```
+
+**Assigning users to roles** happens in the BTP cockpit (Security → Role Collections), not via the
+`cf` CLI: for each of the four `role-collections` in `xs-security.json`
+(`AutoMarket_Admin`/`AutoMarket_Manager`/`AutoMarket_Operator`/`AutoMarket_Customer`), assign it to
+the relevant user. For `AutoMarket_Manager`/`AutoMarket_Operator`, the cockpit's role-collection
+assignment screen will additionally prompt for the `branchId` attribute value (wired via
+`attribute-references` on those two role templates, see cap-notes.md #20's fix — without that, there
+would be no field to set it in) — this becomes `req.user.attr.branchId` in every branch-scoped
+handler, the production equivalent of the mocked auth users' `attr.branchId` in `package.json`.
+
+**A real, confirmed gap found while testing this, not assumed to be fine because the JSON
+validated:** starting the app locally with `NODE_ENV=production` set (no real XSUAA binding, just
+checking the auth *code path* actually runs) crashed immediately with
+`Cannot find '@sap/xssec'` — the library `@sap/cds`'s xsuaa auth strategy needs at runtime was never
+installed, and nothing in `npm install`/`npm test`/CI ever exercises the `[production]` auth profile
+to catch this (see cap-notes.md #20 for the full story). Fixed with `npm install --save @sap/xssec`;
+re-running then failed with the *expected* `no XSUAA instance bound to application` error instead —
+confirming the config is correctly wired and just needs an actual BTP binding (steps above) to work
+end to end.

@@ -738,3 +738,41 @@ field on click. For anything with actual logic (delete-then-navigate, computed-a
 targets, confirmation dialogs), a custom action's `press` handler (note #18) is still the tool —
 this is specifically for "make this value a link to somewhere else," which turned out to be most of
 what was actually needed here.
+
+## 20. `cds.requires.[production].auth.kind: 'xsuaa'` Compiles and Starts Fine — Until You Actually Run It in Production Mode: `@sap/xssec` Is a Silent Runtime-Only Dependency
+
+**Context (EPIC23-T2):** `xs-security.json` and `package.json`'s `[production].auth.kind: xsuaa`
+were added back in EPIC02-T8 and never touched again — `npm test`, `npm run lint`, and every
+`cds-serve` session since then ran with the default `mocked` auth kind, which never exercises this
+code path at all. Before writing T2's documentation, actually tried starting the app with
+`NODE_ENV=production` set, rather than assuming a config that "looks complete" (scopes, role
+templates, role collections, a JSON schema that validates) actually works.
+
+**It crashed immediately:**
+
+```
+Error: Cannot find '@sap/xssec'. Make sure to install it with 'npm i @sap/xssec'
+```
+
+`@sap/xssec` (the library that actually validates/decodes XSUAA JWTs) was never installed — nothing
+in `npm install`, `npm test`, or CI ever surfaces this, because `@sap/cds`'s `xsuaa` auth strategy
+`require()`s it *lazily*, only the first time a request actually needs XSUAA auth. A `kind: xsuaa`
+config with the package missing compiles, lints, and even lets `cds-serve` boot successfully with
+`mocked` auth — the gap is invisible until `NODE_ENV=production` is actually set and a request
+comes in. Fixed with `npm install --save @sap/xssec`; re-running with `NODE_ENV=production` then
+failed with a *different*, and correct, error:
+
+```
+Error: Authentication kind "xsuaa" configured, but no XSUAA instance bound to application.
+```
+
+This second error is the **expected, correct** failure mode for running production auth mode
+locally with no real BTP XSUAA service bound (no `VCAP_SERVICES`) — not a bug, confirmation the
+config is now actually wired correctly and fails for the *right* reason.
+
+**Lesson:** a `cds.requires.[production]` profile that only gets exercised by an actual
+`NODE_ENV=production` run (which local dev/CI never do) can silently accumulate missing runtime
+dependencies indefinitely — `npm test`/CI passing is not evidence a production-only code path
+works. Before marking any `[production]`-profile config "done," actually start the server with that
+`NODE_ENV` set at least once and read what breaks, even without the real bound service to test
+against fully.
