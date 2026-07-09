@@ -776,3 +776,34 @@ dependencies indefinitely — `npm test`/CI passing is not evidence a production
 works. Before marking any `[production]`-profile config "done," actually start the server with that
 `NODE_ENV` set at least once and read what breaks, even without the real bound service to test
 against fully.
+
+## 21. `cds build --for nodejs`'s `gen/srv/` Is Not Self-Contained When Service Implementations Use `@impl:` Paths
+
+**Context (EPIC23-T3, Dockerfile):** the natural-looking design for a multi-stage Dockerfile is
+"builder stage runs `cds build`, runtime stage copies only `gen/srv/` — small, self-contained,
+production-ready." Tried it, empirically, before writing the Dockerfile around that assumption:
+`npx cds build --for nodejs` succeeds and produces `gen/srv/` with its own `package.json` and
+compiled CSN model — but `gen/srv/` alone does **not** start. `npm install` inside it, then run its
+own `cds-serve`, and it crashes:
+
+```
+Error: Cannot find module '.../gen/srv/modules/identity/application/identity-service.js'
+```
+
+**Root cause:** this project's `@impl: 'modules/.../application/....js'` annotations (used
+throughout — CAP's automatic co-location-based handler binding doesn't work with this project's
+`api/`+`application/` folder split, so every service implementation is wired explicitly) are
+relative paths resolved from the project root at runtime. `cds build --for nodejs` compiles and
+copies the *model* (`.cds` → CSN) into `gen/srv/`, but does **not** relocate or copy the actual `.js`
+handler implementation files those `@impl:` paths point at — they're expected to already exist
+relative to wherever the process runs from, which `gen/srv/` alone doesn't provide.
+
+**Consequence for this project's Dockerfile:** `cds build` is still run in the builder stage (as a
+model-compiles-cleanly validation gate — a real, if narrower, use), but the runtime stage copies the
+actual source tree (`modules/`, `srv/`, `db/`, `app/`, `shared/`, `infrastructure/`) instead of
+`gen/srv/`'s output, verified end to end (installed deps + ran `cds-serve`) against exactly that
+file set before trusting it, not assumed from `cds build`'s own success. Projects that use CAP's
+default co-location convention (handler `.js` file living next to its `.cds` file, same base name,
+no explicit `@impl:`) may not hit this at all — `cds build` is documented to handle that case
+cleanly. The lesson is specific to this project's `api/`+`application/`-split, `@impl:`-annotated
+layout, not a general claim that `cds build --for nodejs` is broken.

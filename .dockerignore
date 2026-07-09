@@ -1,0 +1,49 @@
+# Dependencies — reinstalled inside the image (root node_modules) or never
+# needed at runtime at all (each app/*/node_modules, used only by standalone
+# `ui5 serve` dev tooling — cds-serve serves app/*/webapp's static files
+# directly, no ui5 build step).
+node_modules
+app/*/node_modules
+
+# CAP build output — see Dockerfile's builder-stage comment for why it's
+# not actually usable as the runtime source for this project.
+gen
+.cds_gen
+
+# Local/dev-only databases and env files — never ship a dev SQLite file or
+# real secrets into an image.
+*.sqlite
+*.db
+.env
+.env.*
+!.env.example
+default-env.json
+
+# Version control, CI, editor/tooling config — irrelevant inside the image.
+.git
+.github
+.vscode
+.claude
+
+# Docs, tests, and empty scaffold directories — not needed at runtime.
+docs
+tests
+test
+CONTRIBUTING.md
+readme.md
+
+# Logs, caches, coverage/test-report output.
+*.log
+logs
+coverage
+test-results
+playwright-report
+.cache
+tmp
+temp
+
+# The Dockerfile/compose files themselves don't need to be baked into
+# their own image layer.
+Dockerfile
+docker-compose.yml
+.dockerignore

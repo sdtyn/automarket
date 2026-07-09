@@ -13,7 +13,7 @@ authentication, containerization, and an extended CI/CD pipeline.
 |--------|-------------|--------|
 | EPIC23-T1 | PostgreSQL adapter | Done |
 | EPIC23-T2 | XSUAA integration | Done |
-| EPIC23-T3 | Dockerfile | Open |
+| EPIC23-T3 | Dockerfile | Done |
 | EPIC23-T4 | docker-compose (local integration) | Open |
 | EPIC23-T5 | CI/CD pipeline extension | Open |
 | EPIC23-T6 | Environment configuration | Open |
@@ -214,5 +214,86 @@ npm run lint && npm run format:check && npm test
 ```
 
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
+
+---
+
+## EPIC23-T3: Dockerfile
+
+### What & Why
+
+A multi-stage Dockerfile to containerize the backend for deployment. The natural first design —
+`builder` stage runs `cds build`, `runtime` stage copies only `gen/srv/` (small, "official"
+CAP-produced artifact) — was tried and empirically rejected before writing the real Dockerfile
+around it: `gen/srv/` alone does not start. See cap-notes.md #21 for the full root cause — this
+project's service implementations are wired via `@impl:` paths relative to the project root
+(`modules/*/application/*.js`, needed because the `api/`+`application/` folder split breaks CAP's
+default co-location auto-binding), and `cds build --for nodejs` doesn't relocate those `.js` files
+into `gen/srv/`. `cds build` is still run in the builder stage — it's a real, useful validation gate
+that fails the image build if the CDS model itself doesn't compile — but the runtime stage ships the
+actual source tree instead of trusting `gen/srv/`'s output to be runnable on its own.
+
+Also discovered while inventorying what actually needs to ship: two pre-existing top-level
+directories, `infrastructure/` (genuinely required at runtime —
+`modules/identity/application/identity-service.js` does
+`require('../../../infrastructure/auth')`, confirmed via `grep`, not assumed from the folder name)
+and `approuter/` (a separate, standalone BTP App Router component — its own `xs-app.json`, never
+`require()`-d by the backend anywhere — correctly **not** included in this Dockerfile, since it's a
+different deployable unit, not part of the CAP backend service this ticket containerizes).
+
+### Step-by-step instructions
+
+#### 1. Create `Dockerfile`
+
+Two stages:
+
+- **`builder`** (`node:20-slim`): `npm ci` (full deps, including devDependencies), copy the whole
+  project, run `npx cds build --for nodejs` as a model-validation gate.
+- **`runtime`** (`node:20-slim`): `npm ci --omit=dev` (production deps only — excludes eslint,
+  jest, prettier, the Fiori-tooling devDependencies), `ENV NODE_ENV=production` (activates the
+  `[production]` cds profile — `kind: postgres` for db, `kind: xsuaa` for auth, T1/T2), then
+  `COPY --from=builder` for `db/`, `srv/`, `modules/`, `app/`, `shared/`, `infrastructure/`, and
+  `xs-security.json`. `EXPOSE 4004`, `CMD ["npx", "cds-serve"]` — same entrypoint the project has
+  used in every dev/verification session throughout this whole epic.
+
+#### 2. Create `.dockerignore`
+
+Excludes: root `node_modules` (reinstalled fresh in each stage) and every `app/*/node_modules`
+(each Fiori app's own `npm install`, used only by standalone `ui5 serve` dev tooling — `cds-serve`
+serves `app/*/webapp`'s static files directly, no `ui5 build`/bundling step, so these are never
+needed at runtime); `gen/`/`.cds_gen/` (build output, not the runtime source — see above); local
+SQLite files and `.env*` (except `.env.example`); `.git`/`.github`/`.vscode`/`.claude`; `docs/`,
+`tests/`, `test/` (the latter is a pre-existing empty scaffold directory, `.gitkeep` files only);
+logs/coverage/cache directories; the Docker-related files themselves.
+
+### Verify
+
+**No real `docker`/`docker build` available in this sandbox** — flagged explicitly rather than
+claiming a full build-and-run was performed. What *was* verified, by manually reproducing each
+stage's effect with plain shell commands against a scratch copy of the file tree:
+
+1. Copied exactly the runtime stage's file set (`package.json`, `package-lock.json`, `db/`, `srv/`,
+   `modules/`, `app/` minus each `app/*/node_modules`, `shared/`, `infrastructure/`,
+   `xs-security.json`) into an isolated directory, ran `npm ci` there, started `cds-serve` from it:
+   the index page, a Fiori app (`customer-portal`), the OData `$metadata`, and an authenticated
+   `GET /catalog/Vehicles` all returned `200` with correct data — confirms the COPY list is complete
+   and nothing needed at runtime was missed.
+2. Separately confirmed `NODE_ENV=production` (what the Dockerfile's `ENV` line sets) reaches the
+   same "no XSUAA instance bound" failure already verified as the *correct* behavior in EPIC23-T2 —
+   consistent with this being a sandbox-without-a-real-BTP-binding limitation, not a Dockerfile bug.
+3. `npx cds build --for nodejs` (the builder stage's validation step) succeeds cleanly against the
+   current model.
+
+**Not verified**: an actual `docker build` + `docker run` cycle, or the container actually starting
+end to end with a real bound XSUAA + PostgreSQL service. The first genuinely-full test of this
+Dockerfile should be EPIC23-T4 (`docker-compose`), where a real containerized PostgreSQL at least
+closes half that gap.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean — the Dockerfile/
+`.dockerignore` themselves aren't covered by these (no docker-specific linter is configured), but
+their content was manually inspected for correctness against the actual project structure.
 
 ---
