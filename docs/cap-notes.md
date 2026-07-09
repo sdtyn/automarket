@@ -807,3 +807,34 @@ default co-location convention (handler `.js` file living next to its `.cds` fil
 no explicit `@impl:`) may not hit this at all — `cds build` is documented to handle that case
 cleanly. The lesson is specific to this project's `api/`+`application/`-split, `@impl:`-annotated
 layout, not a general claim that `cds build --for nodejs` is broken.
+
+## 22. `node:20-slim`'s Builder Stage Needs Build Tools for `@cap-js/sqlite`'s Native Binding, Even Though the Runtime Image Never Uses SQLite
+
+**Context (EPIC23-T5):** the very first real `docker build` of this project ever attempted (GitHub
+Actions has Docker; this sandbox never did — EPIC23-T1/T3/T4 could only be verified by manually
+reproducing each stage's file/command effects) failed in CI with a terse
+`npm ci did not complete successfully: exit code: 1` in the **builder** stage — the runtime stage,
+built and manually verified locally throughout T1-T4, was never the problem.
+
+**Root cause:** `@cap-js/sqlite` (a devDependency — SQLite is only ever used for local dev/CI, never
+in any deployed profile) pulls in `better-sqlite3`, which ships a native binding (`binding.gyp`) and
+uses `prebuild-install` to fetch a prebuilt binary for the current platform/Node ABI — falling back
+to a real `node-gyp` compile (needs `python3` + a C/C++ toolchain) whenever no matching prebuilt
+binary exists. `node:20-slim`'s whole point is a minimal Debian base with exactly those build tools
+stripped out. This sandbox's own dev environment happens to already have `python3`/`make`/`g++`
+installed (confirmed via `which`), which is exactly why every earlier local verification of the
+runtime file set succeeded without ever exercising this failure — it was never actually testing a
+`node:20-slim`-equivalent environment, just this sandbox's own, much more complete one.
+
+**Fix:** `apt-get install -y --no-install-recommends python3 make g++` (then `rm -rf
+/var/lib/apt/lists/*` to avoid bloating the discarded builder layer) — added to the **builder**
+stage only. The runtime stage's `npm ci --omit=dev` never installs `@cap-js/sqlite` at all (it's a
+devDependency), so it was never affected and needs no such fix — confirmed by checking every actual
+runtime dependency (`pg`, `@sap/xssec`, `bcryptjs`, `jsonwebtoken`) for a `binding.gyp` of its own:
+none has one.
+
+**Lesson:** a Docker build failure in a stage that installs `devDependencies` for build-time tooling
+(here: `cds build` needs `@sap/cds-dk`, which pulls in `@cap-js/sqlite` transitively) can be caused
+by a *dev-only* dependency's native binding, even when the actual production dependency tree is
+100% pure JS — check `npm ls <pkg>` for what's transitively pulling in a `binding.gyp`-having
+package before assuming the runtime stage (which excludes devDependencies) is where to look first.

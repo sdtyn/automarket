@@ -437,8 +437,23 @@ npm run lint && npm run format:check && npm test
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean. `ci.yml`'s YAML
 syntax validated via `npx js-yaml .github/workflows/ci.yml`.
 
-**The actual `docker build` result is reported in the Sign-off section below**, once this ticket's
-own commit reaches `main` and the new `docker-build-push` job runs for real on GitHub Actions — the
-first genuine Docker build this epic has been able to observe.
+**The first real `docker build` this epic ever ran, on GitHub Actions after this ticket's own
+commit reached `main`, failed** — not a hypothetical the docs hedged about, an actual observed
+failure: `npm ci did not complete successfully: exit code: 1` in the builder stage. Diagnosed via
+the (publicly readable, no admin token needed) check-runs annotations API rather than guessing, root
+caused, and fixed in a follow-up commit — see cap-notes.md #22 for the full story: `@cap-js/sqlite`
+(devDependency)'s `better-sqlite3` needs a native compile toolchain `node:20-slim` doesn't ship,
+which this sandbox's own environment happened to have installed already, masking the gap through
+every earlier "verified locally" claim in T1/T3/T4. This is the strongest evidence in the entire
+epic that "manually reproduce each Docker stage's effect without real `docker`" is a genuinely
+weaker substitute for the real thing, not just epistemically more honest — it missed a real bug.
+The fix's own result (does `docker-build-push` succeed after the follow-up commit) is confirmed in
+the Sign-off section once that commit's own CI run completes.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
 
 ---
