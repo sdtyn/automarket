@@ -16,7 +16,7 @@ authentication, containerization, and an extended CI/CD pipeline.
 | EPIC23-T3 | Dockerfile | Done |
 | EPIC23-T4 | docker-compose (local integration) | Done |
 | EPIC23-T5 | CI/CD pipeline extension | Done |
-| EPIC23-T6 | Environment configuration | Open |
+| EPIC23-T6 | Environment configuration | Done |
 
 **Prior art (EPIC02-T8):** `xs-security.json` (scopes + role templates for Admin/Manager/Operator/
 Customer) and `package.json`'s `cds.requires.[production].auth.kind: xsuaa` block already exist —
@@ -30,18 +30,40 @@ deployment, not re-adding scopes/role-templates that already exist.
 | DoD Item | Satisfied by |
 |----------|-------------|
 | `docker compose up` starts a working app connected to PostgreSQL | EPIC23-T1, T3, T4 |
-| GitHub Actions pipeline runs tests + builds Docker image on every PR | EPIC23-T5 |
+| GitHub Actions pipeline runs tests on every PR and builds/pushes the Docker image on every merge to main | EPIC23-T5 |
 | `docs/dev-notes.md` has complete setup instructions for a new developer | EPIC23-T1, T2, T4, T6 |
+
+**One correction to the DoD's own wording:** it originally said "builds Docker image on every PR" —
+implemented as build+push on every *merge to main* instead, deliberately, not a shortcut. Publishing
+an image to GHCR for code that hasn't been reviewed/merged yet would be a real mistake (see
+EPIC23-T5's own reasoning); tests still run on every PR via the existing `build-and-test` job,
+unchanged.
 
 ### Sign-off
 
-_Full sign-off to be filled in once T6 closes._
+All six tickets done, every commit's own CI green (`build-and-test`; `docker-build-push` once T5's
+own build-tools fix landed). Three real, confirmed bugs found and fixed while verifying rather than
+assumed away because the config "looked right" — the throughline of this whole epic:
 
-**EPIC23-T5 follow-up confirmed:** after the `better-sqlite3`/build-tools fix (cap-notes.md #22,
-commit `77b73f6`), the `docker-build-push` job succeeded on GitHub Actions — the image built and
-pushed to `ghcr.io/sdtyn/automarket` (tagged `:latest` and `:77b73f6`) for real. This is the first
-successful end-to-end `docker build` of this project ever, closing the verification gap every one
-of T1/T3/T4's "not verified against real docker" caveats had been carrying.
+- **T2**: `@sap/xssec` was never installed (app crashed instantly under `NODE_ENV=production`) and
+  the `branchId` XSUAA attribute was declared but never wired to the Manager/Operator role templates
+  (would have left branch-scoped authorization silently broken in a real BTP deployment).
+- **T3/T5**: `cds build --for nodejs`'s `gen/srv/` output isn't self-contained for this project's
+  `@impl:`-path service-implementation layout (cap-notes.md #21); the Dockerfile's builder stage was
+  missing the build toolchain `@cap-js/sqlite`'s native `better-sqlite3` binding needs, caught by
+  the **first real `docker build` this epic ever ran** — GitHub Actions, not this sandbox, which
+  never had `docker` available (cap-notes.md #22).
+- **T6**: `GUEST_TOKEN_SECRET`'s dev-only fallback was silently reachable in production too, despite
+  its own comment saying it shouldn't be — inconsistent with `JWT_SECRET`'s stricter, always-on
+  enforcement in the same module family.
+
+**What remains genuinely unverified**, flagged explicitly throughout rather than claimed working:
+an actual `cds deploy --model-only`/`cds deploy` run against a real (non-containerized-in-CI)
+PostgreSQL instance; a real XSUAA role-collection assignment and a genuine XSUAA-issued JWT reaching
+`req.user.attr.branchId` in a handler; a full `docker compose up` → `make db-init` → real request
+cycle. All three require infrastructure (a BTP subaccount, a persistent local Postgres/Docker
+environment) this sandbox never had — each is called out at the exact point in this document where
+it stops being verifiable, not silently assumed to work.
 
 ---
 
@@ -455,6 +477,74 @@ epic that "manually reproduce each Docker stage's effect without real `docker`" 
 weaker substitute for the real thing, not just epistemically more honest — it missed a real bug.
 The fix's own result (does `docker-build-push` succeed after the follow-up commit) is confirmed in
 the Sign-off section once that commit's own CI run completes.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
+
+---
+
+## EPIC23-T6: Environment Configuration
+
+### What & Why
+
+Before extracting anything, inventoried what's actually hardcoded and shouldn't be —
+`grep -rn "process.env" modules/ infrastructure/` gave the complete, authoritative list of every env
+var the application code already reads, rather than guessing at what "port, DB url, auth config"
+means for this specific project. Two of the three named categories turned out to already be
+correctly externalized from earlier tickets: **port** was never hardcoded anywhere (CAP's
+`cds-serve` reads the standard `PORT` env var natively, confirmed by having used
+`PORT=4005`/`PORT=4099` repeatedly throughout this epic's own verification work); **DB url/auth
+config** were handled by EPIC23-T1/T2/T4's `CDS_REQUIRES_DB_CREDENTIALS_*` env vars and CAP's
+profile system. What genuinely needed T6's attention was documentation (no single place listed every
+env var and which environment actually requires it) and one real gap in enforcement.
+
+**A real, confirmed security gap found while writing the env-var documentation, not left
+undocumented:** `GUEST_TOKEN_SECRET` (`modules/reservation/infrastructure/guest-token.js`) had a
+hardcoded dev-fallback secret, and its own comment said "must never be used in production" — but
+nothing in the code actually enforced that. If the env var were accidentally left unset in a real
+deployment, the app would silently sign guest-reservation tokens with a secret visible to anyone who
+can read this public repo, letting anyone forge them. `JWT_SECRET`, in the sibling identity module,
+has always thrown immediately if missing, in every environment — the two secrets had inconsistent
+enforcement for no documented reason. Flagged to the user with the concrete risk before changing any
+production-affecting security behavior (per CLAUDE.md §8); user confirmed the fix.
+
+### Step-by-step instructions
+
+#### 1. Modify `modules/reservation/infrastructure/guest-token.js`
+
+`GUEST_TOKEN_SECRET` now throws `GUEST_TOKEN_SECRET env var is not set` when `NODE_ENV=production`
+and the env var is missing; the dev-only fallback stays available, unconditionally, for every other
+`NODE_ENV` value (no new required env var for local `npm start`/`npm test`).
+
+#### 2. Expand `.env.example`
+
+Grew from EPIC23-T4's Postgres-only template to cover every env var the app reads:
+`JWT_SECRET`/`GUEST_TOKEN_SECRET` (application secrets), `AUTH_PROVIDER` (optional,
+`infrastructure/auth/index.js`), and the existing `POSTGRES_*` set. Kept the name `.env.example`
+rather than adding a second, differently-named `sample.env` the backlog literally asked for — same
+purpose, already wired into `.gitignore`, no reason to have two.
+
+#### 3. Document every env var in `docs/dev-notes.md`
+
+Added §6 — a table of every env var, which environment actually requires it, what it defaults to if
+unset, and which file reads it. Documents the `GUEST_TOKEN_SECRET` fix's own reasoning inline.
+
+### Verify
+
+**`GUEST_TOKEN_SECRET` enforcement** — a Node one-liner with `NODE_ENV=production` set and the env
+var unset confirmed the module now throws `GUEST_TOKEN_SECRET env var is not set` on `require()`;
+the same one-liner without `NODE_ENV=production` confirmed the dev fallback still issues a working
+token. The existing `tests/unit/domain/guest-token.test.js` (runs without `NODE_ENV=production`, so
+exercises the fallback path, same as before this change) still passes unchanged — no test needed
+updating, since the fallback behavior itself didn't change, only what happens when it's *not*
+available.
+
+**Full inventory cross-checked, not assumed complete** — `grep -rn "process.env" modules/
+infrastructure/` was re-run after the fix to confirm the dev-notes.md §6 table lists every env var
+the code actually reads, with none missed and none documented that isn't real.
 
 ```sh
 npm run lint && npm run format:check && npm test

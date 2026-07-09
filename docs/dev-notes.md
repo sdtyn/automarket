@@ -193,3 +193,36 @@ docker-compose.yml`) and the `[hybrid]` profile's config resolution was confirme
 isolation; the actual `docker compose up` → healthy `db` → `app` starts → `make db-init` → a real
 request against real PostgreSQL data sequence has not been run end to end. This should be the very
 first thing tried once `docker` is available.
+
+---
+
+## 6. Required Environment Variables Per Environment (EPIC23-T6)
+
+Copy `.env.example` to `.env` and fill in real values for anything beyond plain local dev. This
+table is the authoritative list — every env var the application code actually reads
+(`grep -rn "process.env" modules/ infrastructure/`, not a guess):
+
+| Variable | Required in | Default if unset | Where it's read |
+|---|---|---|---|
+| `JWT_SECRET` | **Always**, every environment including local dev/test | None — throws `JWT_SECRET env var is not set` | `modules/identity/infrastructure/jwt.js` |
+| `GUEST_TOKEN_SECRET` | `NODE_ENV=production` only | Local/dev/test: falls back to a known, publicly-visible-in-this-repo dev value | `modules/reservation/infrastructure/guest-token.js` |
+| `AUTH_PROVIDER` | Never (optional) | `local` | `infrastructure/auth/index.js` — valid values `local`/`xsuaa`/`guest` |
+| `NODE_ENV` | Never strictly required, but drives everything below | unset (→ CAP's own default profile, SQLite + mocked auth) | CAP's own profile resolution (`cds.requires.[<NODE_ENV>]` in `package.json`) |
+| `PORT` | Never (optional) | `4004` | CAP's built-in `cds-serve` server (no project code involved) |
+| `CDS_REQUIRES_DB_CREDENTIALS_{HOST,PORT,DATABASE,USER,PASSWORD}` | `NODE_ENV=production` or `NODE_ENV=hybrid` (both use `db.kind: postgres`) | None — connection fails without them | CAP's env-var-to-config mapping, consumed by `@cap-js/postgres` |
+| `POSTGRES_{DB,USER,PASSWORD}` | `docker compose up` only | `POSTGRES_DB`/`POSTGRES_USER` default to `automarket`; `POSTGRES_PASSWORD` has **no default** — compose refuses to start without it (`:?` syntax, `docker-compose.yml`) | `docker-compose.yml` only (not read by application code directly — it's what populates the `CDS_REQUIRES_DB_CREDENTIALS_*` vars passed to the `app` service) |
+
+**A real, confirmed gap found and fixed while writing this table, not left as documentation of an
+existing bug:** `GUEST_TOKEN_SECRET`'s dev fallback used to be reachable in *any* environment,
+including `NODE_ENV=production` — the code comment said "must never be used in production" but
+nothing actually enforced it, unlike `JWT_SECRET` in the same module family, which has always thrown
+immediately if missing regardless of environment. Fixed to throw when `NODE_ENV=production` and the
+env var is missing, while keeping the dev-only fallback for local `npm start`/`npm test` (no new
+required env var for the common case) — confirmed via a quick Node one-liner in both configurations,
+and the existing `guest-token.test.js` unit test (which runs without `NODE_ENV=production`, so still
+exercises the fallback path) still passes unchanged.
+
+**`sample.env` vs `.env.example`:** the backlog wording says "add `sample.env`" — this project
+already had `.env.example` from EPIC23-T4 (the conventional name, already wired into `.gitignore`'s
+`!.env.example` exception). Expanded that existing file to cover every env var above rather than
+creating a second, differently-named template with overlapping purpose.
