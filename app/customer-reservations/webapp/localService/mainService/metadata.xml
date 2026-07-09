@@ -151,6 +151,7 @@
         <Property Name="status" Type="Edm.String" DefaultValue="SUBMITTED"/>
         <Property Name="proposedBy" Type="Edm.String" MaxLength="20" DefaultValue="CUSTOMER"/>
         <Property Name="rejectionNotes" Type="Edm.String" MaxLength="1000"/>
+        <Property Name="vehicleUrl" Type="Edm.String"/>
       </EntityType>
       <EntityType Name="TestDrives">
         <Key>
@@ -227,6 +228,7 @@
         <NavigationProperty Name="vehicle" Type="CustomerPortalService.Vehicles">
           <ReferentialConstraint Property="vehicle_ID" ReferencedProperty="ID"/>
         </NavigationProperty>
+        <Property Name="vehicleUrl" Type="Edm.String"/>
       </EntityType>
       <ComplexType Name="return_CustomerPortalService_Vehicles_reserve">
         <Property Name="reservationId" Type="Edm.String"/>
@@ -967,8 +969,9 @@
       <Annotations Target="CustomerPortalService.Offers">
         <Annotation Term="UI.LineItem">
           <Collection>
-            <Record Type="UI.DataField">
+            <Record Type="UI.DataFieldWithUrl">
               <PropertyValue Property="Value" Path="vehicle_ID"/>
+              <PropertyValue Property="Url" Path="vehicleUrl"/>
               <PropertyValue Property="Label" String="Vehicle"/>
             </Record>
             <Record Type="UI.DataField">
@@ -989,8 +992,9 @@
           <Record Type="UI.FieldGroupType">
             <PropertyValue Property="Data">
               <Collection>
-                <Record Type="UI.DataField">
+                <Record Type="UI.DataFieldWithUrl">
                   <PropertyValue Property="Value" Path="vehicle_ID"/>
+                  <PropertyValue Property="Url" Path="vehicleUrl"/>
                   <PropertyValue Property="Label" String="Vehicle"/>
                 </Record>
                 <Record Type="UI.DataField">
@@ -1099,6 +1103,9 @@
             </Record>
           </Collection>
         </Annotation>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Offers/vehicleUrl">
+        <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
       <Annotations Target="CustomerPortalService.TestDrives">
         <Annotation Term="UI.LineItem">
@@ -1466,8 +1473,9 @@
       <Annotations Target="CustomerPortalService.Favorites">
         <Annotation Term="UI.LineItem">
           <Collection>
-            <Record Type="UI.DataField">
+            <Record Type="UI.DataFieldWithUrl">
               <PropertyValue Property="Value" Path="vehicle_ID"/>
+              <PropertyValue Property="Url" Path="vehicleUrl"/>
               <PropertyValue Property="Label" String="Vehicle"/>
             </Record>
             <Record Type="UI.DataField">
@@ -1480,8 +1488,9 @@
           <Record Type="UI.FieldGroupType">
             <PropertyValue Property="Data">
               <Collection>
-                <Record Type="UI.DataField">
+                <Record Type="UI.DataFieldWithUrl">
                   <PropertyValue Property="Value" Path="vehicle_ID"/>
+                  <PropertyValue Property="Url" Path="vehicleUrl"/>
                   <PropertyValue Property="Label" String="Vehicle"/>
                 </Record>
                 <Record Type="UI.DataField">
@@ -1531,6 +1540,9 @@
         <Annotation Term="Core.Computed" Bool="true"/>
         <Annotation Term="Core.Description" String="User's unique ID"/>
         <Annotation Term="Common.Label" String="Changed By"/>
+      </Annotations>
+      <Annotations Target="CustomerPortalService.Favorites/vehicleUrl">
+        <Annotation Term="Core.Computed" Bool="true"/>
       </Annotations>
       <Annotations Target="CustomerPortalService.getPriceHistory(Edm.String)/vehicleId">
         <Annotation Term="Core.OptionalParameter">

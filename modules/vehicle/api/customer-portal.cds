@@ -301,7 +301,21 @@ service CustomerPortalService @(path: '/catalog') {
         }
     ]
     entity Offers        as
-        projection on automarket.Offers
+        projection on automarket.Offers {
+            *,
+            // vehicleUrl (EPIC22-T3 follow-up): the customer wanted clicking
+            // "the vehicle" in My Offers/My Favorites to go straight to that
+            // vehicle's own Object Page — in a different, standalone app,
+            // so an in-app UI.LineItem row-navigation route can't reach it
+            // (each app owns exactly one entity's List Report/Object Page
+            // pair, cap-notes.md #12) and there's no real Fiori Launchpad
+            // shell here for intent-based cross-app navigation either. A
+            // calculated absolute-path field + @UI.DataFieldWithUrl below
+            // (native OData UI vocabulary, not a custom action) renders it
+            // as a real hyperlink with no custom JS/controller-extension
+            // needed — lower-risk than trying to override native row-press.
+            virtual null as vehicleUrl : String
+        }
         actions {
             @requires: 'Customer'
             action resubmit(offeredPrice : Decimal, desiredPickupDate : Date) returns Boolean;
@@ -391,7 +405,13 @@ service CustomerPortalService @(path: '/catalog') {
         to   : 'Customer',
         where: 'customer_ID = $user'
     }]
-    entity Favorites     as projection on CustFavorites;
+    entity Favorites     as
+        projection on CustFavorites {
+            *,
+            // vehicleUrl: same clickable-link mechanism as Offers.vehicleUrl
+            // above — see that field's comment for the full reasoning.
+            virtual null as vehicleUrl : String
+        };
 
     // getFavoriteVehicles: returns the FOR_SALE vehicles the calling customer
     // has favorited. Authentication required — guests have no favorites.

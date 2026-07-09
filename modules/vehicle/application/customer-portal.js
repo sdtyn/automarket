@@ -290,6 +290,28 @@ module.exports = cds.service.impl(async function (srv) {
     });
   });
 
+  // vehicleUrl (EPIC22-T3 follow-up): populates the calculated field on
+  // CustomerPortalService.Offers (customer-portal.cds) with the vehicle's
+  // own Object Page path in the separate customer-portal app, rendered as
+  // a real hyperlink via @UI.DataFieldWithUrl — see that field's CDS
+  // comment for why this can't just be a native in-app row-navigation
+  // route. No batched query needed: vehicle_ID is already on every row.
+  srv.after('READ', 'Offers', (rows) => {
+    const list = Array.isArray(rows) ? rows : [rows];
+    for (const row of list) {
+      if (row) row.vehicleUrl = `/customer-portal/webapp/index.html#/Vehicles(${row.vehicle_ID})`;
+    }
+  });
+
+  // vehicleUrl: same mechanism as Offers.vehicleUrl above, for
+  // CustomerPortalService.Favorites (the My Favorites app).
+  srv.after('READ', 'Favorites', (rows) => {
+    const list = Array.isArray(rows) ? rows : [rows];
+    for (const row of list) {
+      if (row) row.vehicleUrl = `/customer-portal/webapp/index.html#/Vehicles(${row.vehicle_ID})`;
+    }
+  });
+
   // resubmit (EPIC20-T2): bound to Offers, delegates to OfferService.resubmitOffer.
   srv.on('resubmit', 'Offers', async (req) => {
     const [{ ID: offerId }] = req.params;

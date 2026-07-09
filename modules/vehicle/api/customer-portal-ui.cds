@@ -193,8 +193,19 @@ annotate CustomerPortalService.Reservations with @(
 // bound to Offers (distinct overload from Reservations'/TestDrives' own
 // `cancel` — OData resolves same-named bound actions by their bound type).
 annotate CustomerPortalService.Offers with @(
+    // vehicle_ID is a UI.DataFieldWithUrl (EPIC22-T3 follow-up), not a plain
+    // DataField — renders as a real hyperlink to the vehicle's own Object
+    // Page in the separate customer-portal app (vehicleUrl, customer-portal.js),
+    // native OData UI vocabulary, no custom action/controller needed. The
+    // row's own navigation (to this Offer's Object Page) is unaffected —
+    // still reachable by clicking elsewhere in the row, for Resubmit/Withdraw.
     UI.LineItem                 : [
-        {Value: vehicle_ID, Label: 'Vehicle'},
+        {
+            $Type: 'UI.DataFieldWithUrl',
+            Value: vehicle_ID,
+            Url  : vehicleUrl,
+            Label: 'Vehicle'
+        },
         {Value: offeredPrice},
         {Value: currency},
         {Value: status},
@@ -203,7 +214,12 @@ annotate CustomerPortalService.Offers with @(
     UI.FieldGroup #OfferDetails : {
         $Type: 'UI.FieldGroupType',
         Data : [
-            {Value: vehicle_ID, Label: 'Vehicle'},
+            {
+                $Type: 'UI.DataFieldWithUrl',
+                Value: vehicle_ID,
+                Url  : vehicleUrl,
+                Label: 'Vehicle'
+            },
             {Value: offeredPrice},
             {Value: currency},
             {Value: desiredPickupDate},
@@ -344,14 +360,27 @@ annotate CustomerPortalService.Payments with @(
 // favorites/webapp/ext/CustomActions.js) is a client-side-only redirect to
 // the vehicle's own Object Page in customer-portal, not a CDS action.
 annotate CustomerPortalService.Favorites with @(
+    // vehicle_ID is a UI.DataFieldWithUrl (EPIC22-T3 follow-up) — same
+    // clickable-link mechanism as Offers.vehicle_ID above, see that
+    // annotation's comment for the full reasoning.
     UI.LineItem                    : [
-        {Value: vehicle_ID, Label: 'Vehicle'},
+        {
+            $Type: 'UI.DataFieldWithUrl',
+            Value: vehicle_ID,
+            Url  : vehicleUrl,
+            Label: 'Vehicle'
+        },
         {Value: createdAt, Label: 'Added On'}
     ],
     UI.FieldGroup #FavoriteDetails : {
         $Type: 'UI.FieldGroupType',
         Data : [
-            {Value: vehicle_ID, Label: 'Vehicle'},
+            {
+                $Type: 'UI.DataFieldWithUrl',
+                Value: vehicle_ID,
+                Url  : vehicleUrl,
+                Label: 'Vehicle'
+            },
             {Value: createdAt, Label: 'Added On'}
         ]
     },

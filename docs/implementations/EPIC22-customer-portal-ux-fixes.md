@@ -487,6 +487,32 @@ the actual app-to-app navigation the user interacts with day to day — that's t
 `content.header.actions` buttons — so its pre-existing hardcoded dev ports for the other tiles
 weren't touched, out of scope for this fix).
 
+**Fifth scope correction — the "View Vehicle" button wasn't what the user actually wanted:** after
+using the `ViewVehicle`/`WithdrawOffer` buttons above, the user clarified: clicking into an offer or
+favorite should go **straight to that vehicle's own detail page**, not to the Offer's/Favorite's own
+Object Page with an extra button to then click through. A native in-app row-navigation override to
+another *app* isn't something Fiori Elements supports (no controller extension was attempted — see
+cap-notes.md #19 for why a custom-action button was judged lower-risk than trying to override
+`sap.fe.templates.ListReport`'s row-press behavior for a cross-app target with no verified syntax).
+Landed on a different, standard-vocabulary mechanism instead: made the **`vehicle_ID` column itself
+a real hyperlink**, so clicking specifically on the vehicle value jumps directly to the vehicle's
+Object Page, while clicking elsewhere in the row still opens the Offer's/Favorite's own Object Page
+(where Resubmit/Withdraw/View-Vehicle-button still live, unchanged) — both behaviors coexist, no
+regression to what was already shipped.
+
+1. **`modules/vehicle/api/customer-portal.cds`**: added a calculated `vehicleUrl: String` field to
+   both `Offers` and `Favorites` (`virtual null as vehicleUrl : String` in the projection).
+2. **`modules/vehicle/application/customer-portal.js`**: two small `srv.after('READ', ...)` handlers
+   (one for `Offers`, one for `Favorites`) computing
+   `` `/customer-portal/webapp/index.html#/Vehicles(${row.vehicle_ID})` `` per row — no batched query
+   needed, `vehicle_ID` is already present on every row.
+3. **`modules/vehicle/api/customer-portal-ui.cds`**: changed `vehicle_ID`'s `UI.LineItem`/
+   `UI.FieldGroup` entry on both `Offers` and `Favorites` from a plain `{Value: vehicle_ID, ...}` to
+   `{$Type: 'UI.DataFieldWithUrl', Value: vehicle_ID, Url: vehicleUrl, Label: 'Vehicle'}` — the
+   standard OData UI vocabulary type for rendering a field as a hyperlink, native to `sap.fe`, no
+   custom JS/controller extension needed at all (unlike the `ViewVehicle` custom action above, which
+   is a JS-driven `press` handler — this is a declarative annotation the framework renders itself).
+
 #### 4. Add `Logout` to every app, both List Report and Object Page targets
 
 Same `content.header.actions` mechanism, one more entry per target:
@@ -575,6 +601,16 @@ vehicle's own favorited state is correctly recognized). A test-script false nega
 fixed during this verification, not a product bug: Playwright's `getByRole('button', { name: 'Go' })`
 without `exact: true` also matches "**Lo**g**o**ut" (case-insensitive substring match), throwing a
 strict-mode "resolved to 2 elements" error — fixed the test with `exact: true`, not the product.
+
+**`UI.DataFieldWithUrl` vehicle link (fifth scope correction)** — verified on both `customer-offers`
+and `customer-favorites` against a fresh backend: `GET /catalog/Offers`/`GET /catalog/Favorites`
+show the computed `vehicleUrl` field with the correct path; in a live browser, the `vehicle_ID`
+column renders as an actual `<a href="...">` element (confirmed via a Playwright locator, not just
+that it looked like a link visually) whose `href` matches; clicking it lands on that exact vehicle's
+own Object Page, showing the correct favorited/offer state (`Remove from Favorites`, respectively
+`Remove the Offer`). Separately confirmed clicking elsewhere in the same row (a non-link cell) still
+opens the Offer's own Object Page with `Resubmit Offer`/`Withdraw Offer`/`View Vehicle` intact — the
+two navigation paths coexist without regressing each other.
 
 ```sh
 npm run lint && npm run format:check && npm test

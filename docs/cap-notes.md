@@ -691,3 +691,50 @@ onWithdrawOffer: function (oContext) {
   });
 },
 ```
+
+## 19. `UI.DataFieldWithUrl` — a Declarative, Zero-JS Way to Make One Column a Cross-App Link, Without Overriding Row-Press
+
+**Context (EPIC22-T3, second iteration on the same request):** the `ViewVehicle` custom action
+(note #18) put a "View Vehicle" *button* on the Offer's/Favorite's own Object Page — reachable only
+after already navigating there via the row's native click. The user actually wanted clicking the
+vehicle itself to jump straight to the vehicle's own Object Page, in a different standalone app.
+True row-press override (making the *entire row* navigate cross-app instead of to this entity's own
+Object Page) would need a controller extension replacing `sap.fe.templates.ListReport`'s built-in
+navigation handling — no verified syntax for this anywhere in the project, and guessing at more
+undocumented `sap.fe` internals was judged not worth repeating (this project already burned real
+time on wrong guesses for `rootView`/`routerClass`/`defaultLayoutType`, note #15's manifest actions
+key, and note #13's `InsertRestrictions` direction).
+
+**The lower-risk fix that's also the more standard one:** OData's `UI.DataFieldWithUrl` vocabulary
+type renders a field as an actual hyperlink, `Value` as the link text and `Url` as the `href` — no
+custom action, no JS press handler, no controller extension, just a different `$Type` on the
+existing `UI.LineItem`/`UI.FieldGroup` entry:
+
+```cds
+// Plain field — just text, no link:
+{Value: vehicle_ID, Label: 'Vehicle'}
+
+// Real hyperlink — Url is a second calculated field (customer-portal.js,
+// srv.after('READ', ...)), same "compute in JS, expose as a virtual CDS
+// field" pattern used throughout this project for anything a plain
+// annotation can't derive on its own:
+{
+    $Type: 'UI.DataFieldWithUrl',
+    Value: vehicle_ID,
+    Url  : vehicleUrl,
+    Label: 'Vehicle'
+}
+```
+
+Confirmed via a live Playwright check that the rendered cell is a genuine `<a href="...">` element,
+not just link-styled text, and that clicking it navigates while clicking *elsewhere in the same row*
+still triggers the entity's own native row-navigation — the two coexist with zero interference,
+since `DataFieldWithUrl` only intercepts clicks on that one cell.
+
+**When to reach for this vs. a `content.header.actions` custom action (note #15):** `DataFieldWithUrl`
+only works for a **plain link** (no side effects, no confirmation, no server call before navigating)
+on a **field already in a LineItem/FieldGroup** — it can't run arbitrary JS or read a different
+field on click. For anything with actual logic (delete-then-navigate, computed-at-click-time
+targets, confirmation dialogs), a custom action's `press` handler (note #18) is still the tool —
+this is specifically for "make this value a link to somewhere else," which turned out to be most of
+what was actually needed here.
