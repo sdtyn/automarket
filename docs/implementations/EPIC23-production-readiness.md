@@ -35,7 +35,13 @@ deployment, not re-adding scopes/role-templates that already exist.
 
 ### Sign-off
 
-_To be filled in at sprint end (T2–T6 still open)._
+_Full sign-off to be filled in once T6 closes._
+
+**EPIC23-T5 follow-up confirmed:** after the `better-sqlite3`/build-tools fix (cap-notes.md #22,
+commit `77b73f6`), the `docker-build-push` job succeeded on GitHub Actions — the image built and
+pushed to `ghcr.io/sdtyn/automarket` (tagged `:latest` and `:77b73f6`) for real. This is the first
+successful end-to-end `docker build` of this project ever, closing the verification gap every one
+of T1/T3/T4's "not verified against real docker" caveats had been carrying.
 
 ---
 
