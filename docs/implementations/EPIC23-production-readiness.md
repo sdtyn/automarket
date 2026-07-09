@@ -15,7 +15,7 @@ authentication, containerization, and an extended CI/CD pipeline.
 | EPIC23-T2 | XSUAA integration | Done |
 | EPIC23-T3 | Dockerfile | Done |
 | EPIC23-T4 | docker-compose (local integration) | Done |
-| EPIC23-T5 | CI/CD pipeline extension | Open |
+| EPIC23-T5 | CI/CD pipeline extension | Done |
 | EPIC23-T6 | Environment configuration | Open |
 
 **Prior art (EPIC02-T8):** `xs-security.json` (scopes + role templates for Admin/Manager/Operator/
@@ -381,5 +381,64 @@ npm run lint && npm run format:check && npm test
 ```
 
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
+
+---
+
+## EPIC23-T5: CI/CD Pipeline Extension
+
+### What & Why
+
+Checked the existing `.github/workflows/ci.yml` before writing anything — its "npm test step after
+format check" requirement was **already satisfied**, from an earlier epic (`lint` → `format:check`
+→ `test`, in that cheapest-first order). Not re-added; the remaining, actually-open scope was the
+Docker build + push to GHCR.
+
+**A real opportunity, not just a checkbox:** this sandbox has had no `docker` available for the
+entire epic — T1/T3/T4 all had to be verified by manually reproducing each stage's effect with
+plain shell commands instead of an actual `docker build`. GitHub Actions runners *do* have Docker.
+Adding the `docker-build-push` job means the very next push to `main` becomes the first genuine,
+real `docker build` of this project's `Dockerfile` — closing a verification gap this epic couldn't
+close locally, for free, as a side effect of doing T5's own work.
+
+### Step-by-step instructions
+
+#### 1. Modify `.github/workflows/ci.yml`
+
+Add a second job, `docker-build-push`:
+
+- `needs: build-and-test` — only runs if lint/format/tests all pass first.
+- `if: github.event_name == 'push' && github.ref == 'refs/heads/main'` — only on an actual merge to
+  main, never on a PR push (publishing an image for unreviewed/unmerged code would be a real
+  security-relevant mistake, not just wasted CI minutes).
+- `permissions: {contents: read, packages: write}` — the minimum GHCR needs; `GITHUB_TOKEN` (the
+  auto-provided, per-run token — no extra secret to create or rotate) is sufficient to push to this
+  repo's own GHCR namespace once the job explicitly requests write access to packages.
+- Lowercases `github.repository` before using it in the image tag — GHCR requires an all-lowercase
+  image path, and `github.repository` preserves whatever case the org/repo name actually has. This
+  repo happens to already be lowercase (`sdtyn/automarket`), but hardcoding that assumption would
+  make the workflow silently break the moment it's copied to (or the org is renamed to) a
+  mixed-case name — the lowercase step costs one line and removes that landmine entirely.
+- Tags the built image both `:latest` and `:<commit-sha>` — `latest` alone can't be rolled back to a
+  specific prior build; the SHA tag is an immutable pointer that always can.
+
+**"Optional: deploy-to-staging step" — deliberately not added.** No staging environment/hosting
+target exists anywhere in this project yet (no BTP space, no Kubernetes cluster, no server to
+deploy to) — the backlog itself frames this step as optional, and adding a deploy step with nothing
+real to deploy to would mean either a fake no-op step (misleading — looks like it does something) or
+inventing a hosting target unilaterally (a real infrastructure decision, not something to decide
+silently while doing CI/CD cleanup). Flagged here rather than skipped without comment.
+
+### Verify
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean. `ci.yml`'s YAML
+syntax validated via `npx js-yaml .github/workflows/ci.yml`.
+
+**The actual `docker build` result is reported in the Sign-off section below**, once this ticket's
+own commit reaches `main` and the new `docker-build-push` job runs for real on GitHub Actions — the
+first genuine Docker build this epic has been able to observe.
 
 ---
