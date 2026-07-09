@@ -148,3 +148,48 @@ to catch this (see cap-notes.md #20 for the full story). Fixed with `npm install
 re-running then failed with the *expected* `no XSUAA instance bound to application` error instead —
 confirming the config is correctly wired and just needs an actual BTP binding (steps above) to work
 end to end.
+
+---
+
+## 5. Local docker-compose Integration (EPIC23-T4)
+
+`docker-compose.yml` runs the app container against a real, containerized PostgreSQL — not the
+`[production]` profile (which also requires a real XSUAA binding docker-compose can't provide
+locally), but a separate `[hybrid]` cds profile (`package.json`, `cds.requires.[hybrid]`) that
+activates PostgreSQL while keeping `auth.kind: mocked` (the default users, unchanged). This is a
+local-integration-testing topology, not a production deployment shape — no XSUAA, one container, no
+approuter in front.
+
+**First run:**
+
+```bash
+cp .env.example .env          # then edit POSTGRES_PASSWORD to something real
+make up                        # docker compose up -d --build
+make db-init                   # one-time: cds deploy --model-only, then cds deploy
+```
+
+After `make db-init`, the app is fully usable at `http://localhost:4004` with real persisted
+PostgreSQL data (the same mocked-auth users as always — `admin.mueller@automarkt.de` / `Test@1234`
+etc.). `make down` stops the containers; the PostgreSQL data volume (`automarket-pg-data`) survives
+a `down`/`up` cycle — only `docker compose down -v` wipes it, at which point `make db-init` needs to
+run again.
+
+**A subtle risk checked, not assumed safe:** `docker-compose.yml` supplies PostgreSQL credentials
+via `CDS_REQUIRES_DB_CREDENTIALS_{HOST,PORT,DATABASE,USER,PASSWORD}` environment variables (CAP's
+standard env-var-to-config mapping — confirmed working via `npx cds env get requires.db`, which
+correctly populated `credentials.host`/`port`/`user`/`password`/`database` from those exact env var
+names). The base (non-hybrid) `db` config's `credentials.url: ':memory:'` (SQLite) is still present
+underneath the merged config once those env vars are added — checked whether that stale leftover
+`url` field could confuse the `pg` driver into trying to parse it as a connection string: it can't.
+`@cap-js/postgres` passes the whole `credentials` object straight to `pg`'s `Client` constructor,
+and `pg`'s own connection-parameter parsing only recognizes a key literally named `connectionString`
+for that purpose (confirmed by reading `pg`'s own source, not assumed) — an unrecognized `url` key
+is silently ignored, `host`/`port`/`user`/`password`/`database` are used directly. Harmless, but
+worth having actually checked instead of guessing.
+
+**Not verified against real `docker compose`** — same sandbox limitation as EPIC23-T1/T3 (no
+`docker` available here). `docker-compose.yml`'s YAML was validated for syntax (`npx js-yaml
+docker-compose.yml`) and the `[hybrid]` profile's config resolution was confirmed correct in
+isolation; the actual `docker compose up` → healthy `db` → `app` starts → `make db-init` → a real
+request against real PostgreSQL data sequence has not been run end to end. This should be the very
+first thing tried once `docker` is available.

@@ -14,7 +14,7 @@ authentication, containerization, and an extended CI/CD pipeline.
 | EPIC23-T1 | PostgreSQL adapter | Done |
 | EPIC23-T2 | XSUAA integration | Done |
 | EPIC23-T3 | Dockerfile | Done |
-| EPIC23-T4 | docker-compose (local integration) | Open |
+| EPIC23-T4 | docker-compose (local integration) | Done |
 | EPIC23-T5 | CI/CD pipeline extension | Open |
 | EPIC23-T6 | Environment configuration | Open |
 
@@ -295,5 +295,91 @@ npm run lint && npm run format:check && npm test
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean — the Dockerfile/
 `.dockerignore` themselves aren't covered by these (no docker-specific linter is configured), but
 their content was manually inspected for correctness against the actual project structure.
+
+---
+
+## EPIC23-T4: docker-compose (Local Integration)
+
+### What & Why
+
+A `docker compose up` that actually starts a *working* app connected to PostgreSQL — the DoD's own
+wording — surfaced a real design tension before any file was written: the app's only two-profile
+setup (`default` = SQLite + mocked auth, `[production]` = PostgreSQL + XSUAA, T1/T2) has no profile
+that gets PostgreSQL *without* also requiring a real XSUAA binding, which `docker-compose` running
+locally can never provide (no BTP subaccount). Using `NODE_ENV=production` in `docker-compose.yml`
+would just reproduce EPIC23-T2's "no XSUAA instance bound" crash on every `docker compose up` — not
+a "working app."
+
+Resolved with CAP's own multi-profile convention: added a third `[hybrid]` profile
+(`package.json`) that overrides only `db.kind: postgres`, leaving `auth` unset so it falls through
+to the default `mocked` block (same users as every other dev session, e.g.
+`admin.mueller@automarkt.de`/`Test@1234`). Confirmed via `npx cds env get requires.db --profile
+hybrid` / `...requires.auth --profile hybrid` that this actually resolves to postgres+mocked
+together, not guessed at — `[hybrid]` is a commonly-used CAP convention name for exactly this
+"real backing service, still-local auth" scenario, not an invented one-off.
+
+### Step-by-step instructions
+
+#### 1. Modify `package.json`
+
+Add `"[hybrid]": {"db": {"kind": "postgres"}}` to `cds.requires`, sibling to the existing
+`[production]` block.
+
+#### 2. Create `docker-compose.yml`
+
+Two services: `db` (`postgres:16`, credentials from `.env` via `${POSTGRES_*}` substitution, a
+named volume for persistence across `down`/`up` cycles, a `pg_isready` healthcheck); `app` (builds
+from the project's own `Dockerfile`, `depends_on: db` with `condition: service_healthy` — waits for
+a real healthy Postgres, not just a started container — `NODE_ENV: hybrid`, and the
+`CDS_REQUIRES_DB_CREDENTIALS_*` environment variables CAP maps directly onto
+`cds.requires.db.credentials.*`, port `4004` published).
+
+#### 3. Create `.env.example`
+
+Template for the three `POSTGRES_*` variables `docker-compose.yml` requires (`:?` required-variable
+syntax — compose refuses to start with a clear error if `.env` is missing/incomplete, rather than
+silently defaulting to an empty password). `.env` itself is already `.gitignore`d.
+
+#### 4. Create `Makefile`
+
+`up` (`docker compose up -d --build`), `down` (`docker compose down`), `db-init` (one-time schema
+deploy — `cds deploy --model-only` then `cds deploy`, run via `docker compose exec app`, **not**
+baked into the container's own startup command: `cds deploy --model-only`'s own documentation frames
+it as a one-time step, and blindly re-running schema-evolution logic on every container start
+without being able to verify its idempotency against a real Postgres wasn't a risk worth taking —
+see "Verify" below), `logs` (tail the app container's output).
+
+### Verify
+
+**Config resolution** — `[hybrid]` profile confirmed to resolve `db.kind: postgres` +
+`auth.kind: mocked` together (not assumed from reading the JSON — actually queried via `cds env`).
+
+**`CDS_REQUIRES_DB_CREDENTIALS_*` env vars correctly populate `cds.requires.db.credentials`** —
+confirmed via `cds env get requires.db --profile hybrid` with those env vars set, all five fields
+(`host`/`port`/`user`/`password`/`database`) present and correct.
+
+**A leftover stale field checked, not assumed harmless** — the base (non-hybrid) `db` config's
+`credentials.url: ':memory:'` remains present after merging in the hybrid env-var credentials (CAP
+merges profile overrides onto the base config rather than replacing it wholesale). Read `pg`'s own
+`connection-parameters.js` source to confirm it only recognizes a key named `connectionString` for
+URL-style connection strings — an unrecognized `url` key is silently ignored, `host`/`port`/etc. are
+used directly. Confirmed harmless by reading the actual driver code, not assumed.
+
+**`docker-compose.yml` YAML syntax validated** (`npx js-yaml docker-compose.yml`), **`Makefile`
+confirmed to use real tab characters** (`cat -A Makefile` — Make requires literal tabs for recipe
+lines, a space-indented Makefile fails silently/confusingly).
+
+**Not verified against real `docker compose`** — this sandbox has no `docker` available (same
+limitation as T1/T3). The full `docker compose up` → healthy Postgres → app starts → `make db-init`
+→ a real request against real persisted data sequence has not been run end to end. Flagged
+explicitly, not silently assumed to work — should be the first thing tried once `docker` is
+available; it's the first point in this epic where the containerized app, `@cap-js/postgres`, and a
+real (if not XSUAA-backed) database all come together.
+
+```sh
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
 
 ---

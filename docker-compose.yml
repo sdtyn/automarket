@@ -1,0 +1,42 @@
+# Local integration testing: a real containerized PostgreSQL instead of
+# SQLite :memory:, with mocked auth still active (NODE_ENV=hybrid — see
+# package.json's cds.requires.[hybrid] block and docs/dev-notes.md §5) since
+# there is no real XSUAA service to bind locally. This is NOT a production
+# deployment topology (no XSUAA, single container, no approuter in front) —
+# it exists to let `docker build`/the Dockerfile and the PostgreSQL adapter
+# (EPIC23-T1/T3) actually be exercised end to end without a BTP subaccount.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-automarket}
+      POSTGRES_USER: ${POSTGRES_USER:-automarket}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy .env.example to .env}
+    ports:
+      - '5432:5432'
+    volumes:
+      - automarket-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-automarket} -d ${POSTGRES_DB:-automarket}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: hybrid
+      CDS_REQUIRES_DB_CREDENTIALS_HOST: db
+      CDS_REQUIRES_DB_CREDENTIALS_PORT: '5432'
+      CDS_REQUIRES_DB_CREDENTIALS_DATABASE: ${POSTGRES_DB:-automarket}
+      CDS_REQUIRES_DB_CREDENTIALS_USER: ${POSTGRES_USER:-automarket}
+      CDS_REQUIRES_DB_CREDENTIALS_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set — copy .env.example to .env}
+    ports:
+      - '4004:4004'
+
+volumes:
+  automarket-pg-data:
