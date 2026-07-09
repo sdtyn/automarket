@@ -16,6 +16,7 @@ sap.ui.define([], function () {
     testdrives: "/customer-testdrives/webapp/index.html",
     orders: "/customer-orders/webapp/index.html",
     payments: "/customer-payments/webapp/index.html",
+    favorites: "/customer-favorites/webapp/index.html",
   };
 
   return {
@@ -47,6 +48,10 @@ sap.ui.define([], function () {
 
     onNavPayments: function () {
       window.location.href = SIBLING_APPS.payments;
+    },
+
+    onNavFavorites: function () {
+      window.location.href = SIBLING_APPS.favorites;
     },
 
     // Mocked auth (package.json cds.requires.auth.kind: mocked) is plain

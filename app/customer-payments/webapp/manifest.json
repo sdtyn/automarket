@@ -165,6 +165,13 @@
                       "enabled": true,
                       "visible": true
                     },
+                    "NavFavorites": {
+                      "id": "NavFavorites",
+                      "press": "automarket.customerpayments.ext.CustomActions.onNavFavorites",
+                      "text": "My Favorites",
+                      "enabled": true,
+                      "visible": true
+                    },
                     "Logout": {
                       "id": "Logout",
                       "press": "automarket.customerpayments.ext.CustomActions.onLogout",

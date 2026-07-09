@@ -44,54 +44,12 @@
                 }
             },
             applications: {
-                "automarketcustomerportal-tile": {
-                    title: "Vehicle Catalog",
-                    description: "Browse vehicles for sale",
-                    additionalInformation: "SAPUI5.Component=automarket.customerportal",
-                    applicationType: "URL",
-                    url: "../"
-                },
-                "automarketcustomerreservations-tile": {
-                    title: "My Reservations",
-                    description: "View and cancel your reservations",
-                    additionalInformation: "SAPUI5.Component=automarket.customerreservations",
-                    applicationType: "URL",
-                    url: "http://localhost:8096/"
-                },
-                "automarketcustomeroffers-tile": {
-                    title: "My Offers",
-                    description: "View and resubmit your offers",
-                    additionalInformation: "SAPUI5.Component=automarket.customeroffers",
-                    applicationType: "URL",
-                    url: "http://localhost:8097/"
-                },
-                "automarketcustomertestdrives-tile": {
-                    title: "My Test Drives",
-                    description: "View and cancel your test drives",
-                    additionalInformation: "SAPUI5.Component=automarket.customertestdrives",
-                    applicationType: "URL",
-                    url: "http://localhost:8098/"
-                },
-                "automarketcustomerorders-tile": {
-                    title: "My Orders",
-                    description: "Checkout and pay for your orders",
-                    additionalInformation: "SAPUI5.Component=automarket.customerorders",
-                    applicationType: "URL",
-                    url: "http://localhost:8099/"
-                },
-                "automarketcustomerpayments-tile": {
-                    title: "My Payments",
-                    description: "View your payment history",
-                    additionalInformation: "SAPUI5.Component=automarket.customerpayments",
-                    applicationType: "URL",
-                    url: "http://localhost:8100/"
-                },
-                "automarketcustomerfavorites-tile": {
+                "customerfavorites-tile": {
                     title: "My Favorites",
                     description: "View your favorited vehicles",
                     additionalInformation: "SAPUI5.Component=automarket.customerfavorites",
                     applicationType: "URL",
-                    url: "http://localhost:8101/"
+                    url: "../"
                 }
             }
         };
@@ -107,7 +65,7 @@
         data-sap-ui-theme="sap_fiori_3"
         data-sap-ui-compatVersion="edge"
         data-sap-ui-language="en"
-        data-sap-ui-resourceroots='{"automarket.customerportal": "../"}'
+        data-sap-ui-resourceroots='{"automarket.customerfavorites": "../"}'
         data-sap-ui-frameOptions="allow"
         data-sap-ui-flexibilityServices='[{"connector": "LocalStorageConnector"}]'>
     </script>

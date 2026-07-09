@@ -1,7 +1,7 @@
 {
   "_version": "1.28.0",
   "sap.app": {
-    "id": "automarket.customerreservations",
+    "id": "automarket.customerfavorites",
     "type": "application",
     "i18n": "i18n/i18n.properties",
     "applicationVersion": {
@@ -19,6 +19,7 @@
         "type": "ODataAnnotation",
         "uri": "annotations/annotation.xml",
         "settings": {
+          "annotations": [],
           "localUri": "annotations/annotation.xml"
         }
       },
@@ -26,9 +27,7 @@
         "uri": "/catalog/",
         "type": "OData",
         "settings": {
-          "annotations": [
-            "annotation"
-          ],
+          "annotations": ["annotation"],
           "localUri": "localService/mainService/metadata.xml",
           "odataVersion": "4.0"
         }
@@ -69,7 +68,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "automarket.customerreservations.i18n.i18n"
+          "bundleName": "automarket.customerfavorites.i18n.i18n"
         }
       },
       "": {
@@ -95,28 +94,28 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "ReservationsList",
-          "target": "ReservationsList"
+          "name": "FavoritesList",
+          "target": "FavoritesList"
         },
         {
-          "pattern": "Reservations({key}):?query:",
-          "name": "ReservationsObjectPage",
-          "target": "ReservationsObjectPage"
+          "pattern": "Favorites({key}):?query:",
+          "name": "FavoritesObjectPage",
+          "target": "FavoritesObjectPage"
         }
       ],
       "targets": {
-        "ReservationsList": {
+        "FavoritesList": {
           "type": "Component",
-          "id": "ReservationsList",
+          "id": "FavoritesList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "entitySet": "Reservations",
+              "entitySet": "Favorites",
               "variantManagement": "Page",
               "navigation": {
-                "Reservations": {
+                "Favorites": {
                   "detail": {
-                    "route": "ReservationsObjectPage"
+                    "route": "FavoritesObjectPage"
                   }
                 }
               },
@@ -132,49 +131,49 @@
                   "actions": {
                     "NavCatalog": {
                       "id": "NavCatalog",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavCatalog",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavCatalog",
                       "text": "Vehicle Catalog",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "NavReservations": {
+                      "id": "NavReservations",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavReservations",
+                      "text": "My Reservations",
                       "enabled": true,
                       "visible": true
                     },
                     "NavOffers": {
                       "id": "NavOffers",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavOffers",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavOffers",
                       "text": "My Offers",
                       "enabled": true,
                       "visible": true
                     },
                     "NavTestDrives": {
                       "id": "NavTestDrives",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavTestDrives",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavTestDrives",
                       "text": "My Test Drives",
                       "enabled": true,
                       "visible": true
                     },
                     "NavOrders": {
                       "id": "NavOrders",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavOrders",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavOrders",
                       "text": "My Orders",
                       "enabled": true,
                       "visible": true
                     },
                     "NavPayments": {
                       "id": "NavPayments",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavPayments",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavPayments",
                       "text": "My Payments",
-                      "enabled": true,
-                      "visible": true
-                    },
-                    "NavFavorites": {
-                      "id": "NavFavorites",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavFavorites",
-                      "text": "My Favorites",
                       "enabled": true,
                       "visible": true
                     },
                     "Logout": {
                       "id": "Logout",
-                      "press": "automarket.customerreservations.ext.CustomActions.onLogout",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onLogout",
                       "text": "Logout",
                       "enabled": true,
                       "visible": true
@@ -185,34 +184,41 @@
             }
           }
         },
-        "ReservationsObjectPage": {
+        "FavoritesObjectPage": {
           "type": "Component",
-          "id": "ReservationsObjectPage",
+          "id": "FavoritesObjectPage",
           "name": "sap.fe.templates.ObjectPage",
           "options": {
             "settings": {
               "editableHeaderContent": false,
-              "entitySet": "Reservations",
+              "entitySet": "Favorites",
               "content": {
                 "header": {
                   "actions": {
                     "BackToList": {
                       "id": "BackToList",
-                      "press": "automarket.customerreservations.ext.CustomActions.onBackToList",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onBackToList",
                       "text": "Back to List",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "ViewVehicle": {
+                      "id": "ViewVehicle",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onViewVehicle",
+                      "text": "View Vehicle",
                       "enabled": true,
                       "visible": true
                     },
                     "NavCatalog": {
                       "id": "NavCatalog",
-                      "press": "automarket.customerreservations.ext.CustomActions.onNavCatalog",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onNavCatalog",
                       "text": "Vehicle Catalog",
                       "enabled": true,
                       "visible": true
                     },
                     "Logout": {
                       "id": "Logout",
-                      "press": "automarket.customerreservations.ext.CustomActions.onLogout",
+                      "press": "automarket.customerfavorites.ext.CustomActions.onLogout",
                       "text": "Logout",
                       "enabled": true,
                       "visible": true

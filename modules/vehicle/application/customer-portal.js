@@ -298,6 +298,16 @@ module.exports = cds.service.impl(async function (srv) {
     return offerSrv.send('resubmitOffer', { offerId, offeredPrice, desiredPickupDate });
   });
 
+  // withdraw (EPIC22-T3 follow-up): bound to Offers, delegates to the same
+  // OfferService.withdrawOffer used by Vehicles' removeOffer above — lets
+  // the customer delete a still-pending offer from the My Offers app
+  // directly, no need to go back to the vehicle's own Object Page first.
+  srv.on('withdraw', 'Offers', async (req) => {
+    const [{ ID: offerId }] = req.params;
+    const offerSrv = await cds.connect.to('OfferService');
+    return offerSrv.send('withdrawOffer', { offerId });
+  });
+
   // cancel (EPIC20-T2): bound to TestDrives, delegates to
   // TestDriveService.cancelTestDrive, which already enforces ownership for
   // the Customer role.

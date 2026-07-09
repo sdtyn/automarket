@@ -338,3 +338,28 @@ annotate CustomerPortalService.Payments with @(
         }
     ]
 );
+
+// "Favorites" (EPIC22-T3 follow-up) — read-only "My Favorites" list, same
+// shape as Payments above: no bound actions, ViewVehicle (app/customer-
+// favorites/webapp/ext/CustomActions.js) is a client-side-only redirect to
+// the vehicle's own Object Page in customer-portal, not a CDS action.
+annotate CustomerPortalService.Favorites with @(
+    UI.LineItem                    : [
+        {Value: vehicle_ID, Label: 'Vehicle'},
+        {Value: createdAt, Label: 'Added On'}
+    ],
+    UI.FieldGroup #FavoriteDetails : {
+        $Type: 'UI.FieldGroupType',
+        Data : [
+            {Value: vehicle_ID, Label: 'Vehicle'},
+            {Value: createdAt, Label: 'Added On'}
+        ]
+    },
+    UI.Facets                      : [
+        {
+            $Type : 'UI.ReferenceFacet',
+            Label : 'Favorite Details',
+            Target: '@UI.FieldGroup#FavoriteDetails'
+        }
+    ]
+);

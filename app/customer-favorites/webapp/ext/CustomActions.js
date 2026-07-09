@@ -8,16 +8,16 @@ sap.ui.define([], function () {
   // path, so these are origin-relative, not absolute localhost:PORT URLs.
   var SIBLING_APPS = {
     catalog: "/customer-portal/webapp/index.html",
+    reservations: "/customer-reservations/webapp/index.html",
     offers: "/customer-offers/webapp/index.html",
     testdrives: "/customer-testdrives/webapp/index.html",
     orders: "/customer-orders/webapp/index.html",
     payments: "/customer-payments/webapp/index.html",
-    favorites: "/customer-favorites/webapp/index.html",
   };
 
   return {
     // Bound to the Object Page header's "Back to List" custom action
-    // (manifest.json, ReservationsObjectPage target). Not a CDS/server
+    // (manifest.json, FavoritesObjectPage target). Not a CDS/server
     // action — pure client-side navigation, hardcoded to the app's own list
     // route rather than window.history.back(), so it works the same way
     // whether the user got here via a row click or a deep/bookmarked link
@@ -28,6 +28,10 @@ sap.ui.define([], function () {
 
     onNavCatalog: function () {
       window.location.href = SIBLING_APPS.catalog;
+    },
+
+    onNavReservations: function () {
+      window.location.href = SIBLING_APPS.reservations;
     },
 
     onNavOffers: function () {
@@ -46,8 +50,18 @@ sap.ui.define([], function () {
       window.location.href = SIBLING_APPS.payments;
     },
 
-    onNavFavorites: function () {
-      window.location.href = SIBLING_APPS.favorites;
+    // Custom Object Page header action — its press handler receives the
+    // bound sap.ui.model.odata.v4.Context as its first argument (confirmed
+    // empirically against a live app, not documented anywhere reachable —
+    // cap-notes.md #18), so oContext.getObject() gives the current
+    // Favorite row's data with no extra fetch. Navigates to the same
+    // vehicle's own Object Page in the separate customer-portal app —
+    // there's no in-app route for Vehicles here (each app owns exactly one
+    // entity's List Report/Object Page pair, cap-notes.md #12), so this has
+    // to be a plain redirect, like the sibling-app nav buttons.
+    onViewVehicle: function (oContext) {
+      var sVehicleId = oContext.getObject().vehicle_ID;
+      window.location.href = "/customer-portal/webapp/index.html#/Vehicles(" + sVehicleId + ")";
     },
 
     // Mocked auth (package.json cds.requires.auth.kind: mocked) is plain

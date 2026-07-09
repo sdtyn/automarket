@@ -12,6 +12,7 @@ sap.ui.define([], function () {
     testdrives: "/customer-testdrives/webapp/index.html",
     orders: "/customer-orders/webapp/index.html",
     payments: "/customer-payments/webapp/index.html",
+    favorites: "/customer-favorites/webapp/index.html",
   };
 
   return {
@@ -45,6 +46,10 @@ sap.ui.define([], function () {
       window.location.href = SIBLING_APPS.payments;
     },
 
+    onNavFavorites: function () {
+      window.location.href = SIBLING_APPS.favorites;
+    },
+
     // Mocked auth (package.json cds.requires.auth.kind: mocked) is plain
     // HTTP Basic — the browser caches the credentials against the origin
     // and there is no server-side session/token to invalidate. The standard
@@ -59,6 +64,39 @@ sap.ui.define([], function () {
         window.location.href = window.location.origin + window.location.pathname;
       };
       xhr.send();
+    },
+
+    // Custom Object Page header action (manifest.json, OffersObjectPage
+    // target) — its press handler receives the bound sap.ui.model.odata.v4.Context
+    // as its first argument (confirmed empirically, not documented anywhere
+    // reachable — see cap-notes.md #18), so oContext.getObject() gives the
+    // current Offer row's data with no extra fetch. Navigates to the same
+    // vehicle's own Object Page in the separate customer-portal app —
+    // there's no in-app route for Vehicles here (each app owns exactly one
+    // entity's List Report/Object Page pair, cap-notes.md #12), so this has
+    // to be a plain redirect, like the sibling-app nav buttons.
+    onViewVehicle: function (oContext) {
+      var sVehicleId = oContext.getObject().vehicle_ID;
+      window.location.href = "/customer-portal/webapp/index.html#/Vehicles(" + sVehicleId + ")";
+    },
+
+    // Withdraws the customer's own still-pending offer (CustomerPortalService.withdraw,
+    // customer-portal.js — delegates to OfferService.withdrawOffer, same
+    // action the Vehicle Object Page's "Remove the Offer" button already
+    // uses). A plain fetch POST rather than the ODataModel's action-binding
+    // API: this deletes the very entity the Object Page is bound to, so
+    // there's no "refresh the bound context" to fall back on afterwards —
+    // navigate straight to the list on success instead, same as Back to List.
+    onWithdrawOffer: function (oContext) {
+      var sOfferId = oContext.getObject().ID;
+      fetch(window.location.origin + "/catalog/Offers(" + sOfferId + ")/CustomerPortalService.withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).then(function (oResponse) {
+        if (oResponse.ok) {
+          window.location.hash = "#/";
+        }
+      });
     },
   };
 });

@@ -165,6 +165,13 @@
                       "enabled": true,
                       "visible": true
                     },
+                    "NavFavorites": {
+                      "id": "NavFavorites",
+                      "press": "automarket.customeroffers.ext.CustomActions.onNavFavorites",
+                      "text": "My Favorites",
+                      "enabled": true,
+                      "visible": true
+                    },
                     "Logout": {
                       "id": "Logout",
                       "press": "automarket.customeroffers.ext.CustomActions.onLogout",
@@ -193,6 +200,20 @@
                       "id": "BackToList",
                       "press": "automarket.customeroffers.ext.CustomActions.onBackToList",
                       "text": "Back to List",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "ViewVehicle": {
+                      "id": "ViewVehicle",
+                      "press": "automarket.customeroffers.ext.CustomActions.onViewVehicle",
+                      "text": "View Vehicle",
+                      "enabled": true,
+                      "visible": true
+                    },
+                    "WithdrawOffer": {
+                      "id": "WithdrawOffer",
+                      "press": "automarket.customeroffers.ext.CustomActions.onWithdrawOffer",
+                      "text": "Withdraw Offer",
                       "enabled": true,
                       "visible": true
                     },

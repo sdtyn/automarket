@@ -428,6 +428,65 @@ going back to the list. Added `NavCatalog` to each Object Page target's `content
 Report links) — just the one catalog link, not all five sibling links, since Object Pages weren't
 asked to carry the full nav set, only a way back to the vehicle catalog specifically.
 
+**Third scope addition — "View Vehicle" from My Offers, and withdrawing an offer without leaving
+it:** the user pointed out that seeing an offer in the My Offers app gave no way to reach that
+vehicle's own detail page (only the raw `vehicle_ID` string was shown), and separately wanted to be
+able to withdraw an offer directly from there instead of first navigating to the vehicle. Two
+additions to `customer-offers`:
+
+- `ViewVehicle` custom action on the Object Page, `press`-wired to a handler that reads
+  `oContext.getObject().vehicle_ID` (see cap-notes.md #18 — a custom action's `press` handler
+  receives the bound Context as its first argument, confirmed empirically, not documented anywhere
+  reachable) and redirects to `/customer-portal/webapp/index.html#/Vehicles(<id>)`.
+- A new bound action `withdraw()` on `CustomerPortalService.Offers` (`customer-portal.cds`/`.js`),
+  delegating to the same `OfferService.withdrawOffer` the Vehicle Object Page's "Remove the Offer"
+  button already calls — a second bound action on a different entity reaching the same domain
+  operation, not a duplicate of it. Its `WithdrawOffer` custom action (not a native
+  `UI.DataFieldForAction`) calls the action via a plain `fetch` POST rather than the ODataModel's
+  action-binding API, then navigates to the list on success (see cap-notes.md #18 for why: this
+  action deletes the very entity the Object Page is bound to, so there's nothing to "refresh"
+  afterwards).
+
+**Fourth scope addition — a "My Favorites" app that didn't exist yet:** the user then raised the
+same complaint for favorites — no way to see all favorited vehicles in one place, or reach a
+favorited vehicle's detail page without first reopening it individually. Unlike Offers, there was no
+existing "My Favorites" app at all (`FavoritesService.Favorites` existed as a backend entity since
+EPIC20-T1, but was never given a Fiori Elements List Report). Built `app/customer-favorites` from
+scratch, using `app/customer-payments` (the closest existing template: read-only, no bound actions)
+as the structural reference:
+
+1. **`modules/vehicle/api/customer-portal.cds`**: added a new read-only `Favorites` entity
+   (`projection on CustFavorites`, importing `automarket.Favorites as CustFavorites` from
+   `modules/favorites/db/favorites.cds`), `@restrict`-ed to `READ`/`customer_ID = $user`, same shape
+   as the existing `Payments` entity right above it. No bound actions on it — adding/removing a
+   favorite already goes through `Vehicles.addToFavorites`/`removeFromFavorites`
+   (`customer-portal.js`); this projection is a browsable history, not a second way to mutate the
+   same rows.
+2. **`modules/vehicle/api/customer-portal-ui.cds`**: `UI.LineItem`/`FieldGroup`/`Facets` for the new
+   entity — `vehicle_ID` (Label "Vehicle") and `createdAt` (Label "Added On"), same two-column shape
+   as every other "My X" list in this project.
+3. **`app/customer-favorites/`**: full new app — `manifest.json` (List Report + Object Page routes
+   for `Favorites`, same `content.header.actions` pattern as every sibling: `Logout` and all six
+   *other* sibling nav links on the List Report, `BackToList`/`ViewVehicle`/`NavCatalog`/`Logout` on
+   the Object Page), `webapp/ext/CustomActions.js`, `Component.js`, `index.html`,
+   `annotations/annotation.xml`, `ui5.yaml`/`ui5-mock.yaml`/`package.json`,
+   `webapp/test/flpSandbox.html` — all copied from `customer-payments`'s exact structure and
+   adapted (namespace `automarket.customerfavorites`, livereload port `35741`, the next unused one).
+   `localService/mainService/metadata.xml` (the offline-mock schema cache) generated fresh from the
+   live backend's `$metadata` rather than hand-edited, and the same fresh copy was pushed to all six
+   *other* customer apps' caches too, since they all share `CustomerPortalService` and were now
+   stale (missing `Favorites` and `Offers.withdraw`).
+4. **Every one of the seven customer apps' `CustomActions.js` and List Report
+   `content.header.actions`**: added a `NavFavorites`/"My Favorites" entry (customer-portal) or
+   entries pointing at each other (the other six) — the cross-app nav set is now six links per app
+   (every sibling except itself) instead of five.
+
+Also added `customerfavorites-tile` to `customer-portal`'s `test/flpSandbox.html` for consistency
+with the existing tile list (this file is a leftover EPIC21 FLP-sandbox test harness, not part of
+the actual app-to-app navigation the user interacts with day to day — that's the
+`content.header.actions` buttons — so its pre-existing hardcoded dev ports for the other tiles
+weren't touched, out of scope for this fix).
+
 #### 4. Add `Logout` to every app, both List Report and Object Page targets
 
 Same `content.header.actions` mechanism, one more entry per target:
@@ -490,6 +549,32 @@ origin) — the mechanism does what the code says it does. The credential-overwr
 is standard, long-documented browser behavior (Chrome/Firefox/Edge), not something invented for
 this ticket; flagged here rather than silently claimed as fully verified, since real-browser manual
 testing is the only way to close this gap and wasn't performed.
+
+**Cross-app links on every List Report (scope correction)** — re-verified all six apps'
+`content.header.actions` render the correct five-sibling set (six, after Favorites was added) and
+navigate correctly, checked directly against the same live `cds-serve` instance the user runs (not
+an isolated `ui5 serve` session — see cap-notes.md #17).
+
+**Vehicle Catalog on every Object Page (second scope correction)** — verified on `customer-offers`
+and `customer-reservations` against a fresh live backend + fresh test data (an offer, a reservation):
+the Object Page shows `Back to List` / `Vehicle Catalog` / `Logout`, and clicking `Vehicle Catalog`
+lands on `customer-portal`'s own `VehiclesList` target, not a 404.
+
+**View Vehicle + Withdraw Offer (third scope addition)** — verified on a fresh offer:
+`View Vehicle` from the Offer Object Page lands on that exact vehicle's own Object Page, showing
+`Remove the Offer` (confirming the vehicle's own `hasCustomerOffer` state is correctly recognized,
+not just that navigation happened); `Withdraw Offer` deletes the offer (confirmed via a follow-up
+`curl` returning `404` for that offer ID afterwards) and redirects to the List Report, which no
+longer shows the withdrawn row.
+
+**My Favorites, the new app (fourth scope addition)** — verified end to end: the List Report shows
+a favorited vehicle's ID and "Added On" date (confirmed the row exists via `curl` against
+`GET /catalog/Favorites` first, then confirmed the same data renders in the UI); `View Vehicle`
+from its Object Page lands on the correct vehicle, showing `Remove from Favorites` (confirming the
+vehicle's own favorited state is correctly recognized). A test-script false negative caught and
+fixed during this verification, not a product bug: Playwright's `getByRole('button', { name: 'Go' })`
+without `exact: true` also matches "**Lo**g**o**ut" (case-insensitive substring match), throwing a
+strict-mode "resolved to 2 elements" error — fixed the test with `exact: true`, not the product.
 
 ```sh
 npm run lint && npm run format:check && npm test

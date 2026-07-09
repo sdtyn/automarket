@@ -651,3 +651,43 @@ cleanly while being wrong for the real deployment, if the dev ports happen to ma
 whatever URLs the code hardcodes. Verify cross-app navigation against the actual multi-app host
 (`cds-serve`, one origin) at least once, not only against however each piece was tested in
 isolation — the two environments can silently agree with each other while both being wrong.
+
+## 18. A `content.header.actions` Custom Action's `press` Handler Receives the Bound `Context` as Its First Argument
+
+**Context (EPIC22-T3 follow-up):** needed a custom Object Page button ("View Vehicle" on the My
+Offers/My Favorites apps) whose behavior depends on the *current row's own data* (the offer's or
+favorite's `vehicle_ID`) — not just a static redirect like `Back to List`/`Vehicle Catalog`. Nothing
+in reach documented what a custom action's `press` handler (note #15's `content.header.actions`
+mechanism) actually receives as arguments.
+
+**Confirmed empirically** (a temporary diagnostic action logging `arguments` to the console, removed
+once answered — not guessed at or assumed from framework conventions elsewhere): the first argument
+is the bound `sap.ui.model.odata.v4.Context` for the current entity instance. `oContext.getObject()`
+returns the full row data with no extra round trip:
+
+```js
+onViewVehicle: function (oContext) {
+  var sVehicleId = oContext.getObject().vehicle_ID;
+  window.location.href = "/customer-portal/webapp/index.html#/Vehicles(" + sVehicleId + ")";
+},
+```
+
+This also answered a second question for free: how to have a custom action **delete its own bound
+entity** cleanly. `oContext` gives the entity's own key (`.getObject().ID`) but there's no
+documented-and-trusted way to invoke a bound OData action through it without the ODataModel's
+action-binding API (untested in this project). Simpler and consistent with the plain-`fetch`-based
+`onLogout` already in use: call the action's URL directly with `fetch(...).then(...)`, then navigate
+to the list on success (`window.location.hash = "#/"`) instead of trying to refresh a Context whose
+underlying row no longer exists:
+
+```js
+onWithdrawOffer: function (oContext) {
+  var sOfferId = oContext.getObject().ID;
+  fetch(window.location.origin + "/catalog/Offers(" + sOfferId + ")/CustomerPortalService.withdraw", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  }).then(function (oResponse) {
+    if (oResponse.ok) { window.location.hash = "#/"; }
+  });
+},
+```

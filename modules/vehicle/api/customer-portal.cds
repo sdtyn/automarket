@@ -1,6 +1,7 @@
 using {automarket} from '../db/vehicle';
 using {automarket.Orders as SalesOrders} from '../../sales/db/sales';
 using {automarket.Payments as SalesPayments} from '../../payment/db/payment';
+using {automarket.Favorites as CustFavorites} from '../../favorites/db/favorites';
 
 // CustomerPortalService is the public-facing vehicle catalog.
 // @requires: 'any' opens it to unauthenticated guests. The status = FOR_SALE
@@ -277,7 +278,13 @@ service CustomerPortalService @(path: '/catalog') {
     // Offers (EPIC20-T2): customer-scoped "My Offers" view — same restrict
     // shape as Reservations above. resubmit is only valid on a REJECTED offer
     // (enforced in the delegated OfferService.resubmitOffer handler, not
-    // re-checked here).
+    // re-checked here). withdraw (EPIC22-T3 follow-up) lets the customer
+    // delete a still-pending offer directly from the My Offers app, without
+    // first navigating to the vehicle's own Object Page — same underlying
+    // OfferService.withdrawOffer action the Vehicle Object Page's "Remove
+    // the Offer" button already calls (customer-portal.js, removeOffer on
+    // Vehicles); this is a second bound action on a different entity
+    // reaching the same domain operation, not a duplicate of it.
     @restrict: [
         {
             grant: 'READ',
@@ -285,7 +292,10 @@ service CustomerPortalService @(path: '/catalog') {
             where: 'customer_ID = $user'
         },
         {
-            grant: 'resubmit',
+            grant: [
+                'resubmit',
+                'withdraw'
+            ],
             to   : 'Customer',
             where: 'customer_ID = $user'
         }
@@ -295,6 +305,9 @@ service CustomerPortalService @(path: '/catalog') {
         actions {
             @requires: 'Customer'
             action resubmit(offeredPrice : Decimal, desiredPickupDate : Date) returns Boolean;
+
+            @requires: 'Customer'
+            action withdraw()                                                returns Boolean;
         };
 
     // TestDrives (EPIC20-T2): customer-scoped "My Test Drives" view. cancel
@@ -364,6 +377,21 @@ service CustomerPortalService @(path: '/catalog') {
         where: 'order.customer_ID = $user'
     }]
     entity Payments      as projection on SalesPayments;
+
+    // Favorites (EPIC22-T3 follow-up): read-only "My Favorites" list — a
+    // customer could only ever see their favorited vehicles one at a time,
+    // by opening each vehicle's own Object Page (isFavorited/
+    // removeFromFavorites above). No bound actions here: adding/removing a
+    // favorite already goes through FavoritesService via the bound actions
+    // on Vehicles (addToFavorites/removeFromFavorites, customer-portal.js)
+    // — this projection is purely a browsable history, same read-only shape
+    // as Payments above, not a second way to mutate the same rows.
+    @restrict: [{
+        grant: 'READ',
+        to   : 'Customer',
+        where: 'customer_ID = $user'
+    }]
+    entity Favorites     as projection on CustFavorites;
 
     // getFavoriteVehicles: returns the FOR_SALE vehicles the calling customer
     // has favorited. Authentication required — guests have no favorites.
