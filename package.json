@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@cap-js/postgres": "^2",
+    "@cap-js/sqlite": "^2",
     "@sap/cds": "^9",
     "@sap/xssec": "^4.13.1",
     "bcryptjs": "^3.0.3",
@@ -10,7 +11,6 @@
   },
   "devDependencies": {
     "@cap-js/cds-test": "^0.4.1",
-    "@cap-js/sqlite": "^2",
     "@eslint/js": "^9.39.4",
     "@sap-ux/fiori-elements-writer": "^2.8.138",
     "@sap/cds-dk": "^9.9.3",

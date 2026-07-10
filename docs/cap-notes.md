@@ -860,3 +860,66 @@ trusting `npm test`/`npm run lint`/`npm run format` results, or before assuming 
 directory is in the state you left it in. Safer for repeated local verification: build in a
 disposable copy/worktree, not the directory you're actively editing — not done here only because
 this was a one-off verification pass, not a workflow meant to be repeated casually.
+
+## 24. `mta.yaml` Module `parameters.env` Is Silently Dropped — Use `properties` for CF Environment Variables
+
+**Context (EPIC24-T4, first real `cf deploy` failure):** set `automarket-srv`'s `NODE_ENV` via
+`parameters: {env: {NODE_ENV: trial}}` in `mta.yaml` — this is a plausible-looking key (`env` reads
+naturally as "environment variables"), compiles without any local validation error, and `mbt build`
+happily packages it. `cf deploy` itself is what caught it, with an easy-to-miss one-line warning
+buried in a long deployment log: `Parameter(s) "{automarket-srv=[env]}" are not supported in the
+specified scope... These parameters are not processed and will be lost after the operation
+completes.` The env var was silently never set — CF's Node.js buildpack fell through to its own
+default `NODE_ENV=production`, activating a completely different `cds` profile than intended
+(`postgres`+`xsuaa` instead of `sqlite`+`xsuaa`), and the app crashed for a reason that looked
+unrelated (a missing `GUEST_TOKEN_SECRET`, itself only required because of the wrong profile).
+
+**Fix:** the correct MTA key for CF user-provided environment variables on a module is
+`properties:`, a sibling of `parameters:` at the module level — not nested inside `parameters`:
+
+```yaml
+# Wrong — parses, builds, and deploys without error; silently dropped by cf deploy:
+modules:
+  - name: automarket-srv
+    parameters:
+      env:
+        NODE_ENV: trial
+
+# Correct:
+modules:
+  - name: automarket-srv
+    properties:
+      NODE_ENV: trial
+```
+
+**Lesson:** an `mta.yaml` mistake in this category doesn't fail the build — it fails silently at
+*deploy* time, with the actual signal (a one-line warning) easy to miss inside a long `cf deploy`
+log, and its *effect* only shows up as a seemingly unrelated crash further downstream. When a
+deployed app behaves as if an env var were never set, re-read the full `cf deploy` output for
+"not supported"/"will be lost" warnings before debugging the running app itself.
+
+## 25. A CF Landscape's Node.js Buildpack Doesn't Necessarily Offer Every Node Major Version — Check, Don't Assume From `package.json` Convention
+
+**Context (EPIC24-T4, second real `cf deploy` failure, after fixing #24):** `approuter/package.json`
+declared `"engines": {"node": "^20"}` (matching this whole project's own convention — the Dockerfile
+uses `node:20-slim`, EPIC23-T3). Staging failed with a clear, specific error:
+`Unable to install node: no match found for ^20 in [22.22.2 24.14.0 24.15.0]` — this particular CF
+Cloud Foundry landscape's `nodejs_buildpack` simply has no Node 20.x runtime available at all, only
+22.x and 24.x. The backend module (`automarket-srv`, no `engines` field of its own) was unaffected
+and started fine on whatever default the buildpack picked — only the Approuter module, with its own
+explicit (and, it turned out, wrong-for-this-landscape) constraint, failed.
+
+**Fix:** relaxed to `"^22 || ^24"` — not an arbitrary widening, but matching what `@sap/approuter`'s
+own `package.json` already declares as *its* engine requirement (visible as an `EBADENGINE` warning
+during local `npm install`, which is non-fatal locally since `npm install` doesn't enforce `engines`
+by default — but a CF buildpack's own version-matching *does* enforce it, fatally).
+
+**Lesson:** a Node major version being "current" or "matching the rest of the project's Dockerfile"
+doesn't guarantee a specific CF landscape's buildpack actually offers it — buildpack-supported
+runtime versions are landscape/broker-specific and change over time independent of this repo. If a
+module needs a real `engines.node` constraint (as opposed to no constraint, letting the buildpack
+pick its own default — which is what worked without any trouble for the backend module here), check
+what versions are actually available before guessing a value, or default to widening the constraint
+to match what the dependency's own author already tested against (as done here), rather than
+copying a value from an unrelated part of the project (the Dockerfile's own Node version) that has
+no logical connection to a CF buildpack's own supported-version list.

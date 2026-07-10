@@ -30,10 +30,16 @@ modules:
     parameters:
       instances: 1
       buildpack: nodejs_buildpack
-      # Activates package.json's [trial] cds profile (EPIC24-T6): real
-      # xsuaa auth, sqlite db. No postgres — see this file's own description.
-      env:
-        NODE_ENV: trial
+    # Activates package.json's [trial] cds profile (EPIC24-T6): real xsuaa
+    # auth, sqlite db. No postgres — see this file's own description.
+    # `properties` (not `parameters.env` — a real deploy failure caught this:
+    # `parameters.env` isn't a recognized key in this MTA schema, silently
+    # dropped with a warning, so NODE_ENV fell through to CF's own default
+    # of "production" instead, activating the wrong cds profile entirely —
+    # see EPIC24-T4's implementation log) is the correct module-level key
+    # for CF user-provided environment variables in an MTA module.
+    properties:
+      NODE_ENV: trial
     build-parameters:
       builder: npm-ci
       # Every app/*/node_modules is dev-tooling-only (standalone `ui5 serve`

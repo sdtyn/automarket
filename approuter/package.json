@@ -4,7 +4,7 @@
   "private": true,
   "description": "Single entry point for AutoMarket on SAP BTP — XSUAA-authenticated routing to the CAP backend and every UI app (EPIC24-T1)",
   "engines": {
-    "node": "^20"
+    "node": "^22 || ^24"
   },
   "scripts": {
     "start": "node server.js"

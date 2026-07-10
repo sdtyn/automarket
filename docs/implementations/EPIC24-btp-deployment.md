@@ -17,7 +17,7 @@ cds profile.
 | EPIC24-T1 | Complete the Approuter | Done |
 | EPIC24-T2 | Deployment descriptor (`mta.yaml`) | Done |
 | EPIC24-T3 | UI app deployment strategy | Done |
-| EPIC24-T4 | Real deployment (`cf deploy`) | Open |
+| EPIC24-T4 | Real deployment (`cf deploy`) | Done |
 | EPIC24-T5 | CI/CD deploy step | Open |
 | EPIC24-T6 | `[trial]` cds profile | Done |
 
@@ -271,6 +271,121 @@ go unnoticed the next time someone builds the MTA locally.
 ```sh
 npm install
 rm -rf gen mta_archives .automarket_mta_build_tmp
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
+
+---
+
+## EPIC24-T4: Real Deployment (`cf deploy`)
+
+### What & Why
+
+**Corrected before starting, by the user:** the ticket was originally planned as a separate manual
+`cf create-service`/`cf bind-service` sequence, matching the pattern `docs/dev-notes.md` §4
+documented for a generic BTP deployment. The user, who had already deployed the standard CAP
+bookshop sample to this same trial subaccount, pointed out this is unnecessary — the `multiapps` CF
+CLI plugin's `cf deploy <mtar>` command (confirmed installed via `cf plugins`) reads `mta.yaml`'s
+own `resources:` section and creates + binds every declared service as part of the same operation
+that uploads and starts the apps. T4 became: build the `.mtar` and run `cf deploy` for real,
+nothing more.
+
+**This ticket found (and fixed) four real, confirmed deployment bugs — none of them guessable from
+reading the YAML, only from actually deploying and reading real crash/staging logs.** Each is a
+genuine "verify what you can, don't guess" outcome, in the same spirit as every prior epic-closing
+discovery this project has made:
+
+1. **`mta.yaml`'s `automarket-srv.parameters.env` is not a valid key.** `cf deploy`'s own output
+   warned `Parameter(s) "{automarket-srv=[env]}" are not supported... will be lost`, silently
+   dropping the `NODE_ENV: trial` setting entirely. CF's Node.js buildpack then defaulted
+   `NODE_ENV` to `production` on its own, activating the `[production]` cds profile (`postgres` +
+   `xsuaa`) instead of `[trial]` — confirmed directly in `cf logs`:
+   `"msg":"connect to db > postgres { url: ':memory:' }"`. The app then crashed for a second,
+   compounding reason: EPIC23-T6's own `GUEST_TOKEN_SECRET` production-enforcement fired correctly
+   (working exactly as designed — just triggered in the wrong profile). **Fix:** module-level
+   `properties:` is the correct MTA key for CF user-provided environment variables, not
+   `parameters.env`.
+2. **`@cap-js/sqlite` was a devDependency.** With `NODE_ENV` correctly reaching `trial` after fix
+   #1, the app crashed differently: `Cannot find module '/home/vcap/app/@cap-js/sqlite'`. Both
+   `mbt`'s own packaging step and CF's Node.js buildpack install with `--production`
+   (`npm clean-install --production`) regardless of what `NODE_ENV` the *running* app is later
+   given — a devDependency is never in the uploaded package at all, full stop. `@cap-js/sqlite` had
+   only ever been a devDependency because, until this epic, SQLite was exclusively a local-dev/CI
+   tool — this epic's own decision to deploy *with* SQLite (no PostgreSQL, no paid service) makes it
+   a genuine runtime dependency now, not an oversight to route around. **Fix:** moved
+   `@cap-js/sqlite` from `devDependencies` to `dependencies` in `package.json`.
+3. **`approuter/package.json`'s `engines.node: "^20"` doesn't exist on this landscape.** Staging
+   failed with `Unable to install node: no match found for ^20 in [22.22.2 24.14.0 24.15.0]` — this
+   CF Cloud Foundry landscape's Node.js buildpack simply doesn't offer a Node 20.x runtime at all.
+   The backend module has no `engines` constraint of its own (defaults to whatever the buildpack
+   picks) and started fine throughout; only the Approuter module, which I'd given an (incorrect,
+   guessed) `^20` constraint in T1, was affected. **Fix:** relaxed to `^22 || ^24` — matching what
+   `@sap/approuter@22.0.3` itself already declares as *its own* engine requirement (seen in an
+   `EBADENGINE` warning during T1's local `npm install`, correctly ignored then since local
+   `npm install` doesn't enforce `engines` — but CF's buildpack does).
+4. **A confirmed, disruptive local side effect, not new to this ticket but hit again here:**
+   `mbt build`'s `npm ci --production` (cap-notes.md #23) stripped devDependencies from the working
+   directory on every one of the four build attempts below — `npm install` re-run after each one.
+
+### Step-by-step instructions
+
+#### 1. Modify `mta.yaml`
+
+`automarket-srv`'s `properties: {NODE_ENV: trial}` instead of `parameters: {env: {NODE_ENV: trial}}`.
+
+#### 2. Modify `package.json`
+
+Move `@cap-js/sqlite` from `devDependencies` to `dependencies`.
+
+#### 3. Modify `approuter/package.json`
+
+`engines.node`: `"^20"` → `"^22 || ^24"`.
+
+#### 4. Build and deploy
+
+```sh
+mbt build
+cf deploy mta_archives/automarket_1.0.0.mtar -f
+npm install   # mbt build strips devDependencies from the working tree — see cap-notes.md #23
+```
+
+### Verify
+
+**The real thing, not a simulation** — four full `cf deploy` attempts against the actual
+`asy-dev-train`/`dev` Cloud Foundry space, each diagnosed from real `cf logs`/staging output, not
+guessed at. The fourth succeeded completely:
+
+```
+Application "automarket-srv" started and available at "asy-dev-train-dev-automarket-srv.cfapps.eu20-001.hana.ondemand.com"
+Application "automarket-approuter" started and available at "asy-dev-train-dev-automarket-approuter.cfapps.eu20-001.hana.ondemand.com"
+```
+
+Then verified the live deployment actually works, via real HTTPS requests against the real
+Approuter URL — not just that `cf deploy` printed "started":
+
+- `GET /` → `200` (Approuter's own welcome-file redirect resolves).
+- `GET /customer-portal/webapp/index.html` → `200` — the bundled Fiori UI app (EPIC24-T3's
+  decision) is genuinely served through the Approuter.
+- `GET /catalog/$metadata` → `200` — OData proxying through the Approuter to the real backend
+  works.
+- `GET /catalog/Vehicles` (no credentials) → `200`, `"createdBy":"anonymous"` — **guest catalog
+  browsing, the entire reason T1 chose `authenticationType: "none"` over the stub's blanket
+  `"xsuaa"`, genuinely works on the real, live, XSUAA-fronted deployment**, not just in the local
+  approximation T1 tested against.
+
+The XSUAA service instance (`automarket-auth`) exists in the real subaccount on the confirmed-free
+`application` plan — `cf services` shows `create succeeded`, bound to both apps.
+
+**Not yet verified**: an actual XSUAA login flow through a real browser (only guest/no-credential
+requests were tested above — this app's guest-open surface is large enough that "it works" doesn't
+by itself prove the login redirect + role-based authorization path is correct end to end); whether
+`JWT_SECRET`/`GUEST_TOKEN_SECRET` are set on the deployed app at all (neither was configured via
+`cf set-env` or `mta.yaml` `properties` — the app started successfully because nothing exercised
+`/identity/login` or a guest-write path during this verification, not because those secrets are
+confirmed present).
+
+```sh
 npm run lint && npm run format:check && npm test
 ```
 
