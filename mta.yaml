@@ -1,0 +1,91 @@
+_schema-version: 3.3.0
+ID: automarket
+version: 1.0.0
+description: "AutoMarket — SAP BTP trial deployment (EPIC24). No PostgreSQL: the trial subaccount's postgresql-db plans are all paid (confirmed via `cf marketplace -e postgresql-db`), so this deploys with SQLite instead, via the [trial] cds profile (package.json)."
+build-parameters:
+  # cds build here is a model-compiles-cleanly validation gate only — its
+  # gen/srv/ output is NOT what actually gets deployed (see automarket-srv's
+  # own path below). This project's service implementations are wired via
+  # @impl: paths relative to the project root (modules/*/application/*.js),
+  # and `cds build --for nodejs` doesn't relocate those files into gen/srv/,
+  # so gen/srv/ alone can't start — the exact same finding already made (and
+  # tested) for the Dockerfile in EPIC23-T3 (cap-notes.md #21) applies here
+  # unchanged; MTA/CF deployment hits the identical constraint.
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --for nodejs
+modules:
+  - name: automarket-srv
+    type: nodejs
+    # The actual source tree, not gen/srv/ — see the comment above. This is
+    # also what makes bundling every UI app into this one module correct:
+    # app/*/webapp is already part of this path, served by cds-serve exactly
+    # as it already is in every other environment (dev, CI, docker-compose,
+    # the Dockerfile) — no separate HTML5 Application Repository deployment
+    # (EPIC24-T3's decision: bundle, not split, to avoid needing 14 more
+    # deployable units with no proven benefit for a trial deployment).
+    path: .
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      # Activates package.json's [trial] cds profile (EPIC24-T6): real
+      # xsuaa auth, sqlite db. No postgres — see this file's own description.
+      env:
+        NODE_ENV: trial
+    build-parameters:
+      builder: npm-ci
+      # Every app/*/node_modules is dev-tooling-only (standalone `ui5 serve`
+      # sessions never used in this deployment) — excluding them keeps the
+      # uploaded MTA module from bundling 14 redundant dependency trees.
+      ignore:
+        - app/*/node_modules/
+        - approuter/node_modules/
+        - tests/
+        - test/
+        - docs/
+        - .git/
+        - .github/
+        - .claude/
+        - .vscode/
+        - gen/
+        - mta_archives/
+    provides:
+      - name: srv-api # required by consumers of CAP services (the approuter)
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: automarket-auth
+
+  - name: automarket-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      disk-quota: 256M
+      memory: 256M
+    requires:
+      - name: automarket-auth
+      - name: srv-api
+        group: destinations
+        properties:
+          name: cap-backend
+          url: ~{srv-url}
+          forwardAuthToken: true
+
+resources:
+  - name: automarket-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: automarket-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          credential-types:
+            - 'binding-secret'
+            - 'x509'

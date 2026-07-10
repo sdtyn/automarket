@@ -15,8 +15,8 @@ cds profile.
 | Ticket | Description | Status |
 |--------|-------------|--------|
 | EPIC24-T1 | Complete the Approuter | Done |
-| EPIC24-T2 | Deployment descriptor (`mta.yaml`) | Open |
-| EPIC24-T3 | UI app deployment strategy | Open |
+| EPIC24-T2 | Deployment descriptor (`mta.yaml`) | Done |
+| EPIC24-T3 | UI app deployment strategy | Done |
 | EPIC24-T4 | Real XSUAA provisioning | Open |
 | EPIC24-T5 | CI/CD deploy step | Open |
 | EPIC24-T6 | `[trial]` cds profile | Done |
@@ -170,5 +170,110 @@ npm run lint && npm run format:check && npm test
 All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
 `npx eslint approuter/server.js` run explicitly too (not excluded from the root ESLint config's
 scope — only `app/` is) — clean.
+
+---
+
+## EPIC24-T3: UI App Deployment Strategy
+
+### What & Why
+
+Decided with the user before writing `mta.yaml` (T2 needed this decision to know what to describe):
+bundle all 14 `app/*/webapp` UI apps into the backend's own module, exactly as the existing
+Dockerfile (EPIC23-T3) already does and as `cds-serve` has served them in every environment this
+whole project has ever run in — rather than deploying each to the HTML5 Application Repository
+(`html5-apps-repo`, confirmed free/available on this trial subaccount's marketplace) as separate
+modules, served via the Approuter. The HTML5-repo route is the more "standard" BTP Fiori pattern,
+but would mean 14 additional deployable units with their own build tasks, entirely unproven in this
+project and adding real complexity for a trial deployment with no demonstrated need for it. No code
+change of its own — this ticket's only artifact is the decision, reflected in T2's `mta.yaml`
+(`automarket-srv`'s `path: .` includes `app/`, there is no separate UI module).
+
+### Verify
+
+Confirmed via the same `mbt build` used to verify T2: the packaged `automarket-srv` module's
+`data.zip` contains `app/customer-portal/webapp/manifest.json` and every sibling app, served by the
+same `cds-serve` process as the OData backend — no separate deployment step, no separate module.
+
+---
+
+## EPIC24-T2: Deployment Descriptor (`mta.yaml`)
+
+### What & Why
+
+`cds add mta` (the official `@sap/cds-dk` scaffolding command — used instead of hand-writing from
+memory, same discipline as EPIC23-T1's `cds add postgres`) generated a starting `mta.yaml`, but its
+defaults didn't match this epic's own decisions and needed real correction, not just cosmetic
+edits:
+
+1. **Deployed `gen/srv/`, which doesn't work for this project.** Identical finding to EPIC23-T3's
+   Dockerfile (cap-notes.md #21): this project's `@impl:`-path service implementations
+   (`modules/*/application/*.js`) aren't relocated into `gen/srv/` by `cds build`, so a module
+   whose `path` is `gen/srv` would crash on startup exactly like the first Dockerfile attempt did.
+   Changed `automarket-srv`'s `path` to `.` (the actual source tree) — `cds build` stays in
+   `build-parameters.before-all` as a model-validation gate only, same role it plays in the
+   Dockerfile.
+2. **Included a `automarket-postgres` resource and an `automarket-postgres-deployer` module.**
+   Removed both, per this epic's own scope correction (no paid services on this trial subaccount).
+3. **No Approuter module at all.** Added `automarket-approuter` (`type: approuter.nodejs`,
+   `path: approuter` — T1's now-complete module), wired to `automarket-auth` (the `xsuaa` resource,
+   unchanged from the generated default — its `service-plan: application` already matches the
+   confirmed-free plan from `cf marketplace -e xsuaa`) and to the backend's `srv-api` via a
+   `destinations`-group `requires` entry (`name: cap-backend`, `url: ~{srv-url}`,
+   `forwardAuthToken: true`) — this is what makes the Approuter's `xs-app.json` destination named
+   `cap-backend` actually resolve to the real deployed backend URL at runtime, not a placeholder.
+4. **`NODE_ENV: trial`** added to `automarket-srv`'s `parameters.env` — activates the `[trial]` cds
+   profile (EPIC24-T6) on the deployed instance.
+5. **A `build-parameters.ignore` list** on `automarket-srv` — excludes every `app/*/node_modules`
+   and `approuter/node_modules` (dev-tooling-only, never used at runtime), plus `tests/`, `docs/`,
+   `.git/`, `.github/`, `.claude/`, `.vscode/`, `gen/`, `mta_archives/` — none of which the running
+   backend needs, all of which would otherwise bloat the uploaded module for no reason.
+
+### Step-by-step instructions
+
+#### 1. Run `npx cds add mta`
+
+Scaffolds the starting `mta.yaml` (and, as a side effect, re-serializes `xs-security.json` with
+different but equivalent formatting — same harmless side effect already seen from `cds add postgres`
+in EPIC23-T1).
+
+#### 2. Modify `mta.yaml`
+
+All five corrections above, applied directly to the generated file.
+
+### Verify
+
+**Actually built the MTA archive locally**, not just eyeballed the YAML — `mbt` (Cloud MTA Build
+Tool) happened to already be available in this sandbox (`which mbt` — a real, if lucky, capability
+this epic's earlier tickets didn't have for `docker`). `mbt build` succeeded, producing
+`mta_archives/automarket_1.0.0.mtar`. Unzipped and inspected both packaged modules directly:
+
+- **`automarket-srv`**: contains `modules/identity/application/identity-service.js` (confirms the
+  `@impl:`-path fix actually worked, not just that the YAML looked right) and every
+  `app/*/webapp/manifest.json` (confirms T3's bundling decision is really reflected in what gets
+  deployed). No `app/*/node_modules` bloat — the `ignore` list worked.
+- **`automarket-approuter`**: contains `xs-app.json`, `server.js`, and its own `node_modules` — a
+  complete, correctly self-contained module.
+- **The generated `mtad.yaml`** (deployment descriptor, inside `META-INF/`) correctly shows both
+  modules' `requires`/`provides` wired together (`srv-api` → `cap-backend` destination with
+  `forwardAuthToken: true`) and `NODE_ENV: trial` set — confirms the abstract YAML config actually
+  compiles to the intended real deployment topology, not just that it parses.
+
+**A real, disruptive mistake made and immediately caught while doing this verification, not left
+unnoticed:** `mbt build` with `automarket-srv`'s `path: .` runs its `npm ci --production`/`npm
+clean-install --production` build step **directly in the project's own working directory** (not a
+copy) — this silently stripped every devDependency (`prettier`, `jest`, `eslint`, etc.) from the
+root `node_modules`, breaking `npm run format`/`npm test`/`npm run lint` until `npm install` was
+re-run to restore them. Also left a stray `gen/` folder behind (the `cds build` validation step's
+own output). **Anyone running `mbt build` locally in this repo must re-run `npm install` afterward
+and remove the leftover `gen/` folder** — documented here so this doesn't quietly happen again and
+go unnoticed the next time someone builds the MTA locally.
+
+```sh
+npm install
+rm -rf gen mta_archives .automarket_mta_build_tmp
+npm run lint && npm run format:check && npm test
+```
+
+All 138 tests pass, 0 lint errors (3 pre-existing unrelated warnings), format clean.
 
 ---

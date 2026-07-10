@@ -838,3 +838,25 @@ none has one.
 by a *dev-only* dependency's native binding, even when the actual production dependency tree is
 100% pure JS — check `npm ls <pkg>` for what's transitively pulling in a `binding.gyp`-having
 package before assuming the runtime stage (which excludes devDependencies) is where to look first.
+
+## 23. `mbt build` With `path: .` Runs `npm ci --production` Directly in Your Working Directory — Not a Copy
+
+**Context (EPIC24-T2):** `mta.yaml`'s `automarket-srv` module has `path: .` (deliberately — see
+note #21, `gen/srv/` doesn't work for this project's `@impl:`-path layout, so the actual project
+root is the correct deployable source). Ran `mbt build` locally to verify the resulting MTA archive
+was actually correct (it was — see EPIC24-T2's implementation log) — but `mbt`'s `npm-ci` builder
+executes `npm clean-install --production` **in place**, directly against the real project directory
+`path: .` points at, not a temporary copy. This silently stripped every devDependency (`prettier`,
+`jest`, `eslint`, `@sap/cds-dk`, ...) out of the root `node_modules` — `npm run format`/`npm test`/
+`npm run lint` all broke immediately afterward (`sh: 1: prettier: not found`, etc.) until `npm
+install` was re-run to restore the full dependency tree. `mbt` also leaves a `gen/` folder behind
+(the `cds build` validation step's own output, `build-parameters.before-all`) that needs manual
+cleanup too.
+
+**Lesson:** running `mbt build` locally against a module whose `path` is `.` or otherwise points
+into your actual working tree is destructive to that tree's own `node_modules` — always
+`npm install` (and `rm -rf gen mta_archives .automarket_mta_build_tmp`) immediately after, before
+trusting `npm test`/`npm run lint`/`npm run format` results, or before assuming the working
+directory is in the state you left it in. Safer for repeated local verification: build in a
+disposable copy/worktree, not the directory you're actively editing — not done here only because
+this was a one-off verification pass, not a workflow meant to be repeated casually.
