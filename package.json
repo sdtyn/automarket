@@ -97,6 +97,11 @@
         "db": {
           "kind": "postgres"
         }
+      },
+      "[trial]": {
+        "auth": {
+          "kind": "xsuaa"
+        }
       }
     },
     "fiori": {
