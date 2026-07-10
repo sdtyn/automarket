@@ -17,7 +17,7 @@ cds profile.
 | EPIC24-T1 | Complete the Approuter | Done |
 | EPIC24-T2 | Deployment descriptor (`mta.yaml`) | Done |
 | EPIC24-T3 | UI app deployment strategy | Done |
-| EPIC24-T4 | Real XSUAA provisioning | Open |
+| EPIC24-T4 | Real deployment (`cf deploy`) | Open |
 | EPIC24-T5 | CI/CD deploy step | Open |
 | EPIC24-T6 | `[trial]` cds profile | Done |
 
