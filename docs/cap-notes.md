@@ -839,6 +839,19 @@ by a *dev-only* dependency's native binding, even when the actual production dep
 100% pure JS — check `npm ls <pkg>` for what's transitively pulling in a `binding.gyp`-having
 package before assuming the runtime stage (which excludes devDependencies) is where to look first.
 
+**Follow-up (EPIC24-T4):** the "runtime stage is safe, `@cap-js/sqlite` is dev-only" half of this
+note stopped being true the moment EPIC24-T4 moved `@cap-js/sqlite` from `devDependencies` to real
+`dependencies` (the SAP BTP trial deployment's `[trial]` profile genuinely uses SQLite at runtime,
+not PostgreSQL) — CI's `docker-build-push` immediately failed with the exact same
+`npm ci did not complete successfully`, this time in the **runtime** stage's `npm ci --omit=dev`,
+which now installs `@cap-js/sqlite` too. Fixed by adding the identical `apt-get install python3 make
+g++` to the runtime stage as well. The general lesson holds even more sharply once stated this way:
+whether a stage needs the build toolchain depends on the *current* dependency-category classification
+of whatever pulls in the native binding, which can change for reasons entirely unrelated to Docker
+(here: a different deployment target's own profile needs) — re-check both stages whenever a
+dependency moves between `dependencies` and `devDependencies`, don't assume last time's analysis
+still holds.
+
 ## 23. `mbt build` With `path: .` Runs `npm ci --production` Directly in Your Working Directory — Not a Copy
 
 **Context (EPIC24-T2):** `mta.yaml`'s `automarket-srv` module has `path: .` (deliberately — see

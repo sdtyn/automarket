@@ -10,16 +10,13 @@
 # nodejs` does not relocate those JS files into gen/srv/, so gen/srv/ alone
 # cannot actually start (confirmed by trying it — see docs/cap-notes.md).
 # build-essential + python3 are required here even though nothing in this
-# project's own code needs compiling: @cap-js/sqlite's better-sqlite3 (a
-# devDependency, pulled in transitively) ships a native binding
-# (binding.gyp) and falls back to a real node-gyp compile whenever
-# prebuild-install can't find a prebuilt binary matching this exact
-# image's platform/Node ABI — which node:20-slim's stripped-down base
+# project's own code needs compiling: @cap-js/sqlite's better-sqlite3 ships
+# a native binding (binding.gyp) and falls back to a real node-gyp compile
+# whenever prebuild-install can't find a prebuilt binary matching this
+# exact image's platform/Node ABI — which node:20-slim's stripped-down base
 # doesn't support out of the box. Confirmed as the actual failure (not
-# guessed at): the first version of this Dockerfile, without these
-# packages, failed in CI with "npm ci did not complete successfully" —
-# this stage only, never the runtime stage, since --omit=dev there never
-# installs better-sqlite3 in the first place.
+# guessed at): the first version of this Dockerfile failed in CI with
+# "npm ci did not complete successfully" (cap-notes.md #22).
 FROM node:20-slim AS builder
 WORKDIR /app
 RUN apt-get update \
@@ -42,6 +39,20 @@ RUN npx cds build --for nodejs
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# @cap-js/sqlite (EPIC24-T4: moved from devDependencies to a real
+# dependency, since the SAP BTP trial deployment's [trial] profile uses
+# SQLite, not PostgreSQL) means better-sqlite3's native binding now needs
+# to compile in this stage too, not just the builder stage above — this
+# image's own [production] profile never actually uses sqlite at runtime
+# (it's the postgres+xsuaa profile), but `npm ci --omit=dev` still installs
+# every regular dependency regardless of which cds profile ends up active.
+# Confirmed as the real failure, not guessed at: CI's docker-build-push
+# failed with the exact same "npm ci did not complete successfully" this
+# stage was previously immune to (cap-notes.md #22) the moment
+# @cap-js/sqlite changed dependency categories.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/db ./db
