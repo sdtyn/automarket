@@ -1,5 +1,5 @@
 {
-  "welcomeFile": "/index.html",
+  "welcomeFile": "/customer-portal/webapp/index.html",
   "authenticationMethod": "route",
   "sessionTimeout": 30,
   "routes": [
@@ -7,14 +7,14 @@
       "source": "^/identity/(.*)$",
       "target": "/identity/$1",
       "destination": "cap-backend",
-      "authenticationType": "xsuaa",
+      "authenticationType": "none",
       "csrfProtection": true
     },
     {
       "source": "^/(.*)$",
       "target": "/$1",
       "destination": "cap-backend",
-      "authenticationType": "xsuaa",
+      "authenticationType": "none",
       "csrfProtection": true
     }
   ]

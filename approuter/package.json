@@ -1,0 +1,16 @@
+{
+  "name": "automarket-approuter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Single entry point for AutoMarket on SAP BTP — XSUAA-authenticated routing to the CAP backend and every UI app (EPIC24-T1)",
+  "engines": {
+    "node": "^20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@sap/approuter": "^22",
+    "express-rate-limit": "^8.5.2"
+  }
+}
